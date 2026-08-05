@@ -51,12 +51,12 @@ Chosen because this game is roughly half 3D scene and half dense 2D UI (the Deck
 
 ```bash
 pnpm install
-pnpm dev          # Vite dev server
-pnpm build        # typecheck, then production build
-pnpm test         # Vitest, watch mode
-pnpm test:run     # Vitest, single run (use this in automation)
+pnpm dev           # Vite dev server
+pnpm build         # typecheck, then production build
+pnpm test          # Vitest, watch mode
+pnpm test:run      # Vitest, single run (use this in automation)
 pnpm test:coverage # Vitest with coverage + thresholds (what CI runs)
-pnpm typecheck    # tsc --noEmit
+pnpm typecheck     # tsc --noEmit
 pnpm lint
 ```
 
@@ -64,29 +64,17 @@ pnpm lint
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every pull request and every push to `main`: `lint`, `typecheck`,
-`test:coverage`, `build`. Pushes to `main` also deploy to
-[GitHub Pages](https://braydend.github.io/cards-v-chess/), gated on those checks passing.
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`: `lint`, `typecheck`, `test:coverage`, `build`. Pushes to `main` also deploy to [GitHub Pages](https://braydend.github.io/cards-v-chess/), gated on those checks passing.
 
-Branch protection is currently **off**, so nothing blocks a direct push to `main` or the merge of a red
-pull request. What CI does guarantee is that such a commit never reaches the live site — `deploy`
-declares `needs: checks`. **The gate is on the deployment, not on the branch.**
+Branch protection is currently **off**, so nothing blocks a direct push to `main` or the merge of a red pull request. What CI does guarantee is that such a commit never reaches the live site — `deploy` declares `needs: checks`. **The gate is on the deployment, not on the branch.**
 
 CI enforces three things beyond "the tests pass":
 
 - The **renderer boundary** — `src/game/` and `src/data/` importing React or Three.js fails `pnpm lint`.
 - **Seeded determinism** — `Math.random` in those directories fails `pnpm lint`.
-- **Engine coverage** — thresholds on `src/game/` and `src/state/`. `src/scene/`, `src/ui/`, `src/data/`,
-  and `src/state/uiStore.ts` are excluded: the renderer needs a browser and is deliberately untested,
-  `data/` is constant tables, and `uiStore.ts` holds view-only UI state (selection, hover), not the
-  simulation bridge the rest of `src/state/` carries. A file added to `state/` is measured unless it,
-  like `uiStore.ts`, holds that kind of view state rather than bridging to the simulation.
+- **Engine coverage** — thresholds on `src/game/` and `src/state/`. `src/scene/`, `src/ui/`, `src/data/`, the entry points `src/App.tsx` and `src/main.tsx`, and `src/state/uiStore.ts` are excluded: the renderer needs a browser and is deliberately untested, `data/` is constant tables, and `uiStore.ts` holds view-only UI state (selection, hover), not the simulation bridge the rest of `src/state/` carries. A file added to `state/` is measured unless it, like `uiStore.ts`, holds that kind of view state rather than bridging to the simulation.
 
-Coverage sets `include` explicitly rather than relying on the default. The default counts only files the
-tests import, so a new untested file in `src/game/` would not move the number at all. The current
-thresholds — see `vite.config.ts` for the numbers, so this stays the one place they live — are a
-**regression ratchet, not a baseline**: they sit just under what the code already does. Defining a real
-baseline is an open follow-up; do not treat passing them as evidence of good coverage.
+Coverage sets `include` explicitly rather than relying on the default. The default counts only files the tests import, so a new untested file in `src/game/` would not move the number at all. The current thresholds — see `vite.config.ts` for the numbers, so this stays the one place they live — are a **regression ratchet, not a baseline**: they sit just under what the code already does. Defining a real baseline is an open follow-up; do not treat passing them as evidence of good coverage.
 
 ## Game design
 
