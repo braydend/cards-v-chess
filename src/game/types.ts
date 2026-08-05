@@ -64,16 +64,18 @@ export type TowerGeometry =
   | 'star'
 
 /**
- * Only ranks 2–5 are designed. Ranks 6–10 and the face cards, Ace, and Jokers
- * are deliberately absent from this union so that inventing them is a type
- * error rather than a silent guess. See the design doc's open questions.
+ * Ranks that build a Tower. 2–10 carry the geometry ladder.
+ *
+ * The face ranks (J, Q, K, A) act instead of building, so they are deliberately
+ * absent here — passing `'K'` where geometry is expected is a type error rather
+ * than a runtime surprise. See `CardRank` for every rank a Card can carry.
  */
-export type CardRank = 2 | 3 | 4 | 5
+export type BuildableRank = 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
 
 export interface Tower {
   readonly id: string
   readonly square: Square
-  readonly cardRank: CardRank
+  readonly cardRank: BuildableRank
   /** Milliseconds accumulated toward this Tower's next shot. */
   readonly fireCooldownMs: number
   readonly health: number
@@ -123,4 +125,4 @@ export interface GameState {
 export type Command =
   | { readonly kind: 'startRound' }
   | { readonly kind: 'setAutoStart'; readonly enabled: boolean }
-  | { readonly kind: 'placeTower'; readonly square: Square; readonly cardRank: CardRank }
+  | { readonly kind: 'placeTower'; readonly square: Square; readonly cardRank: BuildableRank }

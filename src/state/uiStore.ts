@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { CardRank, Square } from '../game'
+import type { BuildableRank, Square } from '../game'
 
 /**
  * View-only state: what the player has selected and is pointing at.
@@ -12,8 +12,8 @@ interface UiStore {
    * The rank that clicking the board will build. A stand-in for choosing a Card
    * from the Deck, which does not exist yet.
    */
-  selectedRank: CardRank
-  setSelectedRank: (rank: CardRank) => void
+  selectedRank: BuildableRank
+  setSelectedRank: (rank: BuildableRank) => void
 
   /** The square under the pointer, for previewing coverage. */
   hoveredSquare: Square | null

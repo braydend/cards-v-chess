@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BLOCKED_ATTACK_MULTIPLIER, PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { createInitialState, step, tick } from './index'
-import type { CardRank, GameState, Square } from './types'
+import type { BuildableRank, GameState, Square } from './types'
 
 const DT = 1000 / 60
 const PAWN = PIECE_TYPES.pawn
@@ -22,7 +22,7 @@ function runFor(state: GameState, durationMs: number): GameState {
  * The Piece sits one square up-file from the Tower, and the Core is straight
  * down the same file, so its next step lands on the Tower.
  */
-function blockedApproach(cardRank: CardRank, towerSquare: Square): GameState {
+function blockedApproach(cardRank: BuildableRank, towerSquare: Square): GameState {
   const placed = step(createInitialState(), {
     kind: 'placeTower',
     square: towerSquare,

@@ -13,7 +13,7 @@ export { step } from './step'
 export { tick } from './tick'
 export type {
   BoardSpec,
-  CardRank,
+  BuildableRank,
   Command,
   GameState,
   Piece,

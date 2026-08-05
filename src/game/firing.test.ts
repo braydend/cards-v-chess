@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { createInitialState, step, tick } from './index'
-import type { CardRank, GameState, Square } from './types'
+import type { BuildableRank, GameState, Square } from './types'
 
 const DT = 1000 / 60
 const PAWN_HEALTH = PIECE_TYPES.pawn.maxHealth
@@ -37,7 +37,7 @@ function wasHit(before: GameState, after: GameState, pieceId: string): boolean {
  * spawn — so the round resolves purely on what the Tower does.
  */
 function scenario(
-  cardRank: CardRank,
+  cardRank: BuildableRank,
   towerSquare: Square,
   pieceSquares: readonly Square[],
 ): GameState {

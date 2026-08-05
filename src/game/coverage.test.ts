@@ -194,3 +194,14 @@ describe('coversSquare: star', () => {
     expect(coversSquare('star', 2, ORIGIN, { file: 7, rank: 4 })).toBe(false)
   })
 })
+
+describe('coversSquare: adjacent as a disc', () => {
+  it('covers the whole square block at range 3, not just the eight neighbours', () => {
+    expect(coversSquare('adjacent', 3, ORIGIN, { file: 7, rank: 7 })).toBe(true)
+    expect(coversSquare('adjacent', 3, ORIGIN, { file: 5, rank: 7 })).toBe(true)
+  })
+
+  it('still excludes anything past its range', () => {
+    expect(coversSquare('adjacent', 3, ORIGIN, { file: 0, rank: 4 })).toBe(false)
+  })
+})
