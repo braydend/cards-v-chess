@@ -256,3 +256,58 @@ describe('bishop movement', () => {
     })
   })
 })
+
+describe('knight movement', () => {
+  it('hops two ranks forward and one file sideways', () => {
+    expect(move('knight', { file: 4, rank: 6 })).toEqual({
+      kind: 'move',
+      to: { file: 5, rank: 4 },
+    })
+  })
+
+  it('zig-zags: the next hop weaves back the other way', () => {
+    expect(move('knight', { file: 5, rank: 4 }, NO_TOWERS, { moveCount: 1 })).toEqual({
+      kind: 'move',
+      to: { file: 4, rank: 2 },
+    })
+  })
+
+  it('starts on the opposite side when its handedness is reversed', () => {
+    expect(move('knight', { file: 4, rank: 6 }, NO_TOWERS, { handedness: -1 })).toEqual({
+      kind: 'move',
+      to: { file: 3, rank: 4 },
+    })
+  })
+
+  it('mirrors the hop rather than leaving the board at a file edge', () => {
+    expect(move('knight', { file: 7, rank: 6 })).toEqual({
+      kind: 'move',
+      to: { file: 6, rank: 4 },
+    })
+  })
+
+  it('falls back to a one-forward hop when two ranks would leave the board', () => {
+    expect(move('knight', { file: 4, rank: 1 })).toEqual({
+      kind: 'move',
+      to: { file: 6, rank: 0 },
+    })
+  })
+
+  it('captures the Core with a one-forward hop', () => {
+    // (1,1) -> (3,0) is a legal knight move, and the Core is on (3,0).
+    expect(move('knight', { file: 1, rank: 1 })).toEqual({ kind: 'reachCore' })
+  })
+
+  it('attacks a Tower on its landing square rather than picking another hop', () => {
+    const towers = towersAt({ file: 5, rank: 4 })
+
+    expect(move('knight', { file: 4, rank: 6 }, towers)).toEqual({
+      kind: 'attackTower',
+      towerId: 'tower-0',
+    })
+  })
+
+  it('strands on the back rank, because every hop from there goes backwards', () => {
+    expect(move('knight', { file: 5, rank: 0 })).toEqual({ kind: 'stuck' })
+  })
+})

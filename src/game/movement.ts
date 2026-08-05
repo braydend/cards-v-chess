@@ -148,6 +148,51 @@ function travel(
 }
 
 /**
+ * The Knight is a hopper, not a slider, so it ignores slide bonuses and never
+ * uses `travel`.
+ *
+ * Candidates are tried in order: the zig-zag hop, its mirror (for file edges),
+ * then the two one-forward hops so a Knight on rank 1 can still reach rank 0
+ * and capture the Core from (1,1) or (5,1).
+ *
+ * A Tower on the chosen landing square is attacked rather than hopped over or
+ * routed around — the no-pathfinding invariant applies to the Knight too.
+ *
+ * From rank 0 every candidate goes backwards, so the Knight strands. That is
+ * deliberate: a Knight that could bounce back up the board would keep
+ * `stillActive` true forever and the round would never end.
+ */
+function knightMove(
+  from: Square,
+  moveCount: number,
+  handedness: Handedness,
+  board: BoardSpec,
+  coreSquare: Square,
+  towerBySquare: ReadonlyMap<string, Tower>,
+): MoveOutcome {
+  const zig = moveCount % 2 === 0 ? handedness : -handedness
+
+  const candidates: Square[] = [
+    { file: from.file + zig, rank: from.rank - 2 },
+    { file: from.file - zig, rank: from.rank - 2 },
+    { file: from.file + handedness * 2, rank: from.rank - 1 },
+    { file: from.file - handedness * 2, rank: from.rank - 1 },
+  ]
+
+  for (const to of candidates) {
+    if (!isInBounds(board, to)) continue
+    if (squaresEqual(to, coreSquare)) return { kind: 'reachCore' }
+
+    const blocker = towerBySquare.get(squareKey(to))
+    if (blocker) return { kind: 'attackTower', towerId: blocker.id }
+
+    return { kind: 'move', to }
+  }
+
+  return { kind: 'stuck' }
+}
+
+/**
  * Resolves one move for a Piece using **chess movement**, not a walk toward the
  * Core.
  *
@@ -185,9 +230,17 @@ export function nextMove(
         coreSquare,
         towerBySquare,
       )
+    case 'knight':
+      return knightMove(
+        request.from,
+        request.moveCount,
+        request.handedness,
+        board,
+        coreSquare,
+        towerBySquare,
+      )
     // Resolvers arrive in later tasks. Returning `stuck` is safe because
     // rounds.ts cannot spawn these types yet.
-    case 'knight':
     case 'queen':
     case 'king':
       return { kind: 'stuck' }
