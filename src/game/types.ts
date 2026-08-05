@@ -72,6 +72,33 @@ export type TowerGeometry =
  */
 export type BuildableRank = 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
 
+export type Suit = 'hearts' | 'diamonds' | 'spades' | 'clubs'
+
+/** Ranks that act instead of building. See the card mechanics spec. */
+export type FaceRank = 'J' | 'Q' | 'K' | 'A'
+
+export type CardRank = BuildableRank | FaceRank
+
+/**
+ * One unplayed item in the Deck.
+ *
+ * A Joker is a separate variant because it has neither rank nor suit, so
+ * "play a Joker for its suit" is not expressible. That is the point.
+ *
+ * `id` is independent of rank and suit. The Deck is a MULTISET — cards are
+ * gained from random packs, so holding three 5♦ is normal, and playing one must
+ * consume that instance and leave the others. Identifying a card by rank+suit
+ * would be a bug the moment a duplicate exists.
+ */
+export type Card =
+  | {
+      readonly id: string
+      readonly kind: 'standard'
+      readonly rank: CardRank
+      readonly suit: Suit
+    }
+  | { readonly id: string; readonly kind: 'joker' }
+
 export interface Tower {
   readonly id: string
   readonly square: Square
@@ -106,6 +133,12 @@ export interface GameState {
   readonly core: {
     readonly square: Square
     readonly health: number
+    /**
+     * Raised by a King, the only card that touches the Core and the only Core
+     * recovery in the game. Split from `health` so the HUD can show a ceiling
+     * that grows.
+     */
+    readonly maxHealth: number
   }
   readonly phase: RoundPhase
   readonly roundNumber: number
@@ -120,6 +153,12 @@ export interface GameState {
   readonly pendingSpawns: readonly Spawn[]
   /** Monotonic counter so entity ids are deterministic, never random. */
   readonly nextEntityId: number
+  /**
+   * Every Card held for this run, always fully visible and playable. Capped at
+   * `DECK_CAP`. There is no hand and no draw pile — playing consumes a card and
+   * nothing returns.
+   */
+  readonly deck: readonly Card[]
 }
 
 export type Command =

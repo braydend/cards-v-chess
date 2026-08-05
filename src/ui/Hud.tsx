@@ -1,4 +1,3 @@
-import { CORE_MAX_HEALTH } from '../data/board'
 import { BUILDABLE_RANKS, towerRank } from '../data/towerRanks'
 import { reset } from '../state/simulation'
 import { dispatch, useGameStore } from '../state/store'
@@ -40,7 +39,7 @@ export function Hud() {
             <dt>Core</dt>
             <dd>
               {core.health}
-              <span className="hud__muted"> / {CORE_MAX_HEALTH}</span>
+              <span className="hud__muted"> / {core.maxHealth}</span>
             </dd>
           </div>
           <div>

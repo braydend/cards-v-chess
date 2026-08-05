@@ -26,9 +26,16 @@ export function structuralKey(state: GameState): string {
     state.phase,
     state.roundNumber,
     state.core.health,
+    state.core.maxHealth,
     state.leaks,
     state.autoStart,
     state.pendingSpawns.length,
+    // The board grows when an Ace is played, and the renderer draws from it.
+    state.board.ranks,
+    state.board.files,
+    // Every card play removes exactly one card, so length alone is a faithful
+    // trigger — and far cheaper than joining 30 ids on every publish.
+    state.deck.length,
     pieces,
     towers,
   ].join('#')
