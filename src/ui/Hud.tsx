@@ -3,14 +3,7 @@ import { BUILDABLE_RANKS, towerRank } from '../data/towerRanks'
 import { reset } from '../state/simulation'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
-
-const GEOMETRY_LABELS: Record<string, string> = {
-  adjacent: 'Hits the eight squares around it',
-  horizontal: 'Fires along its rank',
-  vertical: 'Fires along its file',
-  cross: 'Fires along rank and file',
-  diagonal: 'Fires along diagonals — one colour only',
-}
+import { GEOMETRY_LABELS } from './geometryLabels'
 
 /**
  * Minimal HUD: enough to drive the round loop and read the game's state.
