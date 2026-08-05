@@ -212,3 +212,47 @@ describe('rook movement', () => {
     })
   })
 })
+
+describe('bishop movement', () => {
+  it('advances one square on its forward diagonal', () => {
+    expect(move('bishop', { file: 5, rank: 6 })).toEqual({
+      kind: 'move',
+      to: { file: 6, rank: 5 },
+      handedness: 1,
+    })
+  })
+
+  it('takes the other diagonal when its handedness points the other way', () => {
+    expect(move('bishop', { file: 5, rank: 6 }, NO_TOWERS, { handedness: -1 })).toEqual({
+      kind: 'move',
+      to: { file: 4, rank: 5 },
+      handedness: -1,
+    })
+  })
+
+  it('reflects off the file edge and flips handedness', () => {
+    expect(move('bishop', { file: 7, rank: 6 })).toEqual({
+      kind: 'move',
+      to: { file: 6, rank: 5 },
+      handedness: -1,
+    })
+  })
+
+  it('stays on its own square colour, as a chess bishop does', () => {
+    // (7,6) is a light square: file + rank is odd. Reflecting must preserve that.
+    const outcome = move('bishop', { file: 7, rank: 6 })
+
+    expect(outcome.kind).toBe('move')
+    if (outcome.kind === 'move') {
+      expect((outcome.to.file + outcome.to.rank) % 2).toBe((7 + 6) % 2)
+    }
+  })
+
+  it('sweeps sideways once it reaches the back rank', () => {
+    expect(move('bishop', { file: 5, rank: 0 }, NO_TOWERS, { handedness: -1 })).toEqual({
+      kind: 'move',
+      to: { file: 4, rank: 0 },
+      handedness: -1,
+    })
+  })
+})

@@ -69,6 +69,27 @@ const rookStep: Stepper = (from, handedness, board) => {
 }
 
 /**
+ * Forward along a diagonal, reflecting off the side edges.
+ *
+ * Reflection preserves square colour — bouncing off a vertical edge changes
+ * file and rank by one each, which keeps `(file + rank) % 2` constant. That is
+ * the same property a chess bishop has, arrived at for the same reason.
+ */
+const bishopStep: Stepper = (from, handedness, board) => {
+  const forwardRank = from.rank + FORWARD
+  if (forwardRank < 0) return lateralStep(from, handedness, board)
+
+  const diagonal: Square = { file: from.file + handedness, rank: forwardRank }
+  if (isInBounds(board, diagonal)) return { to: diagonal, handedness }
+
+  const reflected: Handedness = handedness === 1 ? -1 : 1
+  const mirrored: Square = { file: from.file + reflected, rank: forwardRank }
+  if (isInBounds(board, mirrored)) return { to: mirrored, handedness: reflected }
+
+  return undefined
+}
+
+/**
  * Walks a Piece along its committed line, **one square at a time**.
  *
  * Stepping rather than jumping is what keeps Towers blocking: a slide can never
@@ -154,10 +175,19 @@ export function nextMove(
         coreSquare,
         towerBySquare,
       )
+    case 'bishop':
+      return travel(
+        request.from,
+        request.handedness,
+        1 + request.slideBonus,
+        bishopStep,
+        board,
+        coreSquare,
+        towerBySquare,
+      )
     // Resolvers arrive in later tasks. Returning `stuck` is safe because
     // rounds.ts cannot spawn these types yet.
     case 'knight':
-    case 'bishop':
     case 'queen':
     case 'king':
       return { kind: 'stuck' }
