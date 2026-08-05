@@ -198,14 +198,22 @@ describe('tick: round completion', () => {
   })
 
   it('completes once nothing can act, not once the board is empty', () => {
-    // Chess pawns are confined to their file, so those off the Core's file reach
-    // the back rank and strand. They are left standing on purpose — deleting
-    // them would hide the gap that Pawn promotion is meant to fill.
-    const state = runFor(startedRound(), 60_000)
+    // Pawn promotion (Task 10) means a Pawn never actually reaches this state
+    // any more — it turns into a Queen instead, which keeps sweeping and
+    // eventually leaks. The Knight is the one Piece type still genuinely
+    // stranded on the back rank, so it is placed directly rather than spawned:
+    // `src/data/rounds.ts` schedules Pawns exclusively, and a Pawn-only round
+    // no longer leaves anything standing to demonstrate this.
+    const stranded: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      pieces: [pieceAt('knight', 'knight', { file: 5, rank: 0 })],
+    }
+    const state = runFor(stranded, 60_000)
 
     expect(state.phase).toBe('gap')
-    expect(state.pieces.length).toBeGreaterThan(0)
-    expect(state.pieces.every((piece) => piece.square.rank === 0)).toBe(true)
+    expect(state.pieces).toHaveLength(1)
+    expect(state.pieces[0]?.square).toEqual({ file: 5, rank: 0 })
   })
 
   it('scales the next round up', () => {

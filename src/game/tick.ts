@@ -44,12 +44,38 @@ export function tick(state: GameState, dtMs: number): GameState {
 
   const moved = movePieces(allPieces, state.board, state.core.square, towerBySquare, dtMs, buffed)
 
+  // Minted after movePieces has decided which Pawns reached the back rank, and
+  // numbered starting after drainDueSpawns's own ids, so a Pawn and a spawn in
+  // the same tick can never collide over the same id.
+  const promotedQueens: Piece[] = moved.promoted.map((square, index) => ({
+    id: `piece-${nextEntityId + index}`,
+    typeId: 'queen',
+    square,
+    prevSquare: square,
+    health: pieceType('queen').maxHealth,
+    moveCooldownMs: 0,
+    moveCount: 0,
+    // Entity-id parity, same rule as drainDueSpawns, so promoted Queens weave
+    // opposite ways from one another too.
+    handedness: (nextEntityId + index) % 2 === 0 ? 1 : -1,
+    auraCooldownMs: 0,
+    buffed: false,
+  }))
+  const entityIdAfterPromotion = nextEntityId + moved.promoted.length
+
   // Damage from blocked Pieces lands before Towers shoot, so a Tower destroyed
   // this tick does not get a parting shot.
   const standingTowers = applyTowerDamage(state.towers, moved.towerDamage)
 
-  // Fire after movement, so Towers shoot at where Pieces actually are now.
-  const fired = fireTowers(standingTowers, moved.pieces, state.core.square, dtMs)
+  // Fire after movement, so Towers shoot at where Pieces actually are now. The
+  // freshly promoted Queens are included so a Tower can hit one the instant it
+  // appears, rather than getting a free tick of immunity the Pawn never had.
+  const fired = fireTowers(
+    standingTowers,
+    [...moved.pieces, ...promotedQueens],
+    state.core.square,
+    dtMs,
+  )
 
   // After firing, so a Bishop can top up survivors but never resurrect the dead.
   const healed = applyHealing(fired.pieces, dtMs)
@@ -68,18 +94,20 @@ export function tick(state: GameState, dtMs: number): GameState {
       pieces: healed,
       towers: fired.towers,
       pendingSpawns,
-      nextEntityId,
+      nextEntityId: entityIdAfterPromotion,
     }
   }
 
   // A round ends when nothing on the board can still act — not when the board is
-  // empty. Chess movement leaves Pieces genuinely stranded: a pawn that reaches
-  // the back rank off the Core's file has no legal move for the rest of the run.
-  // Waiting for an empty board would hang the round forever.
+  // empty. Chess movement leaves some Pieces genuinely stranded: a Knight on the
+  // back rank has no legal move for the rest of the run, since every hop from
+  // there goes backwards. Waiting for an empty board would hang the round
+  // forever. A Pawn never reaches this state — it promotes into a Queen
+  // instead, which keeps `stillActive` true until that Queen also runs out of
+  // legal moves or leaks.
   //
   // Stranded Pieces are deliberately left standing rather than quietly deleted,
-  // so the gap is visible. The designed answer is Pawn promotion, which is not
-  // implemented. See the design doc's open questions.
+  // so the gap is visible.
   //
   // LOAD-BEARING INVARIANT: a Piece blocked by a Tower returns `attackTower`,
   // not `stuck`, so it counts as active and this round cannot end while it
@@ -110,7 +138,7 @@ export function tick(state: GameState, dtMs: number): GameState {
       pieces: healed,
       towers: fired.towers,
       pendingSpawns: [],
-      nextEntityId,
+      nextEntityId: entityIdAfterPromotion,
     }
   }
 
@@ -122,7 +150,7 @@ export function tick(state: GameState, dtMs: number): GameState {
     pieces: healed,
     towers: fired.towers,
     pendingSpawns,
-    nextEntityId,
+    nextEntityId: entityIdAfterPromotion,
   }
 }
 
@@ -271,9 +299,10 @@ function movePieces(
   towerBySquare: ReadonlyMap<string, Tower>,
   dtMs: number,
   buffed: ReadonlySet<string>,
-): { pieces: Piece[]; leaked: number; towerDamage: Map<string, number> } {
+): { pieces: Piece[]; leaked: number; towerDamage: Map<string, number>; promoted: Square[] } {
   const survivors: Piece[] = []
   const towerDamage = new Map<string, number>()
+  const promoted: Square[] = []
   let leaked = 0
 
   for (const piece of pieces) {
@@ -288,6 +317,7 @@ function movePieces(
     let moveCount = piece.moveCount
     let handedness = piece.handedness
     let reachedCore = false
+    let isPromoted = false
 
     // A loop rather than a single hop so that a slow frame or a fast piece can
     // resolve more than one move in a step without silently dropping movement.
@@ -319,6 +349,12 @@ function movePieces(
         continue
       }
 
+      if (outcome.kind === 'promote') {
+        promoted.push(square)
+        isPromoted = true
+        break
+      }
+
       if (outcome.kind === 'stuck') {
         // No legal move now and none later. Drop the cooldown so the Piece is
         // not burning simulation work every tick for the rest of the run.
@@ -340,6 +376,7 @@ function movePieces(
       leaked += 1
       continue
     }
+    if (isPromoted) continue
 
     survivors.push({
       ...piece,
@@ -352,7 +389,7 @@ function movePieces(
     })
   }
 
-  return { pieces: survivors, leaked, towerDamage }
+  return { pieces: survivors, leaked, towerDamage, promoted }
 }
 
 /**

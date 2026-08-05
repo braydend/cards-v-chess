@@ -108,17 +108,12 @@ describe('pawn movement', () => {
     })
   })
 
-  it('is stuck on the back rank when the Core is not within reach', () => {
-    // File 0, rank 0 — nowhere forward to go, and the Core is on file 3.
-    expect(move('pawn', { file: 0, rank: 0 })).toEqual({
-      kind: 'stuck',
-    })
+  it('promotes on the back rank rather than stranding', () => {
+    expect(move('pawn', { file: 0, rank: 0 })).toEqual({ kind: 'promote' })
   })
 
-  it('is stuck rather than sliding along the back rank toward the Core', () => {
-    const outcome = move('pawn', { file: 2, rank: 0 })
-
-    expect(outcome.kind).toBe('stuck')
+  it('promotes rather than sliding along the back rank toward the Core', () => {
+    expect(move('pawn', { file: 2, rank: 0 })).toEqual({ kind: 'promote' })
   })
 })
 

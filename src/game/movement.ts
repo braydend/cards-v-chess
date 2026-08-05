@@ -4,15 +4,17 @@ import type { BoardSpec, Handedness, Piece, PieceTypeId, Square, Tower } from '.
 /**
  * What a Piece does when its move interval elapses.
  *
- * `stuck` means the Piece has no legal move. That is a real chess outcome — a
- * pawn that reaches the far rank has nowhere left to go — and it is why round
- * completion cannot simply wait for the board to empty.
+ * `stuck` means the Piece has no legal move. That is a real chess outcome —
+ * and it is why round completion cannot simply wait for the board to empty.
+ * `promote` means a Pawn has reached the back rank: chess promotes it there,
+ * rather than stranding it the way `stuck` would.
  */
 export type MoveOutcome =
   | { readonly kind: 'move'; readonly to: Square; readonly handedness?: Handedness }
   | { readonly kind: 'attackTower'; readonly towerId: string }
   | { readonly kind: 'reachCore' }
   | { readonly kind: 'stuck' }
+  | { readonly kind: 'promote' }
 
 /** Everything about a Piece that its movement rule depends on. */
 export interface MoveRequest {
@@ -292,7 +294,11 @@ function pawnMove(
   const ahead: Square = { file: from.file, rank: forwardRank }
 
   if (squaresEqual(ahead, coreSquare)) return { kind: 'reachCore' }
-  if (!isInBounds(board, ahead)) return { kind: 'stuck' }
+
+  // Off the board forward can only mean rank 0 — the back rank. In chess a pawn
+  // promotes there, and here it is exactly where Pawns would otherwise pile up
+  // for the rest of the run.
+  if (!isInBounds(board, ahead)) return { kind: 'promote' }
 
   // A Tower in the way stops the pawn, which attacks it instead of advancing.
   const blocker = towerBySquare.get(squareKey(ahead))
