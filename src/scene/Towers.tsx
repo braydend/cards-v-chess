@@ -118,8 +118,9 @@ export function Towers({ board }: { board: BoardSpec }) {
     }
 
     for (const ghost of ghosts) {
-      // See the ghost `<Instance>` ref below for why this key is namespaced.
-      const mesh = meshes.current.get(`ghost:${ghost.id}`)
+      // meshKey is precomputed on the Ghost record (see towerDiff.ts) so this
+      // lookup never allocates a string in the frame loop.
+      const mesh = meshes.current.get(ghost.meshKey)
       if (!mesh) continue
 
       let startedAt = ghostStartedAt.current.get(ghost.id)
@@ -172,17 +173,18 @@ export function Towers({ board }: { board: BoardSpec }) {
 
             {dying.map((ghost) => (
               <Instance
-                // Namespaced so this can never collide with a live Tower's key.
-                // Tower ids restart at 1 after reset(), and a ghost outlives its
-                // Tower by up to DEATH_FLARE_MS, so a fresh `tower-1` and a
-                // dying `tower-1` can coexist for a moment — sharing one key
-                // would apply the ghost's shrinking scale to the live Tower and
-                // evict it from `meshes`.
-                key={`ghost:${ghost.id}`}
+                // ghost.meshKey (namespaced in towerDiff.ts) so this can never
+                // collide with a live Tower's key. Tower ids restart at 1 after
+                // reset(), and a ghost outlives its Tower by up to
+                // DEATH_FLARE_MS, so a fresh `tower-1` and a dying `tower-1`
+                // can coexist for a moment — sharing one key would apply the
+                // ghost's shrinking scale to the live Tower and evict it from
+                // `meshes`.
+                key={ghost.meshKey}
                 ref={(mesh: PositionMesh | null) => {
-                  if (mesh) meshes.current.set(`ghost:${ghost.id}`, mesh)
+                  if (mesh) meshes.current.set(ghost.meshKey, mesh)
                   else {
-                    meshes.current.delete(`ghost:${ghost.id}`)
+                    meshes.current.delete(ghost.meshKey)
                     ghostStartedAt.current.delete(ghost.id)
                   }
                 }}

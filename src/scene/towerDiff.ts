@@ -3,6 +3,14 @@ import type { CardRank, GameState } from '../game'
 /** A Tower that has fallen, held briefly so its destruction is visible. */
 export interface Ghost {
   readonly id: string
+  /**
+   * The ghost's key in the renderer's mesh map, precomputed so the frame loop
+   * never builds it. Namespaced away from live Tower ids because `reset()`
+   * rewinds the entity counter to 1: a ghost outlives its Tower by
+   * DEATH_FLARE_MS, so an unprefixed key could collide with a freshly built
+   * Tower that reuses the id.
+   */
+  readonly meshKey: string
   readonly cardRank: CardRank
   readonly file: number
   readonly boardRank: number
@@ -74,6 +82,7 @@ export function diffTowers(
     if (snapshot.phase === 'inProgress') {
       fallen.push({
         id,
+        meshKey: `ghost:${id}`,
         cardRank: animation.cardRank,
         file: animation.file,
         boardRank: animation.boardRank,

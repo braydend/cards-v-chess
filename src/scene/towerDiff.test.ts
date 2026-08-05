@@ -62,8 +62,21 @@ describe('diffTowers', () => {
 
     const ghosts = diffTowers(animations, snapshotWith({ phase: 'inProgress', towers: [] }))
 
-    expect(ghosts).toEqual([{ id: 'tower-1', cardRank: 4, file: 5, boardRank: 6 }])
+    expect(ghosts).toEqual([
+      { id: 'tower-1', meshKey: 'ghost:tower-1', cardRank: 4, file: 5, boardRank: 6 },
+    ])
     expect(animations.has('tower-1')).toBe(false)
+  })
+
+  it('mints a meshKey distinct from the Tower id, so a ghost can never collide with a live Tower in the renderer\'s mesh map', () => {
+    const animations = new Map<string, TowerAnimation>()
+    const fallen = tower({ id: 'tower-1' })
+    diffTowers(animations, snapshotWith({ phase: 'inProgress', towers: [fallen] }))
+
+    const ghosts = diffTowers(animations, snapshotWith({ phase: 'inProgress', towers: [] }))
+
+    expect(ghosts[0]?.meshKey).toBe('ghost:tower-1')
+    expect(ghosts[0]?.meshKey).not.toBe(fallen.id)
   })
 
   it('yields no ghost when a Tower vanishes during the gap phase, but still deletes its record', () => {

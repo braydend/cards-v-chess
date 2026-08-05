@@ -19,7 +19,7 @@ What exists:
 
 - The rules engine (`src/game/`) with `step` / `tick`, driven by a fixed-timestep accumulator.
 - The renderer (`src/scene/`) and a minimal HUD (`src/ui/`).
-- 126 tests across 11 files, all passing, none of which need a browser.
+- 127 tests across 11 files, all passing, none of which need a browser.
 
 **The design has moved well ahead of the code.** The card grammar, economy, and chess roster are all agreed, but none of it is implemented. Do not read the current code as evidence of the intended design — read `docs/design/game-design.md`.
 
