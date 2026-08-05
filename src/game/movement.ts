@@ -246,11 +246,24 @@ export function nextMove(
         coreSquare,
         towerBySquare,
       )
-    // Resolvers arrive in later tasks. Returning `stuck` is safe because
-    // rounds.ts cannot spawn these types yet.
+    // The Queen alternates the Rook's line and the Bishop's line hop by hop —
+    // the "flexible" in her roster entry. The line is picked once per hop and
+    // held for the whole slide, so she travels along one line rather than
+    // wandering mid-slide.
     case 'queen':
+      return travel(
+        request.from,
+        request.handedness,
+        1 + request.slideBonus,
+        request.moveCount % 2 === 0 ? rookStep : bishopStep,
+        board,
+        coreSquare,
+        towerBySquare,
+      )
+    // One square, always. Not a slider, so no aura bonus applies — the King
+    // grants slide distance, it does not receive it.
     case 'king':
-      return { kind: 'stuck' }
+      return travel(request.from, request.handedness, 1, rookStep, board, coreSquare, towerBySquare)
   }
 }
 

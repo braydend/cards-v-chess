@@ -327,3 +327,74 @@ describe('knight movement', () => {
     })
   })
 })
+
+describe('queen movement', () => {
+  it('goes straight forward on an even hop', () => {
+    expect(move('queen', { file: 5, rank: 6 })).toEqual({
+      kind: 'move',
+      to: { file: 5, rank: 5 },
+      handedness: 1,
+    })
+  })
+
+  it('goes diagonally forward on an odd hop', () => {
+    expect(move('queen', { file: 5, rank: 6 }, NO_TOWERS, { moveCount: 1 })).toEqual({
+      kind: 'move',
+      to: { file: 6, rank: 5 },
+      handedness: 1,
+    })
+  })
+
+  it('holds one line for the whole of a bonus slide', () => {
+    expect(move('queen', { file: 5, rank: 6 }, NO_TOWERS, { moveCount: 1, slideBonus: 1 })).toEqual({
+      kind: 'move',
+      to: { file: 7, rank: 4 },
+      handedness: 1,
+    })
+  })
+
+  it('stops at the file edge rather than bending mid-slide', () => {
+    // (6,6) diagonally forward reaches (7,5); the next diagonal step would
+    // reflect off the file edge and turn the hop into a V. The slide stops
+    // instead, and the reflection happens on the Queen's next hop.
+    expect(move('queen', { file: 6, rank: 6 }, NO_TOWERS, { moveCount: 1, slideBonus: 1 })).toEqual({
+      kind: 'move',
+      to: { file: 7, rank: 5 },
+      handedness: 1,
+    })
+  })
+
+  it('sweeps the back rank once it reaches it', () => {
+    expect(move('queen', { file: 5, rank: 0 }, NO_TOWERS, { handedness: -1 })).toEqual({
+      kind: 'move',
+      to: { file: 4, rank: 0 },
+      handedness: -1,
+    })
+  })
+})
+
+describe('king movement', () => {
+  it('advances exactly one square forward', () => {
+    expect(move('king', { file: 5, rank: 6 })).toEqual({
+      kind: 'move',
+      to: { file: 5, rank: 5 },
+      handedness: 1,
+    })
+  })
+
+  it('ignores a slide bonus, because it is not a slider', () => {
+    expect(move('king', { file: 5, rank: 6 }, NO_TOWERS, { slideBonus: 2 })).toEqual({
+      kind: 'move',
+      to: { file: 5, rank: 5 },
+      handedness: 1,
+    })
+  })
+
+  it('sweeps the back rank rather than stranding', () => {
+    expect(move('king', { file: 5, rank: 0 }, NO_TOWERS, { handedness: -1 })).toEqual({
+      kind: 'move',
+      to: { file: 4, rank: 0 },
+      handedness: -1,
+    })
+  })
+})
