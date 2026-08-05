@@ -280,7 +280,9 @@ function movePieces(
     while (cooldown >= moveIntervalMs) {
       cooldown -= moveIntervalMs
 
-      // Task 2 wires these to the Piece
+      // moveCount and handedness: Task 2 wires these to the Piece.
+      // slideBonus: not a Piece field — Task 8 computes this from the King
+      // aura covering this square. 0 here is a placeholder, not yet correct.
       const outcome = nextMove(
         { typeId: piece.typeId, from: square, moveCount: 0, handedness: 1, slideBonus: 0 },
         board,
