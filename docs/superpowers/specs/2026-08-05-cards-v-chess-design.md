@@ -7,7 +7,7 @@
 >
 > Still authoritative here: the tech stack and the reasoning behind it, the time model, the architecture and the `game/` boundary, and the testing approach.
 >
-> Overtaken there: the "Open design decisions" table below. Persistence and a collection metagame are now **in**; the economy is decided and named (**Ink**); the card pool has an agreed grammar; the piece roster is assigned; and **Towers are destructible**.
+> Overtaken there: the "Open design decisions" table below. The game is **run-based and seeded**, with a deck built up during a run rather than a persistent collection; the currency is named (**Ink**) and buys **packs** rather than gating card play; the card pool has an agreed grammar; the piece roster is assigned; and **Towers are destructible**.
 
 This document records the decisions made and, more importantly, why. Conventions derived from these decisions live in `CLAUDE.md`.
 

@@ -81,21 +81,57 @@ Every card is **modal** — playing it means choosing one of two uses:
 | ♥ Hearts | Repair — restore lost health |
 | ♦ Diamonds | Speed — increase fire rate |
 | ♠ Spades | Health — increase maximum health |
-| ♣ Clubs | Damage — increase damage *(proposed, unconfirmed)* |
+| ♣ Clubs | Damage — increase damage |
 
 Because every card can always build, the player can never be stuck holding only support cards. Preserve that property.
 
-Rank sets a Tower's firing geometry and power. **Towers are generic, never chess-themed** — giving Towers chess firing patterns was explicitly rejected.
+Support magnitude scales with rank, as Tower power does: a 9♥ is a large repair, a 2♥ a small one.
 
-### Ink
+### Rank ladder
 
-**Ink** is the resource gating card play. Earned from **round income** (lump sum at round start) and **kill rewards** (scaled by Piece type). Unspent Ink carries between rounds.
+Rank sets a Tower's firing geometry. **Towers are generic, never chess-themed** — giving Towers chess firing patterns was explicitly rejected.
 
-**Ink must never accrue over time.** The gap between rounds is untimed, so any time-based income is unbounded — the player just waits. Income is event-driven only. This is structural, not a balance knob.
+| Rank | Fires |
+| --- | --- |
+| 2 | Horizontal (along its board rank) |
+| 3 | Vertical (along its file) |
+| 4 | Cross — horizontal and vertical |
+| 5 | Diagonal — the X |
+| 6–10 | **Undesigned — do not invent** |
 
-### Deck and draw
+Shape is the rank's identity; **range and damage scale with rank**, since shape alone gives no power curve.
 
-Deck 30, max 2 copies of a card, opening hand 5, draw 2 per round start, hand cap 10. Sized so the player sees nearly the whole deck in a match: draw luck affects **ordering, not access**.
+Rank 5 is diagonal for a reason: diagonals preserve square colour, so a diagonal Tower on a light square only ever hits light squares — which is exactly the Knight's vulnerability window. That counter emerges from real geometry rather than being assigned.
+
+### Playing a card costs nothing
+
+**There is no in-match resource.** Cards are gated by hand size and draw rate, not by spending. A hand limit is already a resource; adding mana on top would be a second constraint for no gain.
+
+### Ink buys packs
+
+**Ink is the run currency, not a play cost.** Earned from **round completion** and **kill rewards** (scaled by Piece type), spent between rounds on packs. Carries over.
+
+**Ink must never accrue over time.** The gap between rounds is untimed, so time-based income is unbounded — the player just waits. Income is event-driven only. This is structural, not a balance knob.
+
+### Runs are seeded
+
+The game is **run-based**, not a persistent collection: the deck is built during a run and does not survive it. A run is identified by a **seed** and is fully reproducible.
+
+This requires a seeded PRNG carried in `GameState`. **`Math.random` must never appear in `src/game/`** — it breaks determinism and seeds alike. There is currently no randomness in the engine at all; keep it that way.
+
+### Run deck and hand
+
+| Rule | Value |
+| --- | --- |
+| Run deck cap | **30 cards** |
+| Copies of any one card | Unlimited |
+| Opening hand | 5 |
+| Draw | 2 per round start |
+| In-match hand cap | 10 |
+
+**The 30-cap is hard, and acquiring cards forces destroying cards** — buying a 10-card pack while holding 25 means cutting 5. That decision is the point of the cap. There is deliberately **no copy limit**; it would fight the culling mechanic.
+
+Packs: **Scrap** (3 random), **Base** (10 random), **Court** (10 weighted high), **Suited** (10 of one chosen suit). Fixed prices per type — packs do **not** escalate in price.
 
 ### The Chess roster
 
@@ -222,7 +258,7 @@ Use these terms exactly and consistently — in code, comments, and UI copy.
 | **Suit** | ♥ ♦ ♠ ♣. Determines the support action a Card can apply |
 | **Tower** | A Card played for its rank — placed, active, and destructible |
 | **Support** | A Card played for its suit, applied to an existing Tower |
-| **Ink** | The resource gating card play |
+| **Ink** | The run currency. Buys **packs**; never spent to play a card |
 | **Piece** | One Chess-faction invader instance |
 | **Piece type** | Pawn, knight, bishop, rook, queen, king |
 | **Promotion** | A surviving Pawn becoming a Queen |
@@ -231,8 +267,10 @@ Use these terms exactly and consistently — in code, comments, and UI copy.
 | **Tick** | One fixed-timestep simulation step |
 | **Command** | A player action entering the engine |
 | **Leak** | A Piece reaching the Core |
-| **Collection** | The player's owned cards, a multiset. Grown by opening **packs** |
-| **Deck** | The 30 cards chosen from the Collection for a match |
+| **Run** | One playthrough: a sequence of Rounds. Identified by a **seed** |
+| **Deck** | The cards held for the current Run, capped at 30. Grown by **packs** |
+| **Hand** | The cards currently held to play, drawn from the Deck. Capped at 10 |
+| **Pack** | A bundle of cards bought with Ink between Rounds |
 | **Square / rank / file** | Board positions, chess terminology |
 
 **Careful with "rank".** It means two different things — a Card's rank (2–A) and a board rank (row). Both are standard in their own domain, so keep them apart by context and name variables accordingly (`cardRank` vs `boardRank`) wherever both could appear.
@@ -251,17 +289,20 @@ Do not introduce synonyms for these. Drifting between "wave" and "round", or "to
 
 These are **deliberately unresolved**. Do not invent answers, silently pick one, or write code that hardcodes an assumption about them. Ask.
 
-- **The rank ladder** — only "a 2 fires horizontally" is agreed. Ranks 3–10 are undesigned. The principle (simple and cheap at the bottom, powerful and scarcer toward the top) is agreed; the assignments are not.
+- **Ranks 6–10** — ranks 2–5 are set; the rest of the geometry ladder is undesigned.
 - **Ace, face cards, and Jokers** — they perform specific actions rather than following the rank ladder, in the direction of a Tower upgrade or evolution. Specifics parked.
-- **♣ = damage** — inferred to complete the suit quartet, never confirmed.
-- **Pack weighting** — how rank scarcity translates into the contents of a 10-card pack.
+- **Starting run deck** — what a run begins with. Must be at or under the 30-cap, so a full 54-card deck is impossible. A ~12–16 card starter growing toward 30 is the obvious shape; size and composition undecided.
+- **Run length and loss condition** — how long a run is and what ends it.
+- **Deck reshuffling** — whether the deck reshuffles each round or is drawn down across the run, and what happens when exhausted.
+- **Pack weighting and prices** — how rank scarcity translates into pack contents, and what each type costs.
+- **PRNG streams** — one stream, or separate named streams for packs/rounds/draws so seeds survive code changes.
 - **Board geometry** — still a literal 8x8 placeholder. Note that square colour is now mechanically load-bearing, which argues for keeping a true chessboard.
 - **Multiplayer scope** — still assumed single-player versus AI, no backend, no netcode.
 
 **Resolved since the foundation spec** — do not treat these as open, and do not revisit the rejected options without cause:
 
-- Persistence and a collection metagame are **in** (packs, collection, deckbuilding), stored locally. Earned currency only, no real money.
-- The resource is named **Ink**.
+- The game is **run-based and seeded** — no persistent cross-session collection. Earned currency only, no real money.
+- The resource is named **Ink**, and it buys **packs**. Playing a card costs nothing.
 - Cards are **playing cards**, not bespoke designed cards, and are modal.
 - Towers are **destructible**, reversing the foundation spec.
 - Rejected: chess-themed Tower firing patterns; bespoke named cards; separate Tower/Tactic/Upgrade categories; invented rarity tiers; wall or blocker cards.

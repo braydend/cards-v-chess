@@ -31,15 +31,27 @@ This has a useful property worth preserving: because every card can always build
 
 Damage / rate / max-health / heal is the classic tower-upgrade quartet, and it maps onto the four suits with nothing left over.
 
-**Note:** ♥, ♦, and ♠ are as agreed. **♣ = damage is proposed, not confirmed** — it was inferred to complete the set. Confirm before building.
+Support magnitude scales with rank, as Tower power does: a 9♥ is a large repair, a 2♥ a small one.
 
 ### Rank ladder
 
-Rank sets the Tower's firing geometry and power. Low ranks are cheap and simple; high ranks are stronger and scarcer.
+Rank sets the Tower's firing geometry and its power.
 
-One data point is agreed: **a 2 builds a Tower that fires horizontally only.**
+| Rank | Firing geometry |
+| --- | --- |
+| **2** | Horizontal — along its board rank |
+| **3** | Vertical — along its file |
+| **4** | Cross — horizontal and vertical |
+| **5** | Diagonal — the X |
+| 6–10 | **Open** |
 
-The rest of the ladder is **open**. The principle — simple geometry at the bottom, powerful and more complex toward the top — is agreed; the specific assignments are not. Do not invent them.
+Shape is the rank's *identity*; **range and damage scale with rank**. Shape alone gives no power curve — diagonal is not inherently better than cross — so a 5 out-damages a 4 despite a narrower pattern.
+
+The 2/3/4 progression teaches itself, since 4 is visibly 2 and 3 combined.
+
+**Why 5 is specifically diagonal:** diagonals preserve square colour. A diagonal-firing Tower on a light square can only ever hit light squares — and the Knight is only damageable on light squares. So the Knight counter emerges from real chess geometry rather than being assigned. This recovers the best property of the rejected chess-firing-pattern idea without making Towers chess-themed.
+
+Ranks 6 through 10 are **open**. The principle — simple at the bottom, more powerful toward the top — is agreed; the assignments are not. Do not invent them.
 
 Towers are **generic**, not chess-themed. An earlier proposal gave Towers chess-piece firing patterns (rook lines, bishop diagonals, knight jumps); that was **rejected**. The Cards faction has its own identity and does not borrow chess geometry.
 
@@ -47,48 +59,85 @@ Towers are **generic**, not chess-themed. An earlier proposal gave Towers chess-
 
 Ace, Jack, Queen, King, and the two Jokers perform **specific actions rather than following the rank ladder** — an upgrade or an evolution for a Tower is the direction. Deliberately parked: the specifics are not designed yet.
 
-## Economy: Ink
+## There is no in-match resource
 
-**Ink** is the resource that gates playing cards. The name is chosen deliberately — cards are printed things, so spending ink to play one is intuitive, and it belongs to the Cards faction rather than being a generic fantasy import.
+**Playing a card costs nothing.** Cards are gated by hand size and draw rate, not by spending.
 
-Ink is earned two ways:
+The reasoning: a card game with a hand limit already has a resource — the cards themselves. Adding a mana-style pool on top is a second constraint that usually just slows play down, and Balatro demonstrates the model works without one. It also keeps rank purely a *power* curve rather than a cost curve, which is simpler to teach.
 
-- **Round income** — a lump sum when a round starts. Guarantees a floor, so one bad round is not a death spiral.
+Consequence to accept: without a cost, a high card is strictly better than a low one in **both** modes. The decision in hand becomes "build a new Tower, or fix an existing one?" rather than an efficiency puzzle. That is still a real choice, just a different one.
+
+An earlier proposal made the number on the card its Ink cost in both modes, creating a tension where low cards are efficient support and high cards efficient Towers. **Rejected** — Ink is not an in-match resource.
+
+## Ink is the run currency
+
+**Ink** buys **packs**. It is earned by playing and spent between rounds, Balatro-style. It is not spent on playing cards.
+
+Earned two ways:
+
+- **Round income** — a lump sum when a round completes.
 - **Kill rewards** — each destroyed Piece pays out, scaled by type. A Pawn trickles; a Queen pays properly.
 
-Unspent Ink **carries over** between rounds, so saving for an expensive play is a real strategy.
+Unspent Ink carries between rounds, so saving for an expensive pack is a real strategy.
 
-### Why Ink must never regenerate over time
+### Why Ink must never accrue over time
 
-The gap between rounds is **untimed**. Any resource that accrues with the passage of time is therefore unbounded — the player simply waits in the gap and accumulates as much as they like.
+The gap between rounds is **untimed**. Any income that accrues with the passage of time is therefore unbounded — the player simply waits in the gap and accumulates as much as they like.
 
-**Ink income must be event-driven — round start and kills — never time-driven.** This rules out the Clash Royale model of a continuously refilling pool, which would otherwise have suited real-time rounds well. This constraint is structural, not a balance preference.
+**Ink income must be event-driven — round completion and kills — never time-driven.** This constraint is structural, not a balance preference.
 
-## Deck, hand, and draw
+### No real money
+
+Ink is earned by playing. There are no real-money purchases, which means no payment processor, no accounts, and no backend — the game stays a static site with local persistence. It also avoids the regulatory exposure of paid randomised packs, which are treated as gambling in several jurisdictions.
+
+## Runs
+
+The game is **run-based**, not a persistent collection. A run is a sequence of rounds; the deck is built up *during* the run and does not survive it.
+
+### Runs are seeded
+
+A run is identified by a **seed**, so it is reproducible and shareable — same seed, same pack contents, same round composition, same draw order.
+
+This requires a **seeded PRNG carried in `GameState`**. The engine currently contains no randomness at all, so nothing has to be undone to add it. `Math.random` must never appear in `src/game/`: it would break both determinism and seeds.
+
+**Caveat:** with a single PRNG stream, any change to the *order* of random calls invalidates existing seeds. Acceptable during development. If seeds should survive updates, use separate named streams — packs, rounds, draws — so adding a call in one does not shift the others.
+
+### Run deck
 
 | Rule | Value |
 | --- | --- |
-| Deck size | 30 |
-| Copies of any one card | Max 2 |
+| Run deck cap | **30 cards** |
+| Copies of any one card | **Unlimited** |
 | Opening hand | 5 |
 | Draw | 2 at each round start |
-| Hand cap | 10 |
+| In-match hand cap | 10 |
 
-Over a roughly 12-round match that is about 29 draws from a 30-card deck, so the player sees nearly all of it. This is deliberate: **draw luck affects ordering, not access.** It preserves real card-game texture — you plan around what you hold — while defusing "I lost to a bad draw", which was the main argument against a draw-based model.
+**The 30-cap is a hard limit, and acquiring cards forces destroying cards.** Buying a 10-card pack while holding 25 means choosing 5 cards to destroy in order to fit. Every pack is therefore a "what do I cut?" decision, which is the point.
 
-## Collection and packs
+**No copy limit.** An earlier draft capped copies at 2, to stop random packs producing permanently dead duplicates. The 30-cap makes that unnecessary: a bad pull is a cut candidate, not dead weight, and the cap already limits total power. Eight copies of the 5♦ is a legitimate consistency build. A copy limit would fight the culling mechanic rather than support it.
 
-The player buys **packs of 10 cards** with **in-game currency earned by playing**. No real money.
+**Terminology:** the cap is on the **deck**, not the hand. *Hand* means the cards held to play during a round (5 opening, drawing 2, capped at 10). Both caps exist and do different jobs; do not let "hand" mean both.
 
-That decision matters beyond the economy: no payment processor, no accounts, no backend. The game stays a static site with local persistence. It also avoids the regulatory exposure of paid randomised packs, which are treated as gambling in several jurisdictions.
+## Packs
+
+Packs are bought with Ink between rounds.
+
+| Pack | Contents |
+| --- | --- |
+| **Scrap** | 3 random cards — cheapest, for smooth frequent progress |
+| **Base** | 10 random cards — the baseline |
+| **Court** | 10 cards weighted toward high ranks — expensive |
+| **Suited** | 10 cards all of one suit, player's choice — mid to expensive |
+
+**Prices are fixed per pack type. Packs do not escalate in price.** Escalating cost punishes success and is opaque — the player feels a brake without understanding it. Distinct types at distinct prices give a real decision instead ("save for a Court, or buy two Base now?"), and it self-balances because the player sets their own rate.
+
+**Suited is the load-bearing one.** It is the only pack that lets a player *commit to a strategy* rather than simply get better numbers — buying all ♥ to build a repair-heavy defense is a plan. Weighted packs make you stronger; targeted packs make you specific, which is more interesting.
 
 ### Rarity is rank
 
-Rarity needs no separate invented system. **Rank is rarity**: low numbers common, high numbers scarce, face cards and Aces precious. Pulling an Ace needs no explanation.
+Rarity needs no separate invented system. **Rank is rarity**: low numbers common, high numbers scarce, face cards and Aces precious. Pulling an Ace needs no explanation, and an earlier proposal for invented Common/Rare/Legendary tiers was scaffolding for what the idiom already provides.
 
-This also answers what is collectible about a known 52-card deck: a collection is a **multiset**. A player might own four 3s and no Ace, so deckbuilding is shaped by what they actually hold.
-
-Exact pack weighting is open.
+Exact pack weighting and prices are open.
 
 ## The Chess roster
 
@@ -155,10 +204,13 @@ Do not resolve these by guessing.
 
 | Question | Status |
 | --- | --- |
-| **♣ = damage** | Inferred to complete the suit quartet. Unconfirmed. |
-| **The rank ladder** | Only "2 fires horizontally" is agreed. Ranks 3–10 undesigned. |
+| **Ranks 6–10** | Ranks 2–5 are set. The rest of the geometry ladder is undesigned. |
 | **Ace / face cards / Jokers** | Direction agreed (upgrade or evolution); specifics parked. |
-| **Pack weighting** | How rank scarcity translates into pack contents. |
+| **Starting run deck** | What a run begins with. It must be **at or under the 30-cap**, so a full 54-card deck is not an option. A small starter (roughly 12–16 cards) growing toward 30 is the obvious shape, but the size and composition are undecided. |
+| **Run length and loss** | How many rounds a run is, what ends it, and whether difficulty scales per round or in stages. |
+| **Deck reshuffling** | Whether the deck reshuffles each round (Balatro-style) or is drawn down across the whole run, and what happens when it is exhausted. |
+| **Pack weighting and prices** | How rank scarcity translates into pack contents, and what each pack type costs. |
+| **PRNG streams** | Single stream (simplest) versus separate named streams for packs/rounds/draws (seeds survive code changes). |
 | **Board geometry** | Still a literal 8x8 placeholder. Square colour is now mechanically load-bearing, which is an argument for keeping a true chessboard. |
 | **Multiplayer scope** | Still assumed single-player versus AI. |
 
@@ -166,8 +218,8 @@ Do not resolve these by guessing.
 
 Superseded from the foundation spec:
 
-- **Persistence and metagame** is no longer open — packs, a collection, and deckbuilding are **in**.
-- **Economy** is no longer open, and the resource now has a name: **Ink**. The foundation spec's instruction not to coin a name is discharged.
+- **Persistence and metagame** is no longer open — the game is **run-based and seeded**, with packs bought during a run. There is no persistent cross-session collection.
+- **Economy** is no longer open, and the resource now has a name: **Ink**. The foundation spec's instruction not to coin a name is discharged. Note Ink buys **packs**, and playing a card costs nothing.
 - **The card pool** is no longer wholly open; the grammar is fixed even though the ladder is not.
 - **Per-piece characteristics** are largely resolved — all six threats are assigned.
 - **Towers permanent** is reversed: Towers are destructible.
