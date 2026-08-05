@@ -19,19 +19,19 @@ What exists:
 
 - The rules engine (`src/game/`) with `step` / `tick`, driven by a fixed-timestep accumulator.
 - The renderer (`src/scene/`) and a minimal HUD (`src/ui/`).
-- 38 tests, all passing, none of which need a browser.
+- 126 tests across 11 files, all passing, none of which need a browser.
 
 **The design has moved well ahead of the code.** The card grammar, economy, and chess roster are all agreed, but none of it is implemented. Do not read the current code as evidence of the intended design — read `docs/design/game-design.md`.
 
 What does **not** exist yet:
 
 - **Cards.** No Deck, no Ink, no modality. Towers are placed by clicking the board.
-- **Tower combat.** Towers are placed and rendered but do not fire, have no health, and cannot be damaged or repaired.
-- **The piece roster.** One placeholder `pawn` exists with placeholder stats. None of the six agreed threats are implemented — no promotion, no colour vulnerability, no healing, no Tower attacks.
+- **Tower repair.** Towers fire, have health, and take damage from the Pieces they block — visibly now, with colour, a hit flash, a critical pulse, and a death flare — but there is no way to repair one back up.
+- **The piece roster.** One placeholder `pawn` exists with placeholder stats. None of the six agreed threats are implemented — no promotion, no colour vulnerability, no healing.
 
-Because Towers cannot kill anything, a round currently resolves by leaking out. That is expected, not a bug.
+Towers fire and can kill Pieces outright, so a round no longer resolves purely by leaking out — it ends when nothing on the board can still act, whether that means every Piece destroyed, stranded, or through the Core.
 
-**Next implementation step** is a thin vertical slice — Tower firing geometry for ranks 2–5, Tower health and repair, and Pieces attacking Towers — rather than the full card pool. Five interacting mechanics have been designed and none played.
+**Next implementation step** is **♥ repair** — the support Cards are designed (see the suit table in `docs/design/game-design.md`), and it is where the design's "Repair versus the wall" open question first becomes reachable rather than theoretical: a Tower repaired to full while a Piece grinds on it forever is the permanent wall that question warns about.
 
 ## Tech stack
 
