@@ -42,7 +42,11 @@ export function chebyshev(a: Square, b: Square): number {
  * Every Piece currently standing beside a King.
  *
  * Membership, not a count: the aura deliberately does **not** stack, so two
- * Kings buff exactly as much as one. A King never buffs itself.
+ * Kings buff exactly as much as one. Exclusion is per-Piece, not per-type —
+ * a King never buffs itself, but a King standing beside a *different* King
+ * is buffed like any other adjacent Piece. Mirrors `applyHealing`'s
+ * `other.id === piece.id` self-check below, so the two auras in this file
+ * agree on what "other" means.
  */
 export function buffedPieceIds(pieces: readonly Piece[]): ReadonlySet<string> {
   const kings = pieces.filter((piece) => piece.typeId === 'king')
@@ -50,9 +54,11 @@ export function buffedPieceIds(pieces: readonly Piece[]): ReadonlySet<string> {
 
   const buffed = new Set<string>()
 
-  for (const piece of pieces) {
-    if (piece.typeId === 'king') continue
-    if (kings.some((king) => chebyshev(king.square, piece.square) === 1)) buffed.add(piece.id)
+  for (const king of kings) {
+    for (const other of pieces) {
+      if (other.id === king.id) continue
+      if (chebyshev(king.square, other.square) === 1) buffed.add(other.id)
+    }
   }
 
   return buffed

@@ -5,7 +5,7 @@ A web-based 3D tower defense game with trading-card-game mechanics.
 Two factions, and the name is literal:
 
 - **Cards** — the player. A **standard 54-card deck** is your arsenal. Cards are modal: **rank builds** a Tower (a face card acts instead), **suit supports** an existing one.
-- **Chess** — the AI opponent. Waves of chess pieces invade the board, each type mapping a real chess trait onto a tower-defense threat, trying to reach the **Core**.
+- **Chess** — the AI opponent. Chess pieces invade the board in Rounds, each type mapping a real chess trait onto a tower-defense threat, trying to reach the **Core**.
 
 It is a **one-sided defense**. The player is always Cards; Chess is always the attacker. There is no mode where the player commands chess pieces.
 

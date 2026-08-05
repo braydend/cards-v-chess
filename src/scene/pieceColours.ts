@@ -7,6 +7,16 @@ export const CHESS_COLOUR = '#c0392b'
  * healer and the commander — so they read differently from the rest of the
  * roster, which shares `CHESS_COLOUR`.
  *
+ * The Queen also gets her own. Promotion — a Pawn becoming a Queen — is the
+ * single most important state change a player needs to read at a glance, and
+ * before this the two shared `CHESS_COLOUR` and differed only by a taller,
+ * higher-segment `ConeGeometry` (see `Pieces.tsx`) — the least distinguishable
+ * pair on the board for the one transition that most needs to read instantly.
+ * `#a93226` is a deeper, darker crimson than the Pawn's `#c0392b`: still
+ * unmistakably warm — every Chess Piece is — but far enough from the Pawn,
+ * and from the Bishop's and King's own colours below, to read as a change of
+ * state rather than a shade of the same one.
+ *
  * Kept in its own module rather than exported from a component file: mixing
  * component and non-component exports breaks React Fast Refresh, which shows
  * up as a full reload on every edit instead of a hot update. Same precedent
@@ -22,6 +32,6 @@ export const PIECE_COLOURS: Record<PieceTypeId, string> = {
   knight: CHESS_COLOUR,
   bishop: '#f1948a',
   rook: CHESS_COLOUR,
-  queen: CHESS_COLOUR,
+  queen: '#a93226',
   king: '#e67e22',
 }

@@ -11,7 +11,7 @@ If this document and anything else disagree, this document wins. If it contradic
 A web-based 3D tower defense game with trading-card-game mechanics. Two factions, and the name is literal:
 
 - **Cards** — the player. A standard 54-card deck is the arsenal.
-- **Chess** — the AI attacker. Waves of chess pieces invade, each type mapping a real chess trait onto a tower-defense threat.
+- **Chess** — the AI attacker. Chess pieces invade in Rounds, each type mapping a real chess trait onto a tower-defense threat.
 
 It is a **one-sided defense**. The player is always Cards; Chess is always the attacker. There is no mode where the player commands chess pieces.
 
@@ -263,12 +263,12 @@ The fallback direction is always carried in `handedness`, never chosen because t
 | --- | --- | --- | --- |
 | **Pawn** | One step forward, numerous | **Chaff swarm** — weak, slow, many. **Promotes to a Queen on reaching the back rank** | Area damage; single-target Towers drown |
 | **Knight** | L-shaped hop — never a straight line or a diagonal | **Erratic hopper** — a zig-zag L, usually two ranks per move (one near the back rank, so it can still reach rank 0), that rarely lands twice under the same line — which vertical, horizontal, and diagonal Tower coverage struggle to track | Coverage wide enough to catch a hopper, not a single line |
-| **Bishop** | Diagonals; thematically a cleric | **Healer** — sustains the wave until killed. Nothing else | Retargeting; kill it first |
+| **Bishop** | Diagonals; thematically a cleric | **Healer** — sustains its Round's Pieces until killed. Nothing else | Retargeting; kill it first |
 | **Rook** | Straight lines, long | **Armoured tank** — slow, high health | Piercing or sustained damage |
 | **Queen** | Everything, long | **Elite** — flexible, rare, dangerous | Burst and focused fire |
 | **King** | One square, but *the* target | **Commander** — slow, tough, buffs adjacent Pieces | Priority targeting |
 
-Pawn promotion turns a chaff wave into a timer: ignore the weak pieces and they become the elite threat.
+Pawn promotion turns a chaff swarm into a timer: ignore the weak pieces and they become the elite threat.
 
 ### Auras
 

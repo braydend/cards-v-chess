@@ -16,19 +16,21 @@ describe('piece colours', () => {
     }
   })
 
-  it('draws every type from a small deliberate set: four share CHESS_COLOUR, Bishop and King get their own', () => {
+  it('draws every type from a small deliberate set: three share CHESS_COLOUR, Bishop, Queen, and King get their own', () => {
     expect(PIECE_COLOURS.pawn).toBe(CHESS_COLOUR)
     expect(PIECE_COLOURS.knight).toBe(CHESS_COLOUR)
     expect(PIECE_COLOURS.rook).toBe(CHESS_COLOUR)
-    expect(PIECE_COLOURS.queen).toBe(CHESS_COLOUR)
 
     expect(PIECE_COLOURS.bishop).not.toBe(CHESS_COLOUR)
     expect(PIECE_COLOURS.king).not.toBe(CHESS_COLOUR)
+    expect(PIECE_COLOURS.queen).not.toBe(CHESS_COLOUR)
     expect(PIECE_COLOURS.bishop).not.toBe(PIECE_COLOURS.king)
+    expect(PIECE_COLOURS.bishop).not.toBe(PIECE_COLOURS.queen)
+    expect(PIECE_COLOURS.king).not.toBe(PIECE_COLOURS.queen)
 
-    // Pins the palette to exactly three distinct colours, so a future edit
+    // Pins the palette to exactly four distinct colours, so a future edit
     // can't quietly give every type its own colour one at a time without a
     // test noticing.
-    expect(new Set(Object.values(PIECE_COLOURS)).size).toBe(3)
+    expect(new Set(Object.values(PIECE_COLOURS)).size).toBe(4)
   })
 })

@@ -350,6 +350,42 @@ describe('tick: the King aura', () => {
 
     expect(after.pieces.find((piece) => piece.id === 'pawn')?.square.rank).toBe(6)
   })
+
+  it('does not stack — a Pawn beside two Kings moves at exactly the cadence of one', () => {
+    // Comparing "did it move" alone couldn't tell stacking apart from not: a
+    // stacked interval would still complete this hop, just with a different
+    // leftover cooldown. Starting cooldown at exactly the buffed threshold and
+    // comparing the post-tick remainder pins the actual interval used, not
+    // just whether *a* hop happened — this is what would fail if the King
+    // aura were ever reworked into something additive.
+    const buffedIntervalMs = PIECE_TYPES.pawn.moveIntervalMs * KING_SPEED_MULTIPLIER
+
+    const oneKing: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      pieces: [
+        pieceAt('king1', 'king', { file: 0, rank: 7 }),
+        pieceAt('pawn', 'pawn', { file: 1, rank: 7 }, { moveCooldownMs: buffedIntervalMs }),
+      ],
+    }
+
+    const twoKings: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      pieces: [
+        pieceAt('king1', 'king', { file: 0, rank: 7 }),
+        pieceAt('king2', 'king', { file: 2, rank: 7 }),
+        pieceAt('pawn', 'pawn', { file: 1, rank: 7 }, { moveCooldownMs: buffedIntervalMs }),
+      ],
+    }
+
+    const afterOne = tick(oneKing, DT).pieces.find((piece) => piece.id === 'pawn')
+    const afterTwo = tick(twoKings, DT).pieces.find((piece) => piece.id === 'pawn')
+
+    expect(afterOne?.square.rank).toBe(6)
+    expect(afterTwo?.square.rank).toBe(6)
+    expect(afterTwo?.moveCooldownMs).toBe(afterOne?.moveCooldownMs)
+  })
 })
 
 describe('tick: the Bishop healing aura', () => {

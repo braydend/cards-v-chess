@@ -37,11 +37,11 @@ describe('the King aura', () => {
     expect(buffedPieceIds(pieces).has('k')).toBe(false)
   })
 
-  it('does not stack — two Kings buff exactly as much as one', () => {
-    const one = [piece('k1', 'king', { file: 4, rank: 4 }), piece('p', 'pawn', { file: 4, rank: 5 })]
-    const two = [...one, piece('k2', 'king', { file: 3, rank: 5 })]
+  it('buffs a King standing beside a different King — exclusion is per-Piece, not per-type', () => {
+    const pieces = [piece('k1', 'king', { file: 4, rank: 4 }), piece('k2', 'king', { file: 5, rank: 5 })]
 
-    expect(buffedPieceIds(two).has('p')).toBe(buffedPieceIds(one).has('p'))
+    expect(buffedPieceIds(pieces).has('k1')).toBe(true)
+    expect(buffedPieceIds(pieces).has('k2')).toBe(true)
   })
 
   it('is empty when no King is on the board', () => {
