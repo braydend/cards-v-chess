@@ -9,7 +9,7 @@ export { allSquares, isInBounds, squareKey, squaresEqual } from './board'
 export { findCard, isBuildableRank, removeCard } from './cards'
 export { commandFor, type PlayMode, type PlayTarget } from './commandFor'
 export { coversSquare } from './coverage'
-export { isStuck, nextMove, type MoveOutcome } from './movement'
+export { isStuck, nextMove, type MoveOutcome, type MoveRequest } from './movement'
 export { createInitialState } from './state'
 export { step } from './step'
 export { applySupport } from './support'
@@ -22,6 +22,7 @@ export type {
   Command,
   FaceRank,
   GameState,
+  Handedness,
   Piece,
   PieceTypeDef,
   PieceTypeId,

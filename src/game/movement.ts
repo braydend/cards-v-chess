@@ -1,5 +1,5 @@
 import { isInBounds, squareKey, squaresEqual } from './board'
-import type { BoardSpec, Piece, PieceTypeId, Square, Tower } from './types'
+import type { BoardSpec, Handedness, Piece, PieceTypeId, Square, Tower } from './types'
 
 /**
  * What a Piece does when its move interval elapses.
@@ -9,10 +9,21 @@ import type { BoardSpec, Piece, PieceTypeId, Square, Tower } from './types'
  * completion cannot simply wait for the board to empty.
  */
 export type MoveOutcome =
-  | { readonly kind: 'move'; readonly to: Square }
+  | { readonly kind: 'move'; readonly to: Square; readonly handedness?: Handedness }
   | { readonly kind: 'attackTower'; readonly towerId: string }
   | { readonly kind: 'reachCore' }
   | { readonly kind: 'stuck' }
+
+/** Everything about a Piece that its movement rule depends on. */
+export interface MoveRequest {
+  readonly typeId: PieceTypeId
+  readonly from: Square
+  /** Hops completed. Drives the Knight's zig-zag and the Queen's alternation. */
+  readonly moveCount: number
+  readonly handedness: Handedness
+  /** Extra squares per hop, from a King aura. Sliders only. */
+  readonly slideBonus: number
+}
 
 /**
  * Pieces advance from the far rank toward rank 0, so "forward" is one rank down.
@@ -29,15 +40,14 @@ const FORWARD = -1
  * dangerous. Every other pawn marches to the back rank and stops.
  */
 export function nextMove(
-  typeId: PieceTypeId,
-  from: Square,
+  request: MoveRequest,
   board: BoardSpec,
   coreSquare: Square,
   towerBySquare: ReadonlyMap<string, Tower>,
 ): MoveOutcome {
-  switch (typeId) {
+  switch (request.typeId) {
     case 'pawn':
-      return pawnMove(from, board, coreSquare, towerBySquare)
+      return pawnMove(request.from, board, coreSquare, towerBySquare)
   }
 }
 
@@ -82,5 +92,15 @@ export function isStuck(
   coreSquare: Square,
   towerBySquare: ReadonlyMap<string, Tower>,
 ): boolean {
-  return nextMove(piece.typeId, piece.square, board, coreSquare, towerBySquare).kind === 'stuck'
+  // Slide distance cannot change whether a Piece has *any* legal move, so the
+  // bonus is irrelevant here.
+  const request: MoveRequest = {
+    typeId: piece.typeId,
+    from: piece.square,
+    // Task 2 wires these to the Piece
+    moveCount: 0,
+    handedness: 1,
+    slideBonus: 0,
+  }
+  return nextMove(request, board, coreSquare, towerBySquare).kind === 'stuck'
 }

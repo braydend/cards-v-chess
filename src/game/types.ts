@@ -37,6 +37,12 @@ export interface PieceTypeDef {
   readonly attackDamage: number
 }
 
+/**
+ * Which way sideways. Drives the Knight's zig-zag, the Bishop's and Queen's
+ * diagonal side, and the direction of a lateral sweep along a rank.
+ */
+export type Handedness = 1 | -1
+
 export interface Piece {
   readonly id: string
   readonly typeId: PieceTypeId

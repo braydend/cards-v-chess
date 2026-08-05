@@ -280,7 +280,13 @@ function movePieces(
     while (cooldown >= moveIntervalMs) {
       cooldown -= moveIntervalMs
 
-      const outcome = nextMove(piece.typeId, square, board, coreSquare, towerBySquare)
+      // Task 2 wires these to the Piece
+      const outcome = nextMove(
+        { typeId: piece.typeId, from: square, moveCount: 0, handedness: 1, slideBonus: 0 },
+        board,
+        coreSquare,
+        towerBySquare,
+      )
 
       if (outcome.kind === 'reachCore') {
         reachedCore = true
