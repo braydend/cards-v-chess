@@ -153,7 +153,14 @@ function travel(
  *
  * Candidates are tried in order: the zig-zag hop, its mirror (for file edges),
  * then the two one-forward hops so a Knight on rank 1 can still reach rank 0
- * and capture the Core from (1,1) or (5,1).
+ * rather than stranding a hop early. The Knight commits to the first in-bounds
+ * candidate, never scanning ahead for one that lands on the Core — that would
+ * be goal-seeking, the same invariant that keeps a Pawn from angling toward
+ * the Core off its own file. So whether a one-forward hop happens to capture
+ * the Core depends on the Knight's file and handedness: from (1,1) the
+ * default handedness reaches it, and from (5,1) the *other* handedness does,
+ * because file 3 is not centred between files 0 and 7 and the wrong-side
+ * candidate is what falls off the board first at one edge but not the other.
  *
  * A Tower on the chosen landing square is attacked rather than hopped over or
  * routed around — the no-pathfinding invariant applies to the Knight too.

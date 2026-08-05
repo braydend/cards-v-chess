@@ -310,4 +310,20 @@ describe('knight movement', () => {
   it('strands on the back rank, because every hop from there goes backwards', () => {
     expect(move('knight', { file: 5, rank: 0 })).toEqual({ kind: 'stuck' })
   })
+
+  it('takes its first legal hop even when another would land on the Core', () => {
+    // From (5,1) the one-forward hops are (7,0) and (3,0) — the Core. The Knight
+    // commits to the first in-bounds candidate, so it takes (7,0). Preferring the
+    // Core would be goal-seeking, which would let Tower placement steer Pieces.
+    expect(move('knight', { file: 5, rank: 1 })).toEqual({
+      kind: 'move',
+      to: { file: 7, rank: 0 },
+    })
+  })
+
+  it('does capture the Core from the same square with the other handedness', () => {
+    expect(move('knight', { file: 5, rank: 1 }, NO_TOWERS, { handedness: -1 })).toEqual({
+      kind: 'reachCore',
+    })
+  })
 })
