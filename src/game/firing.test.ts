@@ -64,8 +64,8 @@ function scenario(
 
 describe('tower firing', () => {
   it('damages a Piece inside its coverage', () => {
-    // Rank 2 fires horizontally. Tower and Piece share board rank 6.
-    const state = scenario(2, { file: 2, rank: 6 }, [{ file: 4, rank: 6 }])
+    // Rank 2 covers only its eight neighbours, so the Piece sits alongside it.
+    const state = scenario(2, { file: 3, rank: 6 }, [{ file: 4, rank: 6 }])
 
     const after = runFor(state, TOWER_RANKS[2].fireIntervalMs + DT)
 
@@ -73,7 +73,7 @@ describe('tower firing', () => {
   })
 
   it('does not fire before its interval has elapsed', () => {
-    const state = scenario(2, { file: 2, rank: 6 }, [{ file: 4, rank: 6 }])
+    const state = scenario(2, { file: 3, rank: 6 }, [{ file: 4, rank: 6 }])
 
     const after = runFor(state, TOWER_RANKS[2].fireIntervalMs - 2 * DT)
 
@@ -81,8 +81,10 @@ describe('tower firing', () => {
   })
 
   it('leaves a Piece outside its coverage untouched', () => {
-    // Rank 2 is horizontal only, so a Piece off its board rank is safe.
-    const state = scenario(2, { file: 2, rank: 6 }, [{ file: 4, rank: 3 }])
+    // File 7, well away from both the Tower and the Core. A pawn there marches
+    // to the back rank and strands; it never gets near the Core's file, so it
+    // stays on the board for the whole window.
+    const state = scenario(2, { file: 2, rank: 6 }, [{ file: 7, rank: 3 }])
 
     const after = runFor(state, 3000)
 
@@ -90,7 +92,8 @@ describe('tower firing', () => {
   })
 
   it('leaves a Piece beyond its range untouched', () => {
-    const state = scenario(2, { file: 0, rank: 6 }, [{ file: 7, rank: 6 }])
+    // Two squares away, one beyond a rank 2 Tower's reach.
+    const state = scenario(2, { file: 2, rank: 6 }, [{ file: 4, rank: 6 }])
 
     const after = runFor(state, 3000)
 

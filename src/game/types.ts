@@ -29,6 +29,12 @@ export interface PieceTypeDef {
   /** Milliseconds between hops. Lower is faster. Placeholder value. */
   readonly moveIntervalMs: number
   readonly maxHealth: number
+  /**
+   * Damage dealt to a Tower. A Piece blocked by a Tower attacks it instead of
+   * moving, at `BLOCKED_ATTACK_MULTIPLIER` of this value — Pieces are poor at
+   * demolition, which is what makes a Tower a real obstacle.
+   */
+  readonly attackDamage: number
 }
 
 export interface Piece {
@@ -49,7 +55,7 @@ export interface Piece {
  * A Tower's firing geometry, set by the rank of the Card that built it.
  * Towers are generic — this is NOT chess-piece movement.
  */
-export type TowerGeometry = 'horizontal' | 'vertical' | 'cross' | 'diagonal'
+export type TowerGeometry = 'adjacent' | 'horizontal' | 'vertical' | 'cross' | 'diagonal'
 
 /**
  * Only ranks 2–5 are designed. Ranks 6–10 and the face cards, Ace, and Jokers
@@ -64,6 +70,9 @@ export interface Tower {
   readonly cardRank: CardRank
   /** Milliseconds accumulated toward this Tower's next shot. */
   readonly fireCooldownMs: number
+  readonly health: number
+  /** Separate from the rank's base value so ♠ can raise it later. */
+  readonly maxHealth: number
 }
 
 /**

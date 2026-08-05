@@ -15,25 +15,6 @@ export function isInBounds(board: BoardSpec, square: Square): boolean {
   )
 }
 
-/**
- * One step from `from` toward `to`, moving along whichever axis has further to
- * travel.
- *
- * Placeholder pathing, applied uniformly to every Piece. The designed roster
- * gives each Piece type its own movement character — the Knight changing square
- * colour on every hop is load-bearing, since that is when it can be damaged.
- * None of that is implemented here. See CLAUDE.md.
- */
-export function stepToward(from: Square, to: Square): Square {
-  const fileDelta = to.file - from.file
-  const rankDelta = to.rank - from.rank
-
-  if (Math.abs(rankDelta) >= Math.abs(fileDelta)) {
-    return { file: from.file, rank: from.rank + Math.sign(rankDelta) }
-  }
-  return { file: from.file + Math.sign(fileDelta), rank: from.rank }
-}
-
 /** Every square on the board, in file-major order. */
 export function allSquares(board: BoardSpec): Square[] {
   const squares: Square[] = []

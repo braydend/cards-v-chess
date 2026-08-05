@@ -1,4 +1,5 @@
 import { roundSpec } from '../data/rounds'
+import { towerRank } from '../data/towerRanks'
 import { isInBounds, squaresEqual } from './board'
 import type { CardRank, Command, GameState, Square } from './types'
 
@@ -52,7 +53,14 @@ function placeTower(state: GameState, square: Square, cardRank: CardRank): GameS
     ...state,
     towers: [
       ...state.towers,
-      { id: `tower-${state.nextEntityId}`, square, cardRank, fireCooldownMs: 0 },
+      {
+        id: `tower-${state.nextEntityId}`,
+        square,
+        cardRank,
+        fireCooldownMs: 0,
+        health: towerRank(cardRank).maxHealth,
+        maxHealth: towerRank(cardRank).maxHealth,
+      },
     ],
     nextEntityId: state.nextEntityId + 1,
   }

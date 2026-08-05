@@ -3,8 +3,13 @@ import type { CardRank, TowerGeometry } from '../game/types'
 /**
  * What each Card rank builds.
  *
- * The geometry ladder is agreed design: 2 horizontal, 3 vertical, 4 cross,
+ * The geometry ladder is agreed design: 2 adjacent, 3 vertical, 4 cross,
  * 5 diagonal. Ranks 6–10 and the face cards are undesigned — do not add them.
+ *
+ * Rank 2 was originally horizontal. It was changed to adjacent because Pieces
+ * travel almost straight down a file, so a horizontal line caught each Piece
+ * for a single move interval — one shot, and a Pawn survived it. Adjacent keeps
+ * a Piece covered for three squares of its approach instead.
  *
  * Range, damage, and fire interval are PLACEHOLDER balance values. The agreed
  * principle is that they scale with rank, because shape alone gives no power
@@ -21,13 +26,14 @@ export interface TowerRankDef {
   readonly range: number
   readonly damage: number
   readonly fireIntervalMs: number
+  readonly maxHealth: number
 }
 
 export const TOWER_RANKS: Record<CardRank, TowerRankDef> = {
-  2: { geometry: 'horizontal', range: 3, damage: 1, fireIntervalMs: 600 },
-  3: { geometry: 'vertical', range: 4, damage: 1, fireIntervalMs: 600 },
-  4: { geometry: 'cross', range: 4, damage: 2, fireIntervalMs: 550 },
-  5: { geometry: 'diagonal', range: 5, damage: 3, fireIntervalMs: 500 },
+  2: { geometry: 'adjacent', range: 1, damage: 1, fireIntervalMs: 600, maxHealth: 8 },
+  3: { geometry: 'vertical', range: 4, damage: 1, fireIntervalMs: 600, maxHealth: 12 },
+  4: { geometry: 'cross', range: 4, damage: 2, fireIntervalMs: 550, maxHealth: 16 },
+  5: { geometry: 'diagonal', range: 5, damage: 3, fireIntervalMs: 500, maxHealth: 20 },
 }
 
 export function towerRank(rank: CardRank): TowerRankDef {

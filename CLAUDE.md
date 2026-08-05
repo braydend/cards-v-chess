@@ -74,7 +74,10 @@ Design facts with hard implementation consequences. Breaking one of these is a b
 - **`Math.random` must never appear in `src/game/`.** Runs are seeded and the simulation must stay reproducible. Randomness comes from a seeded PRNG carried in `GameState`.
 - **Ink income must be event-driven** — round completion and kills — **never time-based.** The gap between rounds is untimed, so time-based income is unbounded: the player would just wait.
 - **Playing a card consumes it.** There is no drawing, no shuffling, no discard pile, and no hand. The whole Deck is always visible and playable.
-- **Towers never block movement.** A Piece whose move would land on a Tower attacks it instead. If Towers blocked, they would be walls and mazing would return.
+- **Towers block movement, and blocked Pieces attack them at half damage.** A Piece whose next square holds a Tower does not advance.
+- **Never add pathfinding.** A blocked Piece grinds; it must never route around. Routing would let the player steer Pieces by placing Towers — that is mazing, and it is rejected. Walling is allowed; herding is not.
+- **Pieces move by chess rules, not toward the Core.** `src/game/movement.ts` owns this. There is no goal-seeking: a Piece reaches the Core only if chess movement happens to take it there.
+- **A round ends when nothing can still act, not when the board is empty.** Chess movement strands Pieces — a pawn on the back rank off the Core's file has no legal move ever again. Waiting for an empty board hangs the round forever.
 - **Square colour is mechanically load-bearing**, not decoration — the Knight is only damageable on light squares.
 - **No path manipulation.** No walls, no blockers, no herding. Defense is coverage, not maze geometry.
 - **Ink is never spent to play a card.** It buys packs only.

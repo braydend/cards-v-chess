@@ -5,6 +5,7 @@ import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 
 const GEOMETRY_LABELS: Record<string, string> = {
+  adjacent: 'Hits the eight squares around it',
   horizontal: 'Fires along its rank',
   vertical: 'Fires along its file',
   cross: 'Fires along rank and file',
@@ -75,7 +76,8 @@ export function Hud() {
             {GEOMETRY_LABELS[selected.geometry]}
             <br />
             <span className="hud__muted">
-              range {selected.range} · {selected.damage} dmg · {selected.fireIntervalMs}ms
+              range {selected.range} · {selected.damage} dmg · {selected.fireIntervalMs}ms ·{' '}
+              {selected.maxHealth} hp
             </span>
           </p>
         </div>

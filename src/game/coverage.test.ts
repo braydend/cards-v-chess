@@ -94,6 +94,47 @@ describe('coversSquare: diagonal', () => {
   })
 })
 
+describe('coversSquare: adjacent', () => {
+  it('covers all eight neighbours at range 1', () => {
+    const neighbours = [
+      { file: 3, rank: 3 },
+      { file: 4, rank: 3 },
+      { file: 5, rank: 3 },
+      { file: 3, rank: 4 },
+      { file: 5, rank: 4 },
+      { file: 3, rank: 5 },
+      { file: 4, rank: 5 },
+      { file: 5, rank: 5 },
+    ]
+
+    for (const neighbour of neighbours) {
+      expect(coversSquare('adjacent', 1, ORIGIN, neighbour)).toBe(true)
+    }
+  })
+
+  it('does not cover two squares away at range 1', () => {
+    expect(coversSquare('adjacent', 1, ORIGIN, { file: 6, rank: 4 })).toBe(false)
+    expect(coversSquare('adjacent', 1, ORIGIN, { file: 6, rank: 6 })).toBe(false)
+  })
+
+  it('does not cover its own square', () => {
+    expect(coversSquare('adjacent', 1, ORIGIN, ORIGIN)).toBe(false)
+  })
+
+  it('covers both square colours, unlike diagonal', () => {
+    const isLight = (square: { file: number; rank: number }) => (square.file + square.rank) % 2 === 0
+    const colours = new Set<boolean>()
+
+    for (let file = 0; file < 8; file += 1) {
+      for (let rank = 0; rank < 8; rank += 1) {
+        if (coversSquare('adjacent', 1, ORIGIN, { file, rank })) colours.add(isLight({ file, rank }))
+      }
+    }
+
+    expect(colours.size).toBe(2)
+  })
+})
+
 describe('coversSquare: colour, which the Knight depends on', () => {
   // Diagonals preserve square colour. This is why rank 5 is the diagonal:
   // a diagonal Tower on a light square only ever hits light squares, which is

@@ -25,6 +25,11 @@ export function coversSquare(
   if (distance > range) return false
 
   switch (geometry) {
+    // Every direction. The distance guards above have already excluded the
+    // Tower's own square and anything out of range, so at range 1 this is
+    // exactly the eight neighbours.
+    case 'adjacent':
+      return true
     case 'horizontal':
       return rankDistance === 0
     case 'vertical':
