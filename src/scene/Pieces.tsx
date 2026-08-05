@@ -15,17 +15,7 @@ import type { BoardSpec, PieceTypeId } from '../game'
 import { getState } from '../state/simulation'
 import { useGameStore } from '../state/store'
 import { fileToWorldX, rankToWorldZ } from './coords'
-
-const CHESS_COLOUR = '#c0392b'
-/** The healer and the commander are priority targets, so they read differently. */
-const COLOUR_BY_TYPE: Record<PieceTypeId, string> = {
-  pawn: CHESS_COLOUR,
-  knight: CHESS_COLOUR,
-  bishop: '#8e44ad',
-  rook: CHESS_COLOUR,
-  queen: CHESS_COLOUR,
-  king: '#d4a017',
-}
+import { PIECE_COLOURS } from './pieceColours'
 
 const GEOMETRY_BY_TYPE: Record<PieceTypeId, () => BufferGeometry> = {
   pawn: () => new ConeGeometry(0.28, 0.55, 6),
@@ -76,7 +66,7 @@ export function Pieces({ board }: { board: BoardSpec }) {
     for (const typeId of PIECE_TYPE_IDS) {
       byType.set(typeId, {
         geometry: GEOMETRY_BY_TYPE[typeId](),
-        material: new MeshStandardMaterial({ color: COLOUR_BY_TYPE[typeId], flatShading: true }),
+        material: new MeshStandardMaterial({ color: PIECE_COLOURS[typeId], flatShading: true }),
       })
     }
 
