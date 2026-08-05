@@ -52,6 +52,12 @@ export function TowerPanel() {
             <span className="hud__muted"> / {formatStat(tower.maxHealth)}</span>
           </dd>
         </div>
+        {tower.shield > 0 && (
+          <div>
+            <dt>Shield</dt>
+            <dd>{formatStat(tower.shield)}</dd>
+          </div>
+        )}
         <div>
           <dt>Damage taken</dt>
           <dd>{formatStat(tower.damageTaken)}</dd>
