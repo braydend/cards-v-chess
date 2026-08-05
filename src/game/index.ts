@@ -11,6 +11,7 @@ export { coversSquare } from './coverage'
 export { isStuck, nextMove, type MoveOutcome } from './movement'
 export { createInitialState } from './state'
 export { step } from './step'
+export { applySupport } from './support'
 export { tick } from './tick'
 export type {
   BoardSpec,

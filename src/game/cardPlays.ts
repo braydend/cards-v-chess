@@ -5,9 +5,11 @@
  * state unchanged — never throws, and never consumes the Card. The UI is
  * responsible for not offering illegal actions; the engine just refuses them.
  */
+import { supportMagnitude } from '../data/cards'
 import { towerRank } from '../data/towerRanks'
 import { isInBounds, squaresEqual } from './board'
 import { findCard, isBuildableRank, removeCard } from './cards'
+import { applySupport } from './support'
 import type { BuildableRank, GameState, Square, Tower } from './types'
 
 /**
@@ -59,6 +61,31 @@ export function buildTower(state: GameState, cardId: string, square: Square): Ga
     ...state,
     towers: [...state.towers, newTower(`tower-${state.nextEntityId}`, square, card.rank)],
     nextEntityId: state.nextEntityId + 1,
+    deck: removeCard(state.deck, cardId),
+  }
+}
+
+/**
+ * Plays a Card for its SUIT, applying a support action to one existing Tower.
+ *
+ * A Joker is refused: it has no suit, so this play is not available to it.
+ */
+export function supportTower(state: GameState, cardId: string, towerId: string): GameState {
+  if (state.phase === 'defeated') return state
+
+  const card = findCard(state.deck, cardId)
+  if (!card || card.kind !== 'standard') return state
+
+  const target = state.towers.find((tower) => tower.id === towerId)
+  if (!target) return state
+
+  const magnitude = supportMagnitude(card.rank)
+
+  return {
+    ...state,
+    towers: state.towers.map((tower) =>
+      tower.id === towerId ? applySupport(tower, card.suit, magnitude) : tower,
+    ),
     deck: removeCard(state.deck, cardId),
   }
 }

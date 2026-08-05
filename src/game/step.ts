@@ -1,5 +1,5 @@
 import { roundSpec } from '../data/rounds'
-import { buildTower } from './cardPlays'
+import { buildTower, supportTower } from './cardPlays'
 import type { Command, GameState } from './types'
 
 /**
@@ -20,6 +20,8 @@ export function step(state: GameState, command: Command): GameState {
       return { ...state, autoStart: command.enabled }
     case 'buildTower':
       return buildTower(state, command.cardId, command.square)
+    case 'supportTower':
+      return supportTower(state, command.cardId, command.towerId)
   }
 }
 
