@@ -7,6 +7,7 @@ import { useUiStore } from '../state/uiStore'
 import { resolveBoardClick } from './boardClick'
 import { SQUARE_SIZE, fileToWorldX, rankToWorldZ, worldXToFile, worldZToRank } from './coords'
 import { CoveragePreview } from './CoveragePreview'
+import { SelectionMarker } from './SelectionMarker'
 
 const LIGHT_SQUARE = '#e6e0cf'
 const DARK_SQUARE = '#3c4655'
@@ -34,6 +35,7 @@ export function Board({ board }: { board: BoardSpec }) {
       </Instances>
 
       <CoveragePreview board={board} />
+      <SelectionMarker board={board} />
       <PlacementSurface board={board} />
     </>
   )
