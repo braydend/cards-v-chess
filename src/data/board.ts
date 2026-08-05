@@ -19,5 +19,12 @@ export const BOARD: BoardSpec = { files: 8, ranks: 8 }
  */
 export const CORE_SQUARE: Square = { file: 3, rank: 0 }
 
-/** PLACEHOLDER value, not a balance decision. */
-export const CORE_MAX_HEALTH = 20
+/**
+ * PLACEHOLDER value, not a balance decision — but no longer an arbitrary one.
+ *
+ * Raised from 20 once the full roster landed. Pawn promotion and the lateral
+ * sweep together mean almost every Piece now reaches the Core unless something
+ * kills it first, so 20 was spent within a handful of rounds and the run ended
+ * before the roster had finished introducing itself.
+ */
+export const CORE_MAX_HEALTH = 100
