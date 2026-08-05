@@ -1,0 +1,114 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #151a21;
+}
+
+canvas {
+  display: block;
+  touch-action: none;
+}
+
+/* The HUD sits over the canvas. It must not swallow orbit/click input, so the
+   overlay itself is transparent to pointers and only the panel re-enables them. */
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  padding: 1rem;
+}
+
+.hud__panel {
+  pointer-events: auto;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 15rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 0.6rem;
+  background: rgb(16 20 26 / 88%);
+  color: #e8edf4;
+}
+
+.hud__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem 1.2rem;
+  margin: 0;
+}
+
+.hud__stats dt {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8fa0b5;
+}
+
+.hud__stats dd {
+  margin: 0.15rem 0 0;
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.hud__muted {
+  font-size: 0.85rem;
+  color: #6f7f94;
+}
+
+.hud__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.hud__button {
+  padding: 0.55rem 0.9rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: #2e86c1;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hud__button:hover:not(:disabled) {
+  background: #3c9ada;
+}
+
+.hud__button:disabled {
+  background: #2a323d;
+  color: #7b8798;
+  cursor: default;
+}
+
+.hud__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: #b9c6d6;
+  cursor: pointer;
+}
+
+.hud__hint {
+  max-width: 18rem;
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #7d8b9e;
+}

@@ -11,7 +11,21 @@ It is a **one-sided defense**. The player is always Cards; Chess is always the a
 
 ## Current state
 
-The repo is **empty** — no source, no `package.json`, nothing scaffolded. Everything below the "Tech stack" heading describes the **agreed target**, not existing code. Do not assume a file exists because it is named here.
+Scaffolded and running. `pnpm dev` gives a playable loop: a board renders, rounds start manually or automatically, pawns hop toward the Core, leaks damage it, and the game ends when it falls.
+
+What exists:
+
+- The rules engine (`src/game/`) with `step` / `tick`, driven by a fixed-timestep accumulator.
+- The renderer (`src/scene/`) and a minimal HUD (`src/ui/`).
+- 38 tests, all passing, none of which need a browser.
+
+What does **not** exist yet, because it depends on open design decisions:
+
+- **Cards.** There is no hand, no deck, and no card pool. Towers are placed by clicking the board, and cost nothing.
+- **Tower combat.** Towers are placed and rendered but do not fire. Damage, range, and targeting depend on the card pool.
+- **The piece roster.** One placeholder type (`pawn`) exists so there is something to render and test.
+
+Because Towers cannot kill anything, a round currently resolves by leaking out. That is expected, not a bug.
 
 ## Tech stack
 
@@ -29,17 +43,17 @@ Chosen because this game is roughly half 3D scene and half dense 2D UI (hand, de
 
 ## Commands
 
-None of these work yet — they are the intended interface once the project is scaffolded.
-
 ```bash
 pnpm install
 pnpm dev          # Vite dev server
-pnpm build        # production build
+pnpm build        # typecheck, then production build
 pnpm test         # Vitest, watch mode
 pnpm test:run     # Vitest, single run (use this in automation)
 pnpm typecheck    # tsc --noEmit
 pnpm lint
 ```
+
+**TypeScript is pinned to the 5.x line on purpose.** TypeScript 7 is published as `latest`, but `typescript-eslint` currently declares support only for `>=4.8.4 <6.1.0`, so upgrading breaks `pnpm lint`. Revisit once typescript-eslint ships TS 7 support.
 
 ## Architecture
 
@@ -56,6 +70,8 @@ This is not stylistic. It buys three things:
 3. If R3F ever becomes the wrong choice, `src/scene/` gets rewritten and the game — plus its whole test suite — survives untouched.
 
 If you find yourself wanting to import a Three.js type into `game/`, that is a signal the boundary is in the wrong place. Fix the boundary, don't cross it.
+
+**This rule is enforced by ESLint**, not just documented — `eslint.config.js` restricts renderer imports in `src/game/` and `src/data/`, so a violation fails `pnpm lint` rather than quietly eroding.
 
 ### Engine shape
 
@@ -81,16 +97,29 @@ Bloons-style rounds:
 
 Chess pieces move in **discrete hops** on a per-piece cadence (knight fast, rook slow), not by sliding continuously. The renderer interpolates between squares so motion reads as smooth. Discrete hops preserve the chess identity and keep threat ranges legible.
 
+### How the simulation reaches React
+
+This bridge is the part most likely to get broken by accident, so understand it before changing `src/state/`:
+
+1. `state/simulation.ts` owns the live `GameState` **outside React**, and advances it with the fixed-timestep accumulator.
+2. `scene/GameLoop.tsx` calls `advance(delta * 1000)` from `useFrame`. It sets no state and touches no store.
+3. `state/store.ts` subscribes to the simulation and publishes a snapshot to zustand **only when `structuralKey` changes** — that key deliberately excludes `roundElapsedMs`, `moveCooldownMs`, and `prevSquare`, all of which change every tick.
+4. Components read the snapshot for mounting and unmounting. Smooth motion between squares is done in `useFrame` by mutating the mesh transform, reading live state via `simulation.getState()`.
+
+Because pieces move in discrete hops, this keeps React renders rare: measured at **28 store publishes across 600 frames** (~21x fewer than rendering per frame). `src/state/simulation.test.ts` guards this — if that test starts failing, something is pushing per-frame updates through React.
+
+Adding a per-tick value to `structuralKey` would silently destroy this property. Don't.
+
 ### Directory layout
 
 ```
 src/
   game/       pure TS rules engine — no React, no three.js
-              state, commands, tick, board, pathing, combat
-  data/       card and piece definitions as data, not code
-  scene/      R3F components: <Board/> <Tower/> <Piece/>
-  ui/         React DOM overlay: Hand, CardDetail, HUD
-  state/      zustand store bridging engine <-> view
+              types, state, step, tick, board helpers
+  data/       board, piece types, round composition — data, not code
+  scene/      R3F components: Board, Core, Towers, Pieces, GameLoop
+  ui/         React DOM overlay: Hud (later: Hand, CardDetail)
+  state/      simulation (owns live state) + zustand bridge to React
 ```
 
 Keep files focused. A file that has grown large is usually doing more than one job.

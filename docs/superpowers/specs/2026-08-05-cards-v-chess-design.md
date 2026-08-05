@@ -103,11 +103,21 @@ Unresolved **on purpose**. Not to be silently resolved in code.
 | Persistence / metagame | Collection, deckbuilding, progression, saving — all open. |
 | Board geometry | Literal 8x8, or larger/other shape. |
 
-## Not yet done
+## Build status
 
-- Nothing is scaffolded. The repo contains `CLAUDE.md`, this document, and an empty `README.md`.
-- No project skills have been written. Skills describing workflows like "add a card" or "add a piece type" would have to invent a structure that does not exist yet; they should be written against real code.
+Scaffolded on 2026-08-05, after the decisions above were agreed.
+
+The foundation is in place and verified: `pnpm typecheck`, `pnpm lint`, `pnpm test:run` (38 tests), and `pnpm build` all pass, and `pnpm dev` serves a playable round loop — board renders, rounds start manually or automatically, pawns hop toward the Core, leaks damage it, the game ends when it falls.
+
+Two decisions made during scaffolding that are worth recording:
+
+- **TypeScript pinned to 5.x.** TS 7 is published as `latest`, but `typescript-eslint` declares support only for `>=4.8.4 <6.1.0`, so TS 7 breaks linting. Revisit when typescript-eslint catches up.
+- **The `game/` boundary is enforced by ESLint**, not merely documented. `no-restricted-imports` blocks renderer imports in `src/game/` and `src/data/`. Verified by deliberately introducing a violation and confirming the failure.
+
+Deferred because they depend on the open decisions: the card pool and hand UI (Towers are currently placed by clicking the board and cost nothing), tower combat behaviour (Towers are placed and rendered but do not fire), and the piece roster beyond one placeholder pawn.
+
+**No project skills were written.** Skills for workflows like "add a card" or "add a piece type" would have to describe structures that do not exist yet — the card pool in particular. They should be written against real code, once the content design is settled.
 
 ## Next step
 
-The open decisions above — particularly the card pool, piece characteristics, and economy — need resolution before an implementation plan is worth writing. Scaffolding (Vite + TS + R3F + Vitest, and the `game/` boundary) could proceed independently of them.
+The open decisions — particularly the card pool, piece characteristics, and economy — are now the blocking work. They are entangled (which cards are worth having depends on which pieces threaten you, and both depend on the economy), so they are best resolved together rather than one at a time.

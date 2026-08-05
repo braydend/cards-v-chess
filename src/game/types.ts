@@ -1,0 +1,94 @@
+/**
+ * Core types for the Cards V Chess rules engine.
+ *
+ * Everything here is plain data. No React, no three.js — see CLAUDE.md.
+ * State is deeply readonly: `step` and `tick` return new state rather than
+ * mutating, which is what keeps the simulation deterministic and testable.
+ */
+
+export interface Square {
+  readonly file: number
+  readonly rank: number
+}
+
+export interface BoardSpec {
+  readonly files: number
+  readonly ranks: number
+}
+
+/**
+ * Only one placeholder type exists so far. The real roster and each type's
+ * characteristics are an open design decision — see CLAUDE.md.
+ */
+export type PieceTypeId = 'pawn'
+
+export interface PieceTypeDef {
+  readonly id: PieceTypeId
+  readonly label: string
+  /** Milliseconds between hops. Lower is faster. Placeholder value. */
+  readonly moveIntervalMs: number
+  readonly maxHealth: number
+}
+
+export interface Piece {
+  readonly id: string
+  readonly typeId: PieceTypeId
+  readonly square: Square
+  /**
+   * The square this piece hopped from. Exists purely so the renderer can
+   * interpolate between squares; the engine never reads it.
+   */
+  readonly prevSquare: Square
+  readonly health: number
+  /** Milliseconds accumulated toward this piece's next hop. */
+  readonly moveCooldownMs: number
+}
+
+export interface Tower {
+  readonly id: string
+  readonly square: Square
+}
+
+/**
+ * `gap` is the untimed window between rounds — the player plans and builds.
+ * `inProgress` is live combat. `defeated` is terminal.
+ */
+export type RoundPhase = 'gap' | 'inProgress' | 'defeated'
+
+export interface Spawn {
+  /** Milliseconds into the round at which this piece appears. */
+  readonly atMs: number
+  readonly typeId: PieceTypeId
+  readonly file: number
+}
+
+export interface RoundSpec {
+  readonly number: number
+  readonly spawns: readonly Spawn[]
+}
+
+export interface GameState {
+  readonly board: BoardSpec
+  readonly core: {
+    readonly square: Square
+    readonly health: number
+  }
+  readonly phase: RoundPhase
+  readonly roundNumber: number
+  /** When true, the next round starts on its own from the `gap` phase. */
+  readonly autoStart: boolean
+  /** Milliseconds elapsed within the current round. Never wall-clock time. */
+  readonly roundElapsedMs: number
+  readonly pieces: readonly Piece[]
+  readonly towers: readonly Tower[]
+  /** Count of pieces that have reached the Core. */
+  readonly leaks: number
+  readonly pendingSpawns: readonly Spawn[]
+  /** Monotonic counter so entity ids are deterministic, never random. */
+  readonly nextEntityId: number
+}
+
+export type Command =
+  | { readonly kind: 'startRound' }
+  | { readonly kind: 'setAutoStart'; readonly enabled: boolean }
+  | { readonly kind: 'placeTower'; readonly square: Square }
