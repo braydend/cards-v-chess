@@ -38,6 +38,18 @@ export default tseslint.config(
   {
     files: ['src/game/**/*.ts', 'src/data/**/*.ts'],
     rules: {
+      // CLAUDE.md's determinism invariant: runs are seeded and the simulation
+      // must stay reproducible, so randomness comes from a seeded PRNG carried
+      // in GameState. Math.max and friends stay allowed — only random is banned.
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'Math',
+          property: 'random',
+          message:
+            'Runs are seeded — src/game and src/data must draw randomness from the PRNG in GameState, never Math.random. See CLAUDE.md.',
+        },
+      ],
       'no-restricted-imports': [
         'error',
         {
