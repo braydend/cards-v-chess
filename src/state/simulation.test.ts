@@ -131,4 +131,24 @@ describe('dispatch', () => {
 
     expect(getState()).toBe(before)
   })
+
+  it('reports true when a command changes state', () => {
+    const changed = dispatch({
+      kind: 'buildTower',
+      cardId: buildableCardId(),
+      square: { file: 2, rank: 3 },
+    })
+
+    expect(changed).toBe(true)
+  })
+
+  it('reports false when a command is refused, so callers can tell a refusal from a success', () => {
+    const refused = dispatch({
+      kind: 'buildTower',
+      cardId: buildableCardId(),
+      square: { file: -1, rank: 0 },
+    })
+
+    expect(refused).toBe(false)
+  })
 })

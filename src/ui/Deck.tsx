@@ -122,8 +122,10 @@ export function Deck() {
               type="button"
               className="hud__button"
               onClick={() => {
-                dispatch(untargeted)
-                setSelectedCardId(null)
+                // Refused only if the game is defeated (the Card is otherwise
+                // guaranteed legal) — but a refusal must not clear the
+                // selection, since the Card was not consumed.
+                if (dispatch(untargeted)) setSelectedCardId(null)
               }}
             >
               Play

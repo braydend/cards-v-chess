@@ -109,7 +109,12 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
         const command = commandFor(card, playMode, target)
         if (!command) return
 
-        dispatch(command)
+        // `dispatch` reports whether the play actually landed. A refusal (an
+        // occupied square, the Core square, an Echo source Tower that died
+        // between the two clicks, ...) must not clear the selection — the
+        // Card was not consumed, so the player should not have to re-pick it.
+        if (!dispatch(command)) return
+
         if (command.kind === 'echoTower') setEchoSourceTowerId(null)
         setSelectedCardId(null)
       }}
