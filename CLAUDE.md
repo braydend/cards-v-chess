@@ -1,0 +1,224 @@
+# Cards V Chess
+
+A web-based 3D tower defense game with trading-card-game mechanics.
+
+Two factions, and the name is literal:
+
+- **Cards** — the player. A **standard 54-card deck** is your arsenal. Cards are modal: **rank builds** a Tower, **suit supports** an existing one.
+- **Chess** — the AI opponent. Waves of chess pieces invade the board, each type mapping a real chess trait onto a tower-defense threat, trying to reach the **Core**.
+
+It is a **one-sided defense**. The player is always Cards; Chess is always the attacker. There is no mode where the player commands chess pieces.
+
+**[`docs/design/game-design.md`](docs/design/game-design.md) is the authority on the design.** Read it before designing, extending, or balancing game content. The dated specs in `docs/superpowers/specs/` are frozen decision records — useful for *why* a choice was made and what was rejected, but never for current state.
+
+## Current state
+
+Scaffolded and running. `pnpm dev` gives a playable loop: a board renders, rounds start manually or automatically, pawns hop toward the Core, leaks damage it, and the game ends when it falls.
+
+What exists:
+
+- The rules engine (`src/game/`) with `step` / `tick`, driven by a fixed-timestep accumulator.
+- The renderer (`src/scene/`) and a minimal HUD (`src/ui/`).
+- 38 tests, all passing, none of which need a browser.
+
+**The design has moved well ahead of the code.** The card grammar, economy, and chess roster are all agreed, but none of it is implemented. Do not read the current code as evidence of the intended design — read `docs/design/game-design.md`.
+
+What does **not** exist yet:
+
+- **Cards.** No Deck, no Ink, no modality. Towers are placed by clicking the board.
+- **Tower combat.** Towers are placed and rendered but do not fire, have no health, and cannot be damaged or repaired.
+- **The piece roster.** One placeholder `pawn` exists with placeholder stats. None of the six agreed threats are implemented — no promotion, no colour vulnerability, no healing, no Tower attacks.
+
+Because Towers cannot kill anything, a round currently resolves by leaking out. That is expected, not a bug.
+
+**Next implementation step** is a thin vertical slice — Tower firing geometry for ranks 2–5, Tower health and repair, and Pieces attacking Towers — rather than the full card pool. Five interacting mechanics have been designed and none played.
+
+## Tech stack
+
+| Concern | Choice |
+| --- | --- |
+| Renderer | React Three Fiber (Three.js via React) |
+| Language | TypeScript, strict |
+| Build | Vite |
+| Package manager | pnpm |
+| State (view layer) | zustand |
+| Tests | Vitest |
+| Art style | Low-poly |
+
+Chosen because this game is roughly half 3D scene and half dense 2D UI (the Deck, card zoom, tooltips, pack opening, the cull screen). React handles the second half well, and low-poly art means the renderer will not be the bottleneck.
+
+## Commands
+
+```bash
+pnpm install
+pnpm dev          # Vite dev server
+pnpm build        # typecheck, then production build
+pnpm test         # Vitest, watch mode
+pnpm test:run     # Vitest, single run (use this in automation)
+pnpm typecheck    # tsc --noEmit
+pnpm lint
+```
+
+**TypeScript is pinned to the 5.x line on purpose.** TypeScript 7 is published as `latest`, but `typescript-eslint` currently declares support only for `>=4.8.4 <6.1.0`, so upgrading breaks `pnpm lint`. Revisit once typescript-eslint ships TS 7 support.
+
+## Game design
+
+The player defends a **Core** on a chessboard against rounds of invading chess Pieces, building **Towers** by playing cards from a standard 54-card deck. Every card is modal — **rank builds** a Tower, **suit supports** an existing one — and playing a card **consumes** it. Runs are seeded, start by opening a pack, and the Deck is capped at 30 cards.
+
+**[`docs/design/game-design.md`](docs/design/game-design.md) is the single source of truth** for the design, and holds the only canonical list of open questions. Read it before designing, extending, or balancing any game content. Do not duplicate its detail back into this file.
+
+### Invariants that constrain code
+
+Design facts with hard implementation consequences. Breaking one of these is a bug, not a balance choice:
+
+- **`Math.random` must never appear in `src/game/`.** Runs are seeded and the simulation must stay reproducible. Randomness comes from a seeded PRNG carried in `GameState`.
+- **Ink income must be event-driven** — round completion and kills — **never time-based.** The gap between rounds is untimed, so time-based income is unbounded: the player would just wait.
+- **Playing a card consumes it.** There is no drawing, no shuffling, no discard pile, and no hand. The whole Deck is always visible and playable.
+- **Towers never block movement.** A Piece whose move would land on a Tower attacks it instead. If Towers blocked, they would be walls and mazing would return.
+- **Square colour is mechanically load-bearing**, not decoration — the Knight is only damageable on light squares.
+- **No path manipulation.** No walls, no blockers, no herding. Defense is coverage, not maze geometry.
+- **Ink is never spent to play a card.** It buys packs only.
+
+## Architecture
+
+### The one hard rule
+
+**`src/game/` must never import React or Three.js.**
+
+The rules engine is pure TypeScript. It owns all game state and all game logic. The renderer reads that state and draws it. React renders; it never simulates.
+
+This is not stylistic. It buys three things:
+
+1. The entire game is testable without a browser, a canvas, or a renderer.
+2. The simulation stays deterministic, because nothing in it can depend on frame timing or component lifecycles.
+3. If R3F ever becomes the wrong choice, `src/scene/` gets rewritten and the game — plus its whole test suite — survives untouched.
+
+If you find yourself wanting to import a Three.js type into `game/`, that is a signal the boundary is in the wrong place. Fix the boundary, don't cross it.
+
+**This rule is enforced by ESLint**, not just documented — `eslint.config.js` restricts renderer imports in `src/game/` and `src/data/`, so a violation fails `pnpm lint` rather than quietly eroding.
+
+### Engine shape
+
+```ts
+step(state: GameState, command: Command): GameState   // player actions
+tick(state: GameState, fixedDt: number): GameState    // the simulation
+```
+
+- `step` handles player commands — play a card, place a Tower, upgrade, start the round. Commands are valid both between rounds and mid-round.
+- `tick` advances the simulation: piece movement, tower firing, damage, deaths, round completion.
+- A **fixed-timestep accumulator** drives `tick`. Never pass a raw frame delta into the engine. Tests drive fake time by calling `tick` directly.
+- "Round in progress" is a flag on `GameState`, not a separate code path. There is one state machine, not two.
+
+### Time model — what it means for the engine
+
+The design is in `game-design.md`; these are the consequences for code:
+
+- **One state machine, not two.** "Round in progress" is a flag on `GameState`. Commands are valid both during a round and in the gap, so there is no separate build-phase code path.
+- **Auto-start is a setting, not a mode.** It issues the same start command the player would. Do not branch on it beyond that.
+- **The gap between rounds is untimed**, which is why no engine value may accrue with elapsed time.
+- **Pieces hop between discrete squares.** The engine only ever holds square positions; smooth motion is the renderer interpolating between them.
+
+### How the simulation reaches React
+
+This bridge is the part most likely to get broken by accident, so understand it before changing `src/state/`:
+
+1. `state/simulation.ts` owns the live `GameState` **outside React**, and advances it with the fixed-timestep accumulator.
+2. `scene/GameLoop.tsx` calls `advance(delta * 1000)` from `useFrame`. It sets no state and touches no store.
+3. `state/store.ts` subscribes to the simulation and publishes a snapshot to zustand **only when `structuralKey` changes** — that key deliberately excludes `roundElapsedMs`, `moveCooldownMs`, and `prevSquare`, all of which change every tick.
+4. Components read the snapshot for mounting and unmounting. Smooth motion between squares is done in `useFrame` by mutating the mesh transform, reading live state via `simulation.getState()`.
+
+Because pieces move in discrete hops, this keeps React renders rare: measured at **28 store publishes across 600 frames** (~21x fewer than rendering per frame). `src/state/simulation.test.ts` guards this — if that test starts failing, something is pushing per-frame updates through React.
+
+Adding a per-tick value to `structuralKey` would silently destroy this property. Don't.
+
+### Directory layout
+
+```
+src/
+  game/       pure TS rules engine — no React, no three.js
+              types, state, step, tick, board helpers
+  data/       board, piece types, round composition — data, not code
+  scene/      R3F components: Board, Core, Towers, Pieces, GameLoop
+  ui/         React DOM overlay: Hud (later: Deck, CardDetail, PackOpen)
+  state/      simulation (owns live state) + zustand bridge to React
+```
+
+Keep files focused. A file that has grown large is usually doing more than one job.
+
+Card and piece definitions belong in `data/` as plain data. Balance changes should not require touching logic.
+
+## React Three Fiber discipline
+
+These are the failure modes that cause every R3F performance horror story:
+
+- **Never call `setState` inside `useFrame`**, or in fast handlers like `onPointerMove`. Mutate refs directly. Routing per-frame updates through React's scheduler is the single biggest mistake available here.
+- **Scale by `delta`**, not by fixed increments, so behaviour is refresh-rate independent.
+- **Do not allocate in the frame loop.** No `new Vector3()` 60 times a second — instantiate once, reuse with `.set()`.
+- **Share geometries and materials** via `useMemo`.
+- **Instance repeated meshes.** Board squares and same-type pieces are the obvious candidates.
+- **Toggle `visible`** rather than conditionally mounting, where mounting would recompile materials.
+- Load assets with `useLoader` / `useGLTF` so they are cached scene-wide.
+
+## Domain vocabulary
+
+Use these terms exactly and consistently — in code, comments, and UI copy.
+
+| Term | Meaning |
+| --- | --- |
+| **Cards** | The player's faction |
+| **Chess** | The AI attacking faction |
+| **Card** | An unplayed item in the Deck. Has a rank and a suit. **Consumed when played** |
+| **Rank** | 2–10, J, Q, K, A. Determines the Tower a Card builds |
+| **Suit** | ♥ ♦ ♠ ♣. Determines the support action a Card can apply |
+| **Tower** | A Card played for its rank — placed, active, and destructible |
+| **Support** | A Card played for its suit, applied to an existing Tower |
+| **Ink** | The run currency. Buys **packs**; never spent to play a card |
+| **Piece** | One Chess-faction invader instance |
+| **Piece type** | Pawn, knight, bishop, rook, queen, king |
+| **Promotion** | A surviving Pawn becoming a Queen |
+| **Core** | What the player defends |
+| **Round** | One wave of invaders. Always "round", never "wave" |
+| **Tick** | One fixed-timestep simulation step |
+| **Command** | A player action entering the engine |
+| **Leak** | A Piece reaching the Core |
+| **Run** | One playthrough: a sequence of Rounds. Identified by a **seed** |
+| **Deck** | All cards held for the current Run, capped at 30. Fully visible; grown by **packs**. There is no "hand" |
+| **Pack** | A bundle of cards bought with Ink between Rounds |
+| **Cull** | Destroying cards to stay within the 30-card Deck cap |
+| **Square / rank / file** | Board positions, chess terminology |
+
+**Careful with "rank".** It means two different things — a Card's rank (2–A) and a board rank (row). Both are standard in their own domain, so keep them apart by context and name variables accordingly (`cardRank` vs `boardRank`) wherever both could appear.
+
+Do not introduce synonyms for these. Drifting between "wave" and "round", or "tower" and "defender", makes the codebase harder to search.
+
+## Testing
+
+- **The engine is the priority.** `src/game/` is pure and deterministic, so it should carry the bulk of the coverage — whole rounds can be simulated in milliseconds with no renderer.
+- Drive time explicitly in tests by calling `tick` with a fixed delta. Never rely on wall-clock time or `requestAnimationFrame`.
+- Test behaviour through the engine's public surface (`step`, `tick`, state queries), not internals.
+- Keep `data/` definitions out of assertions where possible — a balance tweak should not break unrelated tests.
+- Use `pnpm test:run` in automation; `pnpm test` is watch mode.
+
+## Open design decisions
+
+**The canonical list lives in [`docs/design/game-design.md`](docs/design/game-design.md), under "Open questions".** It is deliberately the only copy — this list previously existed in three places and drifted out of sync every time the design changed.
+
+Do not duplicate it here. Do not resolve anything on it by guessing.
+
+## Documentation structure
+
+Three roles, three homes. Putting content in the wrong one is how the docs drift:
+
+| File | Role |
+| --- | --- |
+| `CLAUDE.md` | **How to work in this repo.** Stack, commands, architecture, discipline, vocabulary, testing. Design appears only as invariants that constrain code. |
+| `docs/design/game-design.md` | **What the game is.** Living, mutable, single source of truth. Holds the only open-questions list. |
+| `docs/superpowers/specs/*.md` | **Why decisions were made**, and what was rejected. Dated, frozen, never updated. |
+
+When the design changes, edit `game-design.md`. Add a new dated spec only to record the reasoning behind a substantial decision — never to restate current state.
+
+## Working agreements
+
+- The repo is greenfield: prefer establishing a clean pattern over matching non-existent precedent, but once a pattern exists, follow it.
+- Verify before claiming something works. Run the command and read the output.
+- When a decision touches anything on the open-questions list, stop and ask rather than guessing.
