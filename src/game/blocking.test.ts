@@ -114,11 +114,17 @@ describe('destroyed Towers', () => {
   })
 
   it('do not take Tower health below zero in the reported state', () => {
-    const state = blockedApproach(5, { file: 3, rank: 4 })
+    // The claim is about every reported state, not just the final one — a
+    // Tower dies partway through this run, so sampling only the end (where
+    // `after.towers` is already `[]`) would make `.every(...)` vacuously true
+    // no matter what health value was reported on the way down. Stepping one
+    // tick at a time and asserting after each closes that gap.
+    let state = blockedApproach(5, { file: 3, rank: 4 })
 
-    const after = runFor(state, 30_000)
-
-    expect(after.towers.every((tower) => tower.health > 0)).toBe(true)
+    for (let elapsed = 0; elapsed < 30_000; elapsed += DT) {
+      state = tick(state, DT)
+      expect(state.towers.every((tower) => tower.health > 0)).toBe(true)
+    }
   })
 })
 
