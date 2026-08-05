@@ -51,15 +51,30 @@ Chosen because this game is roughly half 3D scene and half dense 2D UI (the Deck
 
 ```bash
 pnpm install
-pnpm dev          # Vite dev server
-pnpm build        # typecheck, then production build
-pnpm test         # Vitest, watch mode
-pnpm test:run     # Vitest, single run (use this in automation)
-pnpm typecheck    # tsc --noEmit
+pnpm dev           # Vite dev server
+pnpm build         # typecheck, then production build
+pnpm test          # Vitest, watch mode
+pnpm test:run      # Vitest, single run (use this in automation)
+pnpm test:coverage # Vitest with coverage + thresholds (what CI runs)
+pnpm typecheck     # tsc --noEmit
 pnpm lint
 ```
 
 **TypeScript is pinned to the 5.x line on purpose.** TypeScript 7 is published as `latest`, but `typescript-eslint` currently declares support only for `>=4.8.4 <6.1.0`, so upgrading breaks `pnpm lint`. Revisit once typescript-eslint ships TS 7 support.
+
+## CI
+
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`: `lint`, `typecheck`, `test:coverage`, `build`. Pushes to `main` also deploy to [GitHub Pages](https://braydend.github.io/cards-v-chess/), gated on those checks passing.
+
+Branch protection is currently **off**, so nothing blocks a direct push to `main` or the merge of a red pull request. What CI does guarantee is that such a commit never reaches the live site — `deploy` declares `needs: checks`. **The gate is on the deployment, not on the branch.**
+
+CI enforces three things beyond "the tests pass":
+
+- The **renderer boundary** — `src/game/` and `src/data/` importing React or Three.js fails `pnpm lint`.
+- **Seeded determinism** — `Math.random` in those directories fails `pnpm lint`.
+- **Engine coverage** — thresholds on `src/game/` and `src/state/`. `src/scene/`, `src/ui/`, `src/data/`, the entry points `src/App.tsx` and `src/main.tsx`, and `src/state/uiStore.ts` are excluded: the renderer needs a browser and is deliberately untested, `data/` is constant tables, and `uiStore.ts` holds view-only UI state (selection, hover), not the simulation bridge the rest of `src/state/` carries. A file added to `state/` is measured unless it, like `uiStore.ts`, holds that kind of view state rather than bridging to the simulation.
+
+Coverage sets `include` explicitly rather than relying on the default. The default counts only files the tests import, so a new untested file in `src/game/` would not move the number at all. Thresholds are a per-directory allowlist, not a global floor — a new measured directory (a future `src/engine/`, say) shows up in the coverage report because `include` catches it, but has no threshold of its own and cannot fail the build until it is given an entry in `vite.config.ts`. The current thresholds — see `vite.config.ts` for the numbers, so this stays the one place they live — are a **regression ratchet, not a baseline**: they sit just under what the code already does. Defining a real baseline is an open follow-up; do not treat passing them as evidence of good coverage.
 
 ## Game design
 
@@ -71,7 +86,7 @@ The player defends a **Core** on a chessboard against rounds of invading chess P
 
 Design facts with hard implementation consequences. Breaking one of these is a bug, not a balance choice:
 
-- **`Math.random` must never appear in `src/game/`.** Runs are seeded and the simulation must stay reproducible. Randomness comes from a seeded PRNG carried in `GameState`.
+- **`Math.random` must never appear in `src/game/`.** Runs are seeded and the simulation must stay reproducible. Randomness comes from a seeded PRNG carried in `GameState`. **Enforced by ESLint** — a violation fails `pnpm lint`, and therefore CI.
 - **Ink income must be event-driven** — round completion and kills — **never time-based.** The gap between rounds is untimed, so time-based income is unbounded: the player would just wait.
 - **Playing a card consumes it.** There is no drawing, no shuffling, no discard pile, and no hand. The whole Deck is always visible and playable.
 - **Towers block movement, and blocked Pieces attack them at half damage.** A Piece whose next square holds a Tower does not advance.
@@ -210,13 +225,14 @@ Do not duplicate it here. Do not resolve anything on it by guessing.
 
 ## Documentation structure
 
-Three roles, three homes. Putting content in the wrong one is how the docs drift:
+Four roles, four homes. Putting content in the wrong one is how the docs drift:
 
 | File | Role |
 | --- | --- |
 | `CLAUDE.md` | **How to work in this repo.** Stack, commands, architecture, discipline, vocabulary, testing. Design appears only as invariants that constrain code. |
 | `docs/design/game-design.md` | **What the game is.** Living, mutable, single source of truth. Holds the only open-questions list. |
 | `docs/superpowers/specs/*.md` | **Why decisions were made**, and what was rejected. Dated, frozen, never updated. |
+| `docs/superpowers/plans/*.md` | **How a piece of work was carried out.** Dated, completed, frozen once done — a historical record of the tasks and order, not a live description of current state. |
 
 When the design changes, edit `game-design.md`. Add a new dated spec only to record the reasoning behind a substantial decision — never to restate current state.
 
