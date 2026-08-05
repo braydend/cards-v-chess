@@ -63,6 +63,10 @@ repository with no `package.json`.
 `init` was merged via PR #1 (`ca4a9db`) and this work rebased onto the result. CI therefore protects
 `main` from its first commit, and there is no long-lived divergent branch for it to grow stale against.
 
+`main` is consequently a first-class CI target, not just a merge destination: the pipeline runs on
+pushes to it as well as on pull requests, and the `main` run is what guards the Pages deploy. See the
+triggers in decision 2.
+
 ### 2. One workflow file, two jobs — not parallel per-check jobs
 
 **Considered:** four parallel jobs (`lint`, `typecheck`, `test`, `build`); one job running all checks;
@@ -70,11 +74,28 @@ a separate deploy workflow triggered by `workflow_run`.
 
 **Chosen:** one file, `.github/workflows/ci.yml`, containing two jobs.
 
-- **`checks`** runs on `pull_request` and `push: main`. Checkout → pnpm → Node (with pnpm cache) →
+**Triggers — both, deliberately:**
+
+```yaml
+on:
+  pull_request:
+  push:
+    branches: [main]
+```
+
+The gate runs on **pull requests** (catch it before merge) *and* on **pushes to `main`** (catch anything
+that reached `main` anyway — a direct push, or a merge whose result differs from what was tested on the
+branch). The `main` run is not redundant with the PR run: it is the run that **guards the deploy**.
+
+- **`checks`** runs on both triggers. Checkout → pnpm → Node (with pnpm cache) →
   `install --frozen-lockfile` → `lint` → `typecheck` → `test:coverage` → `build`. On `main` only, it
   also uploads the GitHub Pages artifact.
 - **`deploy`** declares `needs: checks` and `if: github.ref == 'refs/heads/main'`. It publishes the
   artifact that `checks` already built.
+
+Because `deploy` gates on `needs: checks`, the `main` run is the only thing standing between a bad commit
+and the live site. With branch protection off (see "Repository settings" below), it is currently the
+*only* automated gate on `main` at all — which is precisely why the `push: main` trigger is not optional.
 
 Three reasons for one checks job rather than four:
 
@@ -131,8 +152,14 @@ floor deliberately does not demand that be fixed now.
 Vitest's `thresholds.autoUpdate` was considered as a self-raising ratchet and rejected — it rewrites the
 config file on every run, which is noise in a CI context.
 
-**Explicitly accepted as a first pass.** The floors are expected to be revisited and tightened as the
-engine grows; they are not intended as a permanent statement of the right level.
+**These numbers are a first pass, not the baseline.** They were chosen to sit just under what the code
+already does, so that the mechanism — explicit `coverage.include`, per-directory scoping, renderer
+excluded — is in place and proven before anyone argues about levels. **A considered baseline threshold
+is a deliberate follow-up**, to be defined once the vertical slice lands and the engine's shape is
+settled. Until then, treat a coverage failure as "something regressed", not as "the standard was met".
+
+The structural decisions above (which directories are measured, and against what denominator) are the
+part meant to last. The specific percentages are expected to change.
 
 ### 5. Enforce the `Math.random` ban in ESLint, not in CI
 
@@ -206,12 +233,18 @@ reads directly. Without it, the CI pnpm version floats independently of local de
 | `eslint.config.js` | Add the `no-restricted-properties` rule banning `Math.random` in `src/game/` and `src/data/` (decision 5). |
 | `CLAUDE.md` | Document the new `test:coverage` command and note that CI enforces the boundary, determinism, and coverage rules. |
 
-## Manual step outside the repository
+## Repository settings
 
-**GitHub Pages must be enabled with Settings → Pages → Source = "GitHub Actions".** The `deploy` job
-fails until this is set, and it cannot be configured from the repository. Branch protection requiring
-the `checks` job on pull requests into `main` is also a repository setting, and is recommended once the
-first run has gone green — a required check cannot be selected in the UI until it has reported once.
+Both live outside the repository and cannot be set from code.
+
+- **Pages source = "GitHub Actions".** Required, or the `deploy` job fails.
+  **Done — configured by the repository owner on 2026-08-05**, before this design was implemented.
+- **Branch protection requiring the `checks` job.** **Deliberately left off for now**, at the owner's
+  decision. Consequence, recorded so it is not a surprise later: nothing prevents a direct push to `main`
+  or the merge of a red pull request. What CI still guarantees is that such a commit **does not reach the
+  live site**, because `deploy` gates on `needs: checks` (decision 2). The gate is on the deployment, not
+  on the branch. Enabling protection later needs no code change — a required check simply cannot be
+  selected in the GitHub UI until it has reported at least once.
 
 ## Deliberately out of scope
 
