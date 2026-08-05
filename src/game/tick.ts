@@ -278,6 +278,8 @@ function movePieces(
     let cooldown = piece.moveCooldownMs + dtMs
     let square = piece.square
     let prevSquare = piece.prevSquare
+    let moveCount = piece.moveCount
+    let handedness = piece.handedness
     let reachedCore = false
 
     // A loop rather than a single hop so that a slow frame or a fast piece can
@@ -285,11 +287,13 @@ function movePieces(
     while (cooldown >= moveIntervalMs) {
       cooldown -= moveIntervalMs
 
-      // moveCount and handedness: Task 2 wires these to the Piece.
+      // moveCount and handedness carry the Piece's own motion state forward
+      // hop by hop, which is what makes the Knight's zig-zag and the Queen's
+      // rook/bishop alternation actually advance instead of repeating.
       // slideBonus: not a Piece field — Task 8 computes this from the King
       // aura covering this square. 0 here is a placeholder, not yet correct.
       const outcome = nextMove(
-        { typeId: piece.typeId, from: square, moveCount: 0, handedness: 1, slideBonus: 0 },
+        { typeId: piece.typeId, from: square, moveCount, handedness, slideBonus: 0 },
         board,
         coreSquare,
         towerBySquare,
@@ -320,6 +324,11 @@ function movePieces(
 
       prevSquare = square
       square = outcome.to
+      // Only a real move advances the count. A blocked Piece must grind the
+      // same Tower rather than weave to a different square next interval —
+      // that would be routing around, which the design forbids.
+      moveCount += 1
+      handedness = outcome.handedness ?? handedness
     }
 
     if (reachedCore) {
@@ -327,7 +336,7 @@ function movePieces(
       continue
     }
 
-    survivors.push({ ...piece, square, prevSquare, moveCooldownMs: cooldown })
+    survivors.push({ ...piece, square, prevSquare, moveCooldownMs: cooldown, moveCount, handedness })
   }
 
   return { pieces: survivors, leaked, towerDamage }

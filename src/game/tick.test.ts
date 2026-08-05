@@ -160,6 +160,22 @@ describe('tick: round completion', () => {
   })
 })
 
+describe('tick: motion state', () => {
+  it('counts a Piece hops so zig-zag and alternation advance', () => {
+    const started = startedRound()
+    const state = runFor(started, PIECE_TYPES.pawn.moveIntervalMs * 2 + DT)
+
+    expect(state.pieces[0]?.moveCount).toBeGreaterThan(0)
+  })
+
+  it('gives consecutively spawned Pieces opposite handedness', () => {
+    const state = runFor(startedRound(), 1200 + DT)
+    const sides = state.pieces.map((piece) => piece.handedness)
+
+    expect(new Set(sides).size).toBe(2)
+  })
+})
+
 describe('tick: determinism', () => {
   it('produces identical state from identical inputs', () => {
     const a = runFor(startedRound(), 20_000)
