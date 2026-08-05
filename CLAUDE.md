@@ -9,10 +9,7 @@ Two factions, and the name is literal:
 
 It is a **one-sided defense**. The player is always Cards; Chess is always the attacker. There is no mode where the player commands chess pieces.
 
-**Design specs, in order — read these before designing anything:**
-
-1. [Foundation](docs/superpowers/specs/2026-08-05-cards-v-chess-design.md) — stack, time model, architecture rationale.
-2. [Card system and roster](docs/superpowers/specs/2026-08-05-card-system-and-roster-design.md) — the card grammar, economy, chess roster. **Partly supersedes the foundation spec**, and carries the current list of open questions.
+**[`docs/design/game-design.md`](docs/design/game-design.md) is the authority on the design.** Read it before designing, extending, or balancing game content. The dated specs in `docs/superpowers/specs/` are frozen decision records — useful for *why* a choice was made and what was rejected, but never for current state.
 
 ## Current state
 
@@ -24,7 +21,7 @@ What exists:
 - The renderer (`src/scene/`) and a minimal HUD (`src/ui/`).
 - 38 tests, all passing, none of which need a browser.
 
-**The design has moved well ahead of the code.** The card grammar, economy, and chess roster are now agreed (see the specs above), but none of it is implemented. Do not read the current code as evidence of the intended design.
+**The design has moved well ahead of the code.** The card grammar, economy, and chess roster are all agreed, but none of it is implemented. Do not read the current code as evidence of the intended design — read `docs/design/game-design.md`.
 
 What does **not** exist yet:
 
@@ -34,7 +31,7 @@ What does **not** exist yet:
 
 Because Towers cannot kill anything, a round currently resolves by leaking out. That is expected, not a bug.
 
-**Next implementation step** is a thin vertical slice — Tower health and repair, Piece targeting, and the modal card system with **only ranks 2–5** — rather than the full pool. Rationale in the card system spec.
+**Next implementation step** is a thin vertical slice — Tower firing geometry for ranks 2–5, Tower health and repair, and Pieces attacking Towers — rather than the full card pool. Five interacting mechanics have been designed and none played.
 
 ## Tech stack
 
@@ -66,112 +63,21 @@ pnpm lint
 
 ## Game design
 
-Summary only — the [card system spec](docs/superpowers/specs/2026-08-05-card-system-and-roster-design.md) is the authority, and it lists what is still open.
+The player defends a **Core** on a chessboard against rounds of invading chess Pieces, building **Towers** by playing cards from a standard 54-card deck. Every card is modal — **rank builds** a Tower, **suit supports** an existing one — and playing a card **consumes** it. Runs are seeded, start by opening a pack, and the Deck is capped at 30 cards.
 
-### Card grammar
+**[`docs/design/game-design.md`](docs/design/game-design.md) is the single source of truth** for the design, and holds the only canonical list of open questions. Read it before designing, extending, or balancing any game content. Do not duplicate its detail back into this file.
 
-The player's deck is a **standard 54-card deck** (2–10, J, Q, K, A, two Jokers). Not bespoke cards.
+### Invariants that constrain code
 
-Every card is **modal** — playing it means choosing one of two uses:
+Design facts with hard implementation consequences. Breaking one of these is a bug, not a balance choice:
 
-> **Rank builds. Suit supports.**
-
-| Suit | Action on a Tower |
-| --- | --- |
-| ♥ Hearts | Repair — restore lost health |
-| ♦ Diamonds | Speed — increase fire rate |
-| ♠ Spades | Health — increase maximum health |
-| ♣ Clubs | Damage — increase damage |
-
-Because every card can always build, the player can never be stuck holding only support cards. Preserve that property.
-
-Support magnitude scales with rank, as Tower power does: a 9♥ is a large repair, a 2♥ a small one.
-
-### Rank ladder
-
-Rank sets a Tower's firing geometry. **Towers are generic, never chess-themed** — giving Towers chess firing patterns was explicitly rejected.
-
-| Rank | Fires |
-| --- | --- |
-| 2 | Horizontal (along its board rank) |
-| 3 | Vertical (along its file) |
-| 4 | Cross — horizontal and vertical |
-| 5 | Diagonal — the X |
-| 6–10 | **Undesigned — do not invent** |
-
-Shape is the rank's identity; **range and damage scale with rank**, since shape alone gives no power curve.
-
-Rank 5 is diagonal for a reason: diagonals preserve square colour, so a diagonal Tower on a light square only ever hits light squares — which is exactly the Knight's vulnerability window. That counter emerges from real geometry rather than being assigned.
-
-### Cards are consumed, and there is no drawing
-
-**Playing a card consumes it** — converted into a Tower, or spent on a support action. Nothing returns; there is no discard pile.
-
-**Playing a card costs nothing else.** No mana, no Ink cost. The Deck *is* the resource: the player's total supply of plays for the run, replenished only by packs.
-
-**There is no drawing.** The whole Deck is visible and playable at all times. No shuffling, no draw pile, no per-round draw, no hand limit.
-
-This is a package, not a preference. Towers are permanent and playing costs nothing, so reusable cards would mean unlimited Towers — consumption is what bounds the board. And once cards are consumed, drawing would only hide information about a supply the player must plan against.
-
-### Ink buys packs
-
-**Ink is the run currency, not a play cost.** Earned from **round completion** and **kill rewards** (scaled by Piece type), spent between rounds on packs. Carries over.
-
-**Ink must never accrue over time.** The gap between rounds is untimed, so time-based income is unbounded — the player just waits. Income is event-driven only. This is structural, not a balance knob.
-
-### Runs are seeded
-
-The game is **run-based**, not a persistent collection: the deck is built during a run and does not survive it. A run is identified by a **seed** and is fully reproducible.
-
-This requires a seeded PRNG carried in `GameState`. **`Math.random` must never appear in `src/game/`** — it breaks determinism and seeds alike. There is currently no randomness in the engine at all; keep it that way.
-
-### The Deck
-
-| Rule | Value |
-| --- | --- |
-| Deck cap | **30 cards** |
-| Copies of any one card | Unlimited |
-| Visibility | Entire Deck always visible and playable |
-| On play | Card is consumed |
-
-**The 30-cap is hard, and acquiring cards can force destroying cards** — buying a 10-card pack while holding 25 means cutting 5. That decision is the point of the cap. There is deliberately **no copy limit**; it would fight the culling mechanic.
-
-Note the loop: **playing cards frees Deck space**, so culling only bites when the player hoards. Hoarding has a cost, spending has a reward. Preserve that.
-
-**A run opens by opening a pack** — there is no fixed starter Deck. Since packs roll off the seed, the opening is reproducible.
-
-**"Hand" is retired as a term.** With no draw pile there is only one set of cards. Call it the Deck; "hand" implies drawing, which does not exist here.
-
-Packs: **Scrap** (3 random), **Base** (10 random), **Court** (10 weighted high), **Suited** (10 of one chosen suit). Fixed prices per type — packs do **not** escalate in price.
-
-### The Chess roster
-
-| Piece | Threat |
-| --- | --- |
-| **Pawn** | Chaff swarm. **Promotes to a Queen if it survives long enough.** |
-| **Knight** | Colour-flicker — only damageable while on a **light** square |
-| **Bishop** | Healer — sustains the wave until killed |
-| **Rook** | Armoured tank |
-| **Queen** | Elite — flexible, rare, dangerous |
-| **King** | Commander — buffs adjacent Pieces |
-
-Square colour is **mechanically load-bearing** because of the Knight. It is not decoration.
-
-### Towers are destructible
-
-Towers have health, take damage from Pieces, and are repaired with ♥ cards.
-
-**Targeting is emergent, not assigned per Piece type.** One rule covers every Piece:
-
-> A Piece whose move would land it on a Tower's square **attacks that Tower instead of moving**.
-
-**Towers do not block movement.** If they blocked, Towers would be walls and mazing would return — see below. Pieces cannot be redirected; the player only chooses whether to place a Tower in harm's way, which makes placement a risk decision rather than a pure coverage puzzle.
-
-No Piece type is a designated Tower-hunter. The Bishop is a **pure healer**.
-
-### No walls, no mazing
-
-There are no wall or blocker cards, and the player never reshapes the path. Pieces cannot be herded. This is a **coverage** tower defense, not a maze one — defense is about which squares you can hit. Do not add path manipulation without revisiting the spec.
+- **`Math.random` must never appear in `src/game/`.** Runs are seeded and the simulation must stay reproducible. Randomness comes from a seeded PRNG carried in `GameState`.
+- **Ink income must be event-driven** — round completion and kills — **never time-based.** The gap between rounds is untimed, so time-based income is unbounded: the player would just wait.
+- **Playing a card consumes it.** There is no drawing, no shuffling, no discard pile, and no hand. The whole Deck is always visible and playable.
+- **Towers never block movement.** A Piece whose move would land on a Tower attacks it instead. If Towers blocked, they would be walls and mazing would return.
+- **Square colour is mechanically load-bearing**, not decoration — the Knight is only damageable on light squares.
+- **No path manipulation.** No walls, no blockers, no herding. Defense is coverage, not maze geometry.
+- **Ink is never spent to play a card.** It buys packs only.
 
 ## Architecture
 
@@ -203,17 +109,14 @@ tick(state: GameState, fixedDt: number): GameState    // the simulation
 - A **fixed-timestep accumulator** drives `tick`. Never pass a raw frame delta into the engine. Tests drive fake time by calling `tick` directly.
 - "Round in progress" is a flag on `GameState`, not a separate code path. There is one state machine, not two.
 
-### Time model
+### Time model — what it means for the engine
 
-Bloons-style rounds:
+The design is in `game-design.md`; these are the consequences for code:
 
-- Rounds are discrete and numbered.
-- The gap between rounds is **untimed** — the player studies the board and plays cards with no pressure.
-- The player starts a round manually, or enables **auto-start** so rounds chain automatically. Auto-start is a setting that enqueues the next start command; it is not a different game mode.
-- Once a round is live, combat runs in **real time** and does not wait for the player.
-- The player can play cards **during** a round. Building is not locked to the gap.
-
-Chess pieces move in **discrete hops** on a per-piece cadence (knight fast, rook slow), not by sliding continuously. The renderer interpolates between squares so motion reads as smooth. Discrete hops preserve the chess identity and keep threat ranges legible.
+- **One state machine, not two.** "Round in progress" is a flag on `GameState`. Commands are valid both during a round and in the gap, so there is no separate build-phase code path.
+- **Auto-start is a setting, not a mode.** It issues the same start command the player would. Do not branch on it beyond that.
+- **The gap between rounds is untimed**, which is why no engine value may accrue with elapsed time.
+- **Pieces hop between discrete squares.** The engine only ever holds square positions; smooth motion is the renderer interpolating between them.
 
 ### How the simulation reaches React
 
@@ -298,28 +201,24 @@ Do not introduce synonyms for these. Drifting between "wave" and "round", or "to
 
 ## Open design decisions
 
-These are **deliberately unresolved**. Do not invent answers, silently pick one, or write code that hardcodes an assumption about them. Ask.
+**The canonical list lives in [`docs/design/game-design.md`](docs/design/game-design.md), under "Open questions".** It is deliberately the only copy — this list previously existed in three places and drifted out of sync every time the design changed.
 
-- **Ranks 6–10** — ranks 2–5 are set; the rest of the geometry ladder is undesigned.
-- **Ace, face cards, and Jokers** — they perform specific actions rather than following the rank ladder, in the direction of a Tower upgrade or evolution. Specifics parked.
-- **Which pack opens a run** — a run starts by opening one, but the type is not fixed.
-- **Run length and loss condition** — how long a run is and what ends it.
-- **Running out of cards** — cards are consumed and packs are the only source, so a player can hit zero. Whether that is a loss, a stall, or covered by an Ink floor is undecided.
-- **Pack weighting and prices** — how rank scarcity translates into pack contents, and what each type costs.
-- **PRNG streams** — one stream, or separate named streams for packs/rounds/draws so seeds survive code changes.
-- **Board geometry** — still a literal 8x8 placeholder. Note that square colour is now mechanically load-bearing, which argues for keeping a true chessboard.
-- **Multiplayer scope** — still assumed single-player versus AI, no backend, no netcode.
+Do not duplicate it here. Do not resolve anything on it by guessing.
 
-**Resolved since the foundation spec** — do not treat these as open, and do not revisit the rejected options without cause:
+## Documentation structure
 
-- The game is **run-based and seeded** — no persistent cross-session collection. Earned currency only, no real money.
-- The resource is named **Ink**, and it buys **packs**. Playing a card costs nothing.
-- Cards are **playing cards**, not bespoke designed cards, and are modal.
-- Towers are **destructible**, reversing the foundation spec.
-- Rejected: chess-themed Tower firing patterns; bespoke named cards; separate Tower/Tactic/Upgrade categories; invented rarity tiers; wall or blocker cards.
+Three roles, three homes. Putting content in the wrong one is how the docs drift:
+
+| File | Role |
+| --- | --- |
+| `CLAUDE.md` | **How to work in this repo.** Stack, commands, architecture, discipline, vocabulary, testing. Design appears only as invariants that constrain code. |
+| `docs/design/game-design.md` | **What the game is.** Living, mutable, single source of truth. Holds the only open-questions list. |
+| `docs/superpowers/specs/*.md` | **Why decisions were made**, and what was rejected. Dated, frozen, never updated. |
+
+When the design changes, edit `game-design.md`. Add a new dated spec only to record the reasoning behind a substantial decision — never to restate current state.
 
 ## Working agreements
 
 - The repo is greenfield: prefer establishing a clean pattern over matching non-existent precedent, but once a pattern exists, follow it.
 - Verify before claiming something works. Run the command and read the output.
-- When a decision touches anything in "Open design decisions", stop and ask rather than guessing.
+- When a decision touches anything on the open-questions list, stop and ask rather than guessing.

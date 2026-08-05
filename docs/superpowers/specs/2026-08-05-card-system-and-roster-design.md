@@ -1,7 +1,13 @@
 # Cards V Chess — Card System and Chess Roster
 
 **Date:** 2026-08-05
-**Status:** Card grammar and chess roster agreed. Rank ladder and several details still open — see "Open questions", and do not resolve them by guessing.
+**Status: FROZEN decision record. Not the current design.**
+
+> This document records the decisions taken on 2026-08-05, the reasoning behind them, and the alternatives that were rejected. It is **not updated** as the design evolves, and it should not be read as current state.
+>
+> **For what the game is now, read [`docs/design/game-design.md`](../../design/game-design.md).** That is the single source of truth and holds the only canonical open-questions list.
+>
+> The value here is the *why*: the arguments that produced each decision, and the rejected-options list at the end, which exists so those paths are not accidentally revisited.
 
 Supersedes parts of [2026-08-05-cards-v-chess-design.md](2026-08-05-cards-v-chess-design.md); see "What this changes" at the end.
 
@@ -211,21 +217,9 @@ The result is a **coverage** tower defense, not a **maze** tower defense: defens
 
 An earlier proposal used invented Common / Rare / Legendary tiers. Playing cards already encode scarcity through rank, so the tiers were scaffolding for something the idiom provides for free.
 
-## Open questions
+## Open questions — MOVED
 
-Do not resolve these by guessing.
-
-| Question | Status |
-| --- | --- |
-| **Ranks 6–10** | Ranks 2–5 are set. The rest of the geometry ladder is undesigned. |
-| **Ace / face cards / Jokers** | Direction agreed (upgrade or evolution); specifics parked. |
-| **Which pack opens a run** | A run starts by opening a pack, but which type (presumably Base, 10 cards) is not fixed. |
-| **Run length and loss** | How many rounds a run is, what ends it, and whether difficulty scales per round or in stages. |
-| **Running out of cards** | With cards consumed and packs the only source, a player can reach zero cards. Whether that is a loss, a stall, or covered by a guaranteed Ink floor is undecided. |
-| **Pack weighting and prices** | How rank scarcity translates into pack contents, and what each pack type costs. |
-| **PRNG streams** | Single stream (simplest) versus separate named streams for packs/rounds/draws (seeds survive code changes). |
-| **Board geometry** | Still a literal 8x8 placeholder. Square colour is now mechanically load-bearing, which is an argument for keeping a true chessboard. |
-| **Multiplayer scope** | Still assumed single-player versus AI. |
+This list has moved to [`docs/design/game-design.md`](../../design/game-design.md), which holds the only canonical copy. It previously existed in three places and drifted out of sync every time the design changed.
 
 ## What this changes
 
@@ -246,15 +240,15 @@ Rejected along the way, recorded so they are not revisited by accident:
 - Knight as a wall-jumper; Bishop as a sniper.
 - Wall and blocker cards.
 
-## Next step
+## Next step — HISTORICAL
 
-Build a **thin vertical slice**, not the whole pool:
+Kept for the reasoning, not as current guidance. For the actual next step, see "Current state" in `CLAUDE.md`. Note that item 2 below was written before targeting was settled, and "bypass versus hunt" no longer describes the design — targeting is emergent from placement.
 
-1. Tower health and repair.
-2. Piece targeting behaviour — bypass versus hunt.
-3. The modal card system: a visible Deck, and playing a card for its rank or its suit, consuming it either way.
-4. **Only ranks 2 to 5.**
+> Build a **thin vertical slice**, not the whole pool:
+>
+> 1. Tower health and repair.
+> 2. Piece targeting behaviour — bypass versus hunt.
+> 3. The modal card system: a visible Deck, and playing a card for its rank or its suit, consuming it either way.
+> 4. **Only ranks 2 to 5.**
 
-Five interacting mechanics — modal cards, destructible Towers, split targeting, suit upgrades, colour vulnerability — have all been designed and none played. The rank ladder is the cheapest part to change and the most expensive to guess wrong at scale, so a five-rank slice will teach more than fifty designed cards.
-
-Then: the rest of the ladder, Ace/face/Jokers, and the pack and collection layer.
+The argument still holds: five interacting mechanics — modal cards, destructible Towers, emergent targeting, suit upgrades, colour vulnerability — have all been designed and none played. The rank ladder is the cheapest part to change and the most expensive to guess wrong at scale, so a five-rank slice will teach more than fifty designed cards.

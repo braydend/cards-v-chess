@@ -1,13 +1,15 @@
 # Cards V Chess — Design
 
 **Date:** 2026-08-05
-**Status:** Foundation agreed. **Partly superseded** — see below.
+**Status: FROZEN decision record. Not the current design.**
 
-> **Partly superseded by [2026-08-05-card-system-and-roster-design.md](2026-08-05-card-system-and-roster-design.md).**
+> This document records the foundational decisions taken on 2026-08-05 and why. It is **not updated** as the design evolves.
 >
-> Still authoritative here: the tech stack and the reasoning behind it, the time model, the architecture and the `game/` boundary, and the testing approach.
+> **For what the game is now, read [`docs/design/game-design.md`](../../design/game-design.md).** For the card system and roster decisions that came later the same day, see [2026-08-05-card-system-and-roster-design.md](2026-08-05-card-system-and-roster-design.md).
 >
-> Overtaken there: the "Open design decisions" table below. The game is **run-based and seeded**, with a deck built up during a run rather than a persistent collection; the currency is named (**Ink**) and buys **packs** rather than gating card play; the card pool has an agreed grammar; the piece roster is assigned; and **Towers are destructible**.
+> The lasting value here is the **rendering-stack research** — the React Three Fiber versus vanilla Three.js analysis in decision 1, and the architectural reasoning in decision 3. Those arguments still hold and are the reason the codebase is shaped as it is.
+>
+> The "Open design decisions" table below is **historical and largely obsolete**. Do not use it.
 
 This document records the decisions made and, more importantly, why. Conventions derived from these decisions live in `CLAUDE.md`.
 
@@ -96,18 +98,11 @@ Card and piece definitions are data, so balance changes do not touch logic.
 
 The engine carries the bulk of coverage, since it is pure and deterministic. Tests drive time explicitly via `tick` with a fixed delta — never wall-clock or `requestAnimationFrame`. Behaviour is tested through the public surface, not internals.
 
-## Open design decisions
+## Open design decisions — OBSOLETE
 
-Unresolved **on purpose**. Not to be silently resolved in code.
+The table that stood here listed what was unresolved on 2026-08-05. Almost all of it has since been decided, and keeping a stale copy was actively misleading.
 
-| Area | Status |
-| --- | --- |
-| Per-piece characteristics | Movement cadence, health, armour, abilities, and how strictly each type follows real chess movement. Acknowledged as differing per type; specifics deferred. |
-| Card pool | Card types, effects, rarity, categories. |
-| Economy | Draw rules and the resource gating card play. **No name chosen for the resource** — one should not be coined incidentally. |
-| Multiplayer scope | Assumed single-player vs AI, no backend/accounts/netcode. Not confirmed. |
-| Persistence / metagame | Collection, deckbuilding, progression, saving — all open. |
-| Board geometry | Literal 8x8, or larger/other shape. |
+The canonical list now lives in [`docs/design/game-design.md`](../../design/game-design.md).
 
 ## Build status
 
@@ -124,6 +119,8 @@ Deferred because they depend on the open decisions: the card pool and Deck UI (T
 
 **No project skills were written.** Skills for workflows like "add a card" or "add a piece type" would have to describe structures that do not exist yet — the card pool in particular. They should be written against real code, once the content design is settled.
 
-## Next step
+## Next step — HISTORICAL
 
-The open decisions — particularly the card pool, piece characteristics, and economy — are now the blocking work. They are entangled (which cards are worth having depends on which pieces threaten you, and both depend on the economy), so they are best resolved together rather than one at a time.
+What follows was the next step **as of 2026-08-05**, and has since been done. It is kept as a record of the reasoning, not as current guidance. For the actual next step, see "Current state" in `CLAUDE.md`.
+
+> The open decisions — particularly the card pool, piece characteristics, and economy — are now the blocking work. They are entangled (which cards are worth having depends on which pieces threaten you, and both depend on the economy), so they are best resolved together rather than one at a time.
