@@ -1,5 +1,6 @@
 import { BLOCKED_ATTACK_MULTIPLIER, pieceType } from '../data/pieceTypes'
 import { towerRank, type TowerRankDef } from '../data/towerRanks'
+import { KING_SPEED_MULTIPLIER, buffedPieceIds, slideBonusFor } from './auras'
 import { squareKey } from './board'
 import { coversSquare } from './coverage'
 import { isStuck, nextMove } from './movement'
@@ -36,13 +37,12 @@ export function tick(state: GameState, dtMs: number): GameState {
   // depend on the order Pieces are processed in.
   const towerBySquare = new Map(state.towers.map((tower) => [squareKey(tower.square), tower]))
 
-  const moved = movePieces(
-    [...state.pieces, ...spawned],
-    state.board,
-    state.core.square,
-    towerBySquare,
-    dtMs,
-  )
+  // Auras are derived once, from tick-start positions, for the same reason the
+  // Tower map is: so no Piece's outcome depends on processing order.
+  const allPieces = [...state.pieces, ...spawned]
+  const buffed = buffedPieceIds(allPieces)
+
+  const moved = movePieces(allPieces, state.board, state.core.square, towerBySquare, dtMs, buffed)
 
   // Damage from blocked Pieces lands before Towers shoot, so a Tower destroyed
   // this tick does not get a parting shot.
@@ -267,13 +267,17 @@ function movePieces(
   coreSquare: Square,
   towerBySquare: ReadonlyMap<string, Tower>,
   dtMs: number,
+  buffed: ReadonlySet<string>,
 ): { pieces: Piece[]; leaked: number; towerDamage: Map<string, number> } {
   const survivors: Piece[] = []
   const towerDamage = new Map<string, number>()
   let leaked = 0
 
   for (const piece of pieces) {
-    const { moveIntervalMs, attackDamage } = pieceType(piece.typeId)
+    const { moveIntervalMs: baseInterval, attackDamage } = pieceType(piece.typeId)
+    const isBuffed = buffed.has(piece.id)
+    const moveIntervalMs = isBuffed ? baseInterval * KING_SPEED_MULTIPLIER : baseInterval
+    const slideBonus = slideBonusFor(piece, buffed)
 
     let cooldown = piece.moveCooldownMs + dtMs
     let square = piece.square
@@ -290,10 +294,8 @@ function movePieces(
       // moveCount and handedness carry the Piece's own motion state forward
       // hop by hop, which is what makes the Knight's zig-zag and the Queen's
       // rook/bishop alternation actually advance instead of repeating.
-      // slideBonus: not a Piece field — Task 8 computes this from the King
-      // aura covering this square. 0 here is a placeholder, not yet correct.
       const outcome = nextMove(
-        { typeId: piece.typeId, from: square, moveCount, handedness, slideBonus: 0 },
+        { typeId: piece.typeId, from: square, moveCount, handedness, slideBonus },
         board,
         coreSquare,
         towerBySquare,
@@ -336,7 +338,15 @@ function movePieces(
       continue
     }
 
-    survivors.push({ ...piece, square, prevSquare, moveCooldownMs: cooldown, moveCount, handedness })
+    survivors.push({
+      ...piece,
+      square,
+      prevSquare,
+      moveCooldownMs: cooldown,
+      moveCount,
+      handedness,
+      buffed: isBuffed,
+    })
   }
 
   return { pieces: survivors, leaked, towerDamage }
