@@ -302,7 +302,7 @@ describe('knight movement', () => {
     })
   })
 
-  it('strands on the back rank, because every hop from there goes backwards', () => {
+  it('strands on the back rank, where every forward hop leaves the board', () => {
     expect(move('knight', { file: 5, rank: 0 })).toEqual({ kind: 'stuck' })
   })
 

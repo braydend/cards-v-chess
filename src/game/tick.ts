@@ -100,12 +100,13 @@ export function tick(state: GameState, dtMs: number): GameState {
   }
 
   // A round ends when nothing on the board can still act — not when the board is
-  // empty. Chess movement leaves some Pieces genuinely stranded: a Knight on the
-  // back rank has no legal move for the rest of the run, since every hop from
-  // there goes backwards. Waiting for an empty board would hang the round
-  // forever. A Pawn never reaches this state — it promotes into a Queen
-  // instead, which keeps `stillActive` true until that Queen also runs out of
-  // legal moves or leaks.
+  // empty. Chess movement leaves some Pieces genuinely stranded: a Knight's
+  // hops only ever go forward, so on the back rank every candidate would land
+  // off the board, and unlike a slider or the King it has no lateral fallback
+  // to catch it — so it has no legal move for the rest of the run. Waiting for
+  // an empty board would hang the round forever. A Pawn never reaches this
+  // state — it promotes into a Queen instead, which keeps `stillActive` true
+  // until that Queen also runs out of legal moves or leaks.
   //
   // Stranded Pieces are deliberately left standing rather than quietly deleted,
   // so the gap is visible.

@@ -167,9 +167,10 @@ function travel(
  * A Tower on the chosen landing square is attacked rather than hopped over or
  * routed around — the no-pathfinding invariant applies to the Knight too.
  *
- * From rank 0 every candidate goes backwards, so the Knight strands. That is
- * deliberate: a Knight that could bounce back up the board would keep
- * `stillActive` true forever and the round would never end.
+ * A Knight's hops only ever go forward, so from rank 0 every candidate would
+ * land off the board — and unlike a slider or the King, it has no lateral
+ * fallback to catch it. That is deliberate: a Knight that could still act
+ * would keep `stillActive` true forever and the round would never end.
  */
 function knightMove(
   from: Square,
