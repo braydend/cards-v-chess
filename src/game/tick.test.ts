@@ -22,10 +22,10 @@ function startedRound(): GameState {
 
 /**
  * A single Rook placed directly on the back rank, bypassing the spawn
- * pipeline entirely. `src/data/rounds.ts` spawns Pawns exclusively, so this
- * is the only way to get a sliding, reflecting Piece under test — a Pawn's
- * `move` outcome never carries a `handedness`, so it cannot exercise the
- * handedness-threading fix on its own.
+ * pipeline entirely. `startedRound()` always drives round 1, which spawns
+ * Pawns exclusively, so this is the only way to get a sliding, reflecting
+ * Piece under test — a Pawn's `move` outcome never carries a `handedness`,
+ * so it cannot exercise the handedness-threading fix on its own.
  */
 function rookOnBackRank(file: number, handedness: Handedness): GameState {
   return {
@@ -202,8 +202,9 @@ describe('tick: round completion', () => {
     // any more — it turns into a Queen instead, which keeps sweeping and
     // eventually leaks. The Knight is the one Piece type still genuinely
     // stranded on the back rank, so it is placed directly rather than spawned:
-    // `src/data/rounds.ts` schedules Pawns exclusively, and a Pawn-only round
-    // no longer leaves anything standing to demonstrate this.
+    // `startedRound()` always drives round 1, which schedules Pawns
+    // exclusively, and a Pawn-only round no longer leaves anything standing to
+    // demonstrate this.
     const stranded: GameState = {
       ...createInitialState(),
       phase: 'inProgress',
