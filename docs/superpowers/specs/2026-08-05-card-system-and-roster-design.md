@@ -113,13 +113,27 @@ Towers have **health**, can be damaged by Pieces, and are repaired with ♥ card
 
 This reverses a decision made while designing the roster — permanent Towers were agreed in discussion, though never written into a spec. The consequence is real: placements become losable investments, and the economy is now partly about maintenance rather than only expansion.
 
-### Targeting model — OPEN
+### Targeting: emergent from placement
 
-That Pieces **differ** in what they attack is agreed, and it is a threat axis in its own right. **Which Pieces attack Towers is not decided.**
+**No Piece type is a designated Tower-hunter.** Instead, one rule applies to every Piece:
 
-An initial sketch was offered — Pawns bypass Towers for the Core, Knights and Bishops attack Towers — but it was explicitly a **suggestion, not a decision**, and is under discussion. Do not implement it.
+> A Piece whose move would land it on a Tower's square **attacks that Tower instead of moving**.
 
-One reading worth carrying forward when this is settled: "bypass" most usefully means a Piece does not *target* Towers, while Towers still shoot it freely. Bypass is about aggression, not invulnerability.
+Targeting therefore falls out of board geometry and the player's own placement decisions, not from per-type flags.
+
+**Towers do not block movement.** This matters: if Towers blocked, Towers would *be* walls, and mazing would return through the back door after being deliberately removed. Pieces still path toward the Core by their own rules, so the player cannot redirect them — they only choose whether to put a Tower in harm's way.
+
+Why this over assigning hunters per piece type:
+
+- It turns Tower placement into a genuine **risk decision** rather than a pure coverage puzzle. A Tower in the traffic lane covers more ground and gets chewed up; one off to the side is safe but does less. No per-type assignment creates that tension.
+- Every Piece contributes anti-Tower pressure, so **repair reliably has a job** — more reliably than a single designated hunter would provide.
+- It adds nothing to Pieces that already carry strong gimmicks. The Knight (colour-flicker), Bishop (healer), and King (commander) stay unmuddied.
+
+**This resolves the Bishop's double role: it is a pure healer and nothing else.**
+
+An earlier sketch — Pawns bypass Towers while Knights and Bishops hunt them — was considered and rejected. It loaded the anti-Tower job onto the two pieces with the strongest existing gimmicks, which read as confused.
+
+**Parked, not rejected:** giving the Rook a dedicated siege behaviour, actively seeking Towers rather than the Core. Thematically apt (a rook is a castle; siege engines attack fortifications) and the Rook's "armoured tank" threat is otherwise plain enough to carry it. Revisit if play shows the emergent rule alone leaves repair underused.
 
 ## Design decisions and rationale
 
@@ -141,9 +155,7 @@ Do not resolve these by guessing.
 
 | Question | Status |
 | --- | --- |
-| **Bishop has two jobs** | It is a healer *and* can attack Towers. Two roles on one piece will read as muddy. Needs a decision: support piece, or tower-hunter. (Knight as colour-flicker *plus* tower-attacker is coherent — "hard to damage" and "attacks towers" combine into one threat.) |
 | **♣ = damage** | Inferred to complete the suit quartet. Unconfirmed. |
-| **Which Pieces attack Towers** | That Pieces differ is agreed; the assignment is not. The Pawns-bypass / Knights-and-Bishops-attack sketch was a suggestion only. Under discussion. |
 | **The rank ladder** | Only "2 fires horizontally" is agreed. Ranks 3–10 undesigned. |
 | **Ace / face cards / Jokers** | Direction agreed (upgrade or evolution); specifics parked. |
 | **Pack weighting** | How rank scarcity translates into pack contents. |

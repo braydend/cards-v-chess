@@ -114,7 +114,13 @@ Square colour is **mechanically load-bearing** because of the Knight. It is not 
 
 Towers have health, take damage from Pieces, and are repaired with ♥ cards.
 
-**Which Pieces attack Towers is an open question** — that they *differ* is agreed, the assignment is not. Do not implement a targeting split until it is settled.
+**Targeting is emergent, not assigned per Piece type.** One rule covers every Piece:
+
+> A Piece whose move would land it on a Tower's square **attacks that Tower instead of moving**.
+
+**Towers do not block movement.** If they blocked, Towers would be walls and mazing would return — see below. Pieces cannot be redirected; the player only chooses whether to place a Tower in harm's way, which makes placement a risk decision rather than a pure coverage puzzle.
+
+No Piece type is a designated Tower-hunter. The Bishop is a **pure healer**.
 
 ### No walls, no mazing
 
@@ -247,9 +253,7 @@ These are **deliberately unresolved**. Do not invent answers, silently pick one,
 
 - **The rank ladder** — only "a 2 fires horizontally" is agreed. Ranks 3–10 are undesigned. The principle (simple and cheap at the bottom, powerful and scarcer toward the top) is agreed; the assignments are not.
 - **Ace, face cards, and Jokers** — they perform specific actions rather than following the rank ladder, in the direction of a Tower upgrade or evolution. Specifics parked.
-- **Bishop's role** — it is currently both a healer *and* a Tower-attacker. Two roles on one Piece will read as muddy; needs resolving to one.
 - **♣ = damage** — inferred to complete the suit quartet, never confirmed.
-- **Which Pieces attack Towers** — that Pieces differ is agreed; the assignment is not. An early sketch (Pawns bypass, Knights and Bishops attack) was a suggestion only and is under discussion.
 - **Pack weighting** — how rank scarcity translates into the contents of a 10-card pack.
 - **Board geometry** — still a literal 8x8 placeholder. Note that square colour is now mechanically load-bearing, which argues for keeping a true chessboard.
 - **Multiplayer scope** — still assumed single-player versus AI, no backend, no netcode.
