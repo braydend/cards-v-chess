@@ -452,14 +452,18 @@ permissions:
   contents: read
 
 concurrency:
-  # Pushing twice to a branch should abandon the superseded run.
+  # Superseded pull-request runs should be abandoned. main is exempt: a
+  # cancelled run would kill an in-flight Pages deploy, which can leave the
+  # site half-updated. Job-level concurrency cannot express this, because
+  # workflow-level cancellation outranks it.
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   checks:
     name: checks
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -512,8 +516,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     concurrency:
-      # Killing an in-flight Pages deploy can leave the site half-updated, so
-      # these queue rather than cancel. Matches GitHub's own Pages template.
+      # Serializes this job against other pages-group runs, so two deploys never
+      # overlap. Note this alone does NOT stop the workflow-level group from
+      # cancelling a live deploy — that exemption lives in the workflow-level
+      # cancel-in-progress expression above. Both are needed.
       group: pages
       cancel-in-progress: false
 
