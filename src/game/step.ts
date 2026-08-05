@@ -49,6 +49,8 @@ function placeTower(state: GameState, square: Square, cardRank: BuildableRank): 
   if (squaresEqual(square, state.core.square)) return state
   if (state.towers.some((tower) => squaresEqual(tower.square, square))) return state
 
+  const def = towerRank(cardRank)
+
   return {
     ...state,
     towers: [
@@ -58,8 +60,11 @@ function placeTower(state: GameState, square: Square, cardRank: BuildableRank): 
         square,
         cardRank,
         fireCooldownMs: 0,
-        health: towerRank(cardRank).maxHealth,
-        maxHealth: towerRank(cardRank).maxHealth,
+        health: def.maxHealth,
+        maxHealth: def.maxHealth,
+        damage: def.damage,
+        fireIntervalMs: def.fireIntervalMs,
+        shield: 0,
       },
     ],
     nextEntityId: state.nextEntityId + 1,

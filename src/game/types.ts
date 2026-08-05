@@ -106,8 +106,17 @@ export interface Tower {
   /** Milliseconds accumulated toward this Tower's next shot. */
   readonly fireCooldownMs: number
   readonly health: number
-  /** Separate from the rank's base value so ♠ can raise it later. */
+  /** Separate from the rank's base value so ♠ can raise it. */
   readonly maxHealth: number
+  /** Seeded from the rank, raised by ♣ Damage. */
+  readonly damage: number
+  /** Seeded from the rank, lowered by ♦ Speed, floored at MIN_FIRE_INTERVAL_MS. */
+  readonly fireIntervalMs: number
+  /**
+   * Granted by a Jack. Absorbed before health, with overflow carrying into it.
+   * Never regenerates.
+   */
+  readonly shield: number
 }
 
 /**

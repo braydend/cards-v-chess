@@ -16,10 +16,14 @@ export function structuralKey(state: GameState): string {
     .map((piece) => `${piece.id}@${piece.square.file},${piece.square.rank}:${piece.health}`)
     .join('|')
 
-  // Tower health is included so damage is visible, but `fireCooldownMs` is NOT:
-  // that changes every tick and would force a React render per frame.
+  // Tower health, shield, damage and fire interval are included so support
+  // effects are visible, but `fireCooldownMs` is NOT: that changes every tick
+  // and would force a React render per frame.
   const towers = state.towers
-    .map((tower) => `${tower.id}@${tower.square.file},${tower.square.rank}:${tower.health}`)
+    .map(
+      (tower) =>
+        `${tower.id}@${tower.square.file},${tower.square.rank}:${tower.health}:${tower.shield}:${tower.damage}:${tower.fireIntervalMs}`,
+    )
     .join('|')
 
   return [

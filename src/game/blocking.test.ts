@@ -171,3 +171,82 @@ describe('blocking: determinism', () => {
     expect(a).toEqual(b)
   })
 })
+
+describe('Tower shields', () => {
+  it('seeds a new Tower with no shield', () => {
+    const state = blockedApproach(3, { file: 3, rank: 4 })
+
+    expect(state.towers[0]?.shield).toBe(0)
+  })
+
+  it('absorbs damage before health', () => {
+    const shielded = blockedApproach(3, { file: 3, rank: 4 })
+    const state: GameState = {
+      ...shielded,
+      towers: shielded.towers.map((tower) => ({ ...tower, shield: 4 })),
+    }
+
+    const after = runFor(state, PAWN.moveIntervalMs + DT)
+
+    expect(after.towers[0]?.health).toBe(TOWER_RANKS[3].maxHealth)
+    expect(after.towers[0]?.shield).toBe(4 - BLOCKED_DAMAGE)
+  })
+
+  it('splits a single hit across shield and health', () => {
+    // Rank 5's diagonal geometry cannot cover the square directly up-file, so
+    // the Piece is never shot and the hits land on schedule.
+    const shielded = blockedApproach(5, { file: 3, rank: 4 })
+    const partial = BLOCKED_DAMAGE / 2
+    const state: GameState = {
+      ...shielded,
+      towers: shielded.towers.map((tower) => ({ ...tower, shield: partial })),
+    }
+
+    const after = runFor(state, PAWN.moveIntervalMs + DT)
+
+    expect(after.towers[0]?.shield).toBe(0)
+    expect(after.towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth - partial)
+  })
+
+  it('carries overflow into health once the shield is gone', () => {
+    // Shield equal to exactly one hit: the first hop is fully absorbed, the
+    // second lands on health.
+    const shielded = blockedApproach(5, { file: 3, rank: 4 })
+    const state: GameState = {
+      ...shielded,
+      towers: shielded.towers.map((tower) => ({ ...tower, shield: BLOCKED_DAMAGE })),
+    }
+
+    const after = runFor(state, PAWN.moveIntervalMs * 2 + DT)
+
+    expect(after.towers[0]?.shield).toBe(0)
+    expect(after.towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth - BLOCKED_DAMAGE)
+  })
+})
+
+describe('Tower stats are per-Tower', () => {
+  it('seeds damage and fire interval from the rank', () => {
+    const state = blockedApproach(5, { file: 3, rank: 4 })
+
+    expect(state.towers[0]?.damage).toBe(TOWER_RANKS[5].damage)
+    expect(state.towers[0]?.fireIntervalMs).toBe(TOWER_RANKS[5].fireIntervalMs)
+  })
+
+  it('fires using the Tower’s own damage, not its rank’s', () => {
+    // A Tower whose damage has been raised kills faster than its rank would.
+    const base = blockedApproach(3, { file: 3, rank: 6 })
+    const boosted: GameState = {
+      ...base,
+      towers: base.towers.map((tower) => ({ ...tower, damage: PAWN.maxHealth })),
+      pieces: base.pieces.map((piece) => ({
+        ...piece,
+        square: { file: 3, rank: 2 },
+        prevSquare: { file: 3, rank: 2 },
+      })),
+    }
+
+    const after = runFor(boosted, TOWER_RANKS[3].fireIntervalMs + DT)
+
+    expect(after.pieces).toHaveLength(0)
+  })
+})

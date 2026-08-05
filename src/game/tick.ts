@@ -134,21 +134,21 @@ function fireTowers(
     const def = towerRank(tower.cardRank)
     let cooldown = tower.fireCooldownMs + dtMs
 
-    while (cooldown >= def.fireIntervalMs) {
+    while (cooldown >= tower.fireIntervalMs) {
       const targets = selectTargets(tower, def, pieces, remainingHealth, coreSquare)
 
       if (targets.length === 0) {
         // Hold at "ready" rather than banking shots. Without this, a Tower idle
         // for ten seconds would unload every stored shot the instant a Piece
         // walked into range.
-        cooldown = def.fireIntervalMs
+        cooldown = tower.fireIntervalMs
         break
       }
 
-      cooldown -= def.fireIntervalMs
+      cooldown -= tower.fireIntervalMs
 
       for (const target of targets) {
-        remainingHealth.set(target.id, (remainingHealth.get(target.id) ?? 0) - def.damage)
+        remainingHealth.set(target.id, (remainingHealth.get(target.id) ?? 0) - tower.damage)
       }
     }
 
@@ -306,14 +306,28 @@ function movePieces(
   return { pieces: survivors, leaked, towerDamage }
 }
 
-/** Applies damage dealt by blocked Pieces and drops Towers that fall. */
+/**
+ * Applies damage dealt by blocked Pieces and drops Towers that fall.
+ *
+ * A shield absorbs first, and overflow carries into health — a shield of 2
+ * taking a 5-damage hit leaves 0 shield and costs 3 health. No hit is wasted,
+ * and a shield never blocks more than it is worth.
+ */
 function applyTowerDamage(towers: readonly Tower[], damage: Map<string, number>): Tower[] {
   if (damage.size === 0) return [...towers]
 
   return towers
     .map((tower) => {
       const dealt = damage.get(tower.id)
-      return dealt === undefined ? tower : { ...tower, health: tower.health - dealt }
+      if (dealt === undefined) return tower
+
+      const absorbed = Math.min(tower.shield, dealt)
+
+      return {
+        ...tower,
+        shield: tower.shield - absorbed,
+        health: tower.health - (dealt - absorbed),
+      }
     })
     .filter((tower) => tower.health > 0)
 }
