@@ -5,7 +5,7 @@ import { BOARD } from './board'
  * Round composition.
  *
  * Deliberately deterministic — a given round number always produces the same
- * spawns. There is no randomness anywhere in the engine; if wave variety is
+ * spawns. There is no randomness anywhere in the engine; if Round variety is
  * wanted later it must come from a seeded PRNG carried in state, never
  * `Math.random`, or the simulation stops being reproducible.
  *

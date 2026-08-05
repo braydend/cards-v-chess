@@ -14,8 +14,9 @@ import type { BoardSpec, GameState, Piece, Square, Tower } from './types'
  * delta. That is what makes the simulation deterministic and refresh-rate
  * independent, and it is why tests can drive time by calling this directly.
  *
- * Towers fire, take damage from the Pieces they block, and are destroyed when
- * their health runs out — see `applyTowerDamage` below. Shields absorb before
+ * Towers fire, take damage from the Pieces they block — a Piece whose next
+ * square holds a Tower attacks it instead of advancing — and are destroyed when
+ * their health runs out; see `applyTowerDamage` below. Shields absorb before
  * health. See `roundTermination.test.ts` for the invariant that makes round
  * completion safe.
  */
