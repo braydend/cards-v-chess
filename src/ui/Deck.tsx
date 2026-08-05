@@ -1,6 +1,6 @@
 import { supportMagnitude } from '../data/cards'
 import { towerRank } from '../data/towerRanks'
-import { isBuildableRank, type Card } from '../game'
+import { commandFor, isBuildableRank, type Card } from '../game'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 
@@ -61,7 +61,8 @@ export function Deck() {
   // King, Ace and Joker take no target, so they resolve from here rather than
   // waiting for a board click — but only when played for their rank. Every face
   // Card can also be played for its suit, and that play needs a Tower.
-  const untargeted = selected && playMode === 'build' ? resolveUntargeted(selected) : null
+  const untargeted =
+    selected && playMode === 'build' ? commandFor(selected, 'build', { kind: 'none' }) : null
 
   return (
     <div className="deck">
@@ -138,13 +139,6 @@ export function Deck() {
   )
 }
 
-/** The command for a Card that needs no target, or null if it needs one. */
-function resolveUntargeted(card: Card) {
-  if (card.kind === 'joker') return { kind: 'clearPieces', cardId: card.id } as const
-  if (card.rank === 'K') return { kind: 'reinforceCore', cardId: card.id } as const
-  if (card.rank === 'A') return { kind: 'expandBoard', cardId: card.id } as const
-  return null
-}
 
 /** What the player should click next for this Card in this mode. */
 function targetHint(

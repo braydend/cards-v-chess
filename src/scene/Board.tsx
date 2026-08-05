@@ -1,6 +1,6 @@
 import { Instance, Instances } from '@react-three/drei'
 import { useMemo } from 'react'
-import { allSquares, findCard, squareKey, type BoardSpec } from '../game'
+import { allSquares, commandFor, findCard, squareKey, type BoardSpec, type PlayTarget } from '../game'
 import * as simulation from '../state/simulation'
 import { dispatch } from '../state/store'
 import { useUiStore } from '../state/uiStore'
@@ -86,42 +86,31 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
           (tower) => tower.square.file === square.file && tower.square.rank === square.rank,
         )
 
-        if (playMode === 'support' && card.kind === 'standard') {
-          if (!clickedTower) return
-          dispatch({ kind: 'supportTower', cardId: selectedCardId, towerId: clickedTower.id })
-          setSelectedCardId(null)
+        // Echo is the only play needing two board targets: a source Tower to
+        // Echo, then a square to build the copy on. Until a source is picked,
+        // clicking a Tower with a Queen selected picks it rather than
+        // attempting a play — that two-click sequencing is inherent to Echo's
+        // UX and lives here; which Command the resulting target produces does
+        // not, and comes from `commandFor`.
+        const { echoSourceTowerId, setEchoSourceTowerId } = useUiStore.getState()
+
+        if (playMode === 'build' && card.kind === 'standard' && card.rank === 'Q' && !echoSourceTowerId) {
+          if (clickedTower) setEchoSourceTowerId(clickedTower.id)
           return
         }
 
-        if (card.kind === 'standard' && card.rank === 'J') {
-          if (!clickedTower) return
-          dispatch({ kind: 'shieldTower', cardId: selectedCardId, towerId: clickedTower.id })
-          setSelectedCardId(null)
-          return
-        }
+        const target: PlayTarget =
+          playMode === 'build' && echoSourceTowerId
+            ? { kind: 'echo', sourceTowerId: echoSourceTowerId, square }
+            : clickedTower
+              ? { kind: 'tower', towerId: clickedTower.id }
+              : { kind: 'square', square }
 
-        if (card.kind === 'standard' && card.rank === 'Q') {
-          // Echo is the only play needing two targets: a Tower to Echo, then a
-          // square to build the copy on. First click picks the source.
-          const { echoSourceTowerId, setEchoSourceTowerId } = useUiStore.getState()
+        const command = commandFor(card, playMode, target)
+        if (!command) return
 
-          if (!echoSourceTowerId) {
-            if (clickedTower) setEchoSourceTowerId(clickedTower.id)
-            return
-          }
-
-          dispatch({
-            kind: 'echoTower',
-            cardId: selectedCardId,
-            sourceTowerId: echoSourceTowerId,
-            square,
-          })
-          setEchoSourceTowerId(null)
-          setSelectedCardId(null)
-          return
-        }
-
-        dispatch({ kind: 'buildTower', cardId: selectedCardId, square })
+        dispatch(command)
+        if (command.kind === 'echoTower') setEchoSourceTowerId(null)
         setSelectedCardId(null)
       }}
     >

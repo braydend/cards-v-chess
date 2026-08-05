@@ -7,6 +7,7 @@
  */
 export { allSquares, isInBounds, squareKey, squaresEqual } from './board'
 export { findCard, isBuildableRank, removeCard } from './cards'
+export { commandFor, type PlayMode, type PlayTarget } from './commandFor'
 export { coversSquare } from './coverage'
 export { isStuck, nextMove, type MoveOutcome } from './movement'
 export { createInitialState } from './state'
