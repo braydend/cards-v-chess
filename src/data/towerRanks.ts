@@ -55,9 +55,9 @@ export const TOWER_RANKS: Record<BuildableRank, TowerRankDef> = {
   5: { geometry: 'diagonal', range: 5, damage: 3, fireIntervalMs: 500, maxHealth: 20, targetsPerShot: 1 },
   6: { geometry: 'star', range: 5, damage: 3, fireIntervalMs: 480, maxHealth: 24, targetsPerShot: 1 },
   7: { geometry: 'adjacent', range: 3, damage: 4, fireIntervalMs: 450, maxHealth: 28, targetsPerShot: 1 },
-  8: { geometry: 'star', range: 6, damage: 4, fireIntervalMs: 420, maxHealth: 32, targetsPerShot: 1 },
-  9: { geometry: 'adjacent', range: 3, damage: 5, fireIntervalMs: 400, maxHealth: 36, targetsPerShot: 1 },
-  10: { geometry: 'adjacent', range: 4, damage: 6, fireIntervalMs: 380, maxHealth: 40, targetsPerShot: 1 },
+  8: { geometry: 'star', range: 6, damage: 4, fireIntervalMs: 420, maxHealth: 32, targetsPerShot: 3 },
+  9: { geometry: 'adjacent', range: 3, damage: 5, fireIntervalMs: 400, maxHealth: 36, targetsPerShot: 5 },
+  10: { geometry: 'adjacent', range: 4, damage: 6, fireIntervalMs: 380, maxHealth: 40, targetsPerShot: Number.POSITIVE_INFINITY },
 }
 
 export function towerRank(rank: BuildableRank): TowerRankDef {

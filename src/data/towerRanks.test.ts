@@ -38,9 +38,19 @@ describe('the rank ladder', () => {
     })
   })
 
-  it('starts every rank at a single target', () => {
+  it('never targets fewer Pieces as rank rises', () => {
+    const targets = BUILDABLE_RANKS.map((rank) => towerRank(rank).targetsPerShot)
+
+    // reduce, not indexed access, so this holds under noUncheckedIndexedAccess.
+    targets.reduce((previous, current) => {
+      expect(current).toBeGreaterThanOrEqual(previous)
+      return current
+    })
+  })
+
+  it('hits at least one Piece at every rank', () => {
     for (const rank of BUILDABLE_RANKS) {
-      expect(towerRank(rank).targetsPerShot).toBe(1)
+      expect(towerRank(rank).targetsPerShot).toBeGreaterThanOrEqual(1)
     }
   })
 })

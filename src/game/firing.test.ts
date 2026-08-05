@@ -207,3 +207,77 @@ describe('tower firing: determinism', () => {
     expect(a).toEqual(b)
   })
 })
+
+describe('targets per shot', () => {
+  it('a single-target Tower damages only one of two covered Pieces', () => {
+    // Rank 3 fires up its own file; both Pieces sit on it.
+    const state = scenario(3, { file: 3, rank: 1 }, [
+      { file: 3, rank: 2 },
+      { file: 3, rank: 3 },
+    ])
+
+    const after = runFor(state, TOWER_RANKS[3].fireIntervalMs + DT)
+    const hit = state.pieces.filter((piece) => wasHit(state, after, piece.id))
+
+    expect(hit).toHaveLength(1)
+  })
+
+  it('a multi-target Tower damages several covered Pieces in one shot', () => {
+    // Rank 8 is a star with 3 targets. Three Pieces on three different rays.
+    const state = scenario(8, { file: 3, rank: 3 }, [
+      { file: 3, rank: 4 },
+      { file: 4, rank: 4 },
+      { file: 4, rank: 3 },
+    ])
+
+    const after = runFor(state, TOWER_RANKS[8].fireIntervalMs + DT)
+    const hit = state.pieces.filter((piece) => wasHit(state, after, piece.id))
+
+    expect(hit).toHaveLength(3)
+  })
+
+  it('caps at its target count', () => {
+    // Rank 8 covers four Pieces but may only hit 3.
+    const state = scenario(8, { file: 3, rank: 3 }, [
+      { file: 3, rank: 4 },
+      { file: 4, rank: 4 },
+      { file: 4, rank: 3 },
+      { file: 2, rank: 2 },
+    ])
+
+    const after = runFor(state, TOWER_RANKS[8].fireIntervalMs + DT)
+    const hit = state.pieces.filter((piece) => wasHit(state, after, piece.id))
+
+    expect(hit).toHaveLength(TOWER_RANKS[8].targetsPerShot)
+  })
+
+  it('rank 10 hits everything it covers', () => {
+    const state = scenario(10, { file: 3, rank: 3 }, [
+      { file: 3, rank: 4 },
+      { file: 4, rank: 4 },
+      { file: 2, rank: 2 },
+      { file: 5, rank: 5 },
+      { file: 1, rank: 3 },
+    ])
+
+    const after = runFor(state, TOWER_RANKS[10].fireIntervalMs + DT)
+    const hit = state.pieces.filter((piece) => wasHit(state, after, piece.id))
+
+    expect(hit).toHaveLength(5)
+  })
+
+  it('is deterministic when more Pieces are covered than can be hit', () => {
+    const build = () =>
+      scenario(8, { file: 3, rank: 3 }, [
+        { file: 3, rank: 4 },
+        { file: 4, rank: 4 },
+        { file: 4, rank: 3 },
+        { file: 2, rank: 2 },
+      ])
+
+    const a = runFor(build(), 2000)
+    const b = runFor(build(), 2000)
+
+    expect(a).toEqual(b)
+  })
+})

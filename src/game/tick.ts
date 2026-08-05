@@ -114,8 +114,8 @@ export function tick(state: GameState, dtMs: number): GameState {
 /**
  * Advances every Tower's cooldown and resolves the shots that come due.
  *
- * A Tower fires at most one shot per elapsed interval, at a single target —
- * nothing blocks line of fire and nothing pierces.
+ * A Tower fires at most one shot per elapsed interval, hitting up to its rank's
+ * `targetsPerShot` Pieces. Nothing blocks line of fire and nothing pierces.
  */
 function fireTowers(
   towers: readonly Tower[],
@@ -135,9 +135,9 @@ function fireTowers(
     let cooldown = tower.fireCooldownMs + dtMs
 
     while (cooldown >= def.fireIntervalMs) {
-      const target = selectTarget(tower, def, pieces, remainingHealth, coreSquare)
+      const targets = selectTargets(tower, def, pieces, remainingHealth, coreSquare)
 
-      if (!target) {
+      if (targets.length === 0) {
         // Hold at "ready" rather than banking shots. Without this, a Tower idle
         // for ten seconds would unload every stored shot the instant a Piece
         // walked into range.
@@ -146,7 +146,10 @@ function fireTowers(
       }
 
       cooldown -= def.fireIntervalMs
-      remainingHealth.set(target.id, (remainingHealth.get(target.id) ?? 0) - def.damage)
+
+      for (const target of targets) {
+        remainingHealth.set(target.id, (remainingHealth.get(target.id) ?? 0) - def.damage)
+      }
     }
 
     nextTowers.push({ ...tower, fireCooldownMs: cooldown })
@@ -160,36 +163,44 @@ function fireTowers(
 }
 
 /**
- * The covered, still-living Piece nearest the Core — the most urgent threat.
+ * The covered, still-living Pieces nearest the Core — the most urgent threats,
+ * capped at the Tower's `targetsPerShot`.
  *
  * Distance is measured in hops rather than straight-line, because Pieces move
  * one square along one axis at a time. Ties break on id so the simulation stays
  * deterministic and seed-reproducible.
  */
-function selectTarget(
+function selectTargets(
   tower: Tower,
   def: TowerRankDef,
   pieces: readonly Piece[],
   remainingHealth: Map<string, number>,
   coreSquare: Square,
-): Piece | undefined {
-  let best: Piece | undefined
-  let bestDistance = Number.POSITIVE_INFINITY
+): Piece[] {
+  const candidates: { piece: Piece; distance: number }[] = []
 
   for (const piece of pieces) {
     if ((remainingHealth.get(piece.id) ?? piece.health) <= 0) continue
     if (!coversSquare(def.geometry, def.range, tower.square, piece.square)) continue
 
-    const distance =
-      Math.abs(piece.square.file - coreSquare.file) + Math.abs(piece.square.rank - coreSquare.rank)
-
-    if (distance < bestDistance || (distance === bestDistance && best && piece.id < best.id)) {
-      best = piece
-      bestDistance = distance
-    }
+    candidates.push({
+      piece,
+      distance:
+        Math.abs(piece.square.file - coreSquare.file) +
+        Math.abs(piece.square.rank - coreSquare.rank),
+    })
   }
 
-  return best
+  candidates.sort((a, b) =>
+    a.distance === b.distance
+      ? a.piece.id < b.piece.id
+        ? -1
+        : 1
+      : a.distance - b.distance,
+  )
+
+  // `slice` handles POSITIVE_INFINITY correctly: it returns every candidate.
+  return candidates.slice(0, def.targetsPerShot).map((candidate) => candidate.piece)
 }
 
 function drainDueSpawns(
