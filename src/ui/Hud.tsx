@@ -2,13 +2,15 @@ import { reset } from '../state/simulation'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { Deck } from './Deck'
+import { TowerPanel } from './TowerPanel'
 
 /**
- * The HUD: the run's state, the Deck, and the round controls.
+ * The HUD: the run's state, the Deck, the round controls, and the Tower panel.
  *
  * Reading top to bottom follows the order the player works in — see where the
  * run stands, play Cards, then start the round. The Deck owns all card copy, so
- * nothing here repeats it.
+ * nothing here repeats it, and `TowerPanel` owns everything about the selected
+ * Tower — it mounts itself only when one is selected.
  */
 export function Hud() {
   const snapshot = useGameStore((store) => store.snapshot)
@@ -19,10 +21,15 @@ export function Hud() {
   // state. So a fresh run's leftover selection (in particular a half-picked
   // Echo source Tower, which would otherwise survive into the new game) is
   // cleared here, from the caller, rather than inside `reset` itself.
+  //
+  // `selectedTowerId` matters most of the three: `reset()` rewinds the entity
+  // counter, so a stale id would open the panel on a brand-new Tower that
+  // happens to reuse it.
   function handleReset() {
     reset()
     useUiStore.getState().setSelectedCardId(null)
     useUiStore.getState().setEchoSourceTowerId(null)
+    useUiStore.getState().setSelectedTowerId(null)
   }
 
   return (
@@ -86,6 +93,8 @@ export function Hud() {
 
         {phase === 'defeated' ? <p className="hud__hint">The Core has fallen.</p> : null}
       </div>
+
+      <TowerPanel />
     </div>
   )
 }

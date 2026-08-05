@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Least privilege by default. The deploy job widens this for itself only.
+permissions:
+  contents: read
+
+concurrency:
+  # Superseded pull-request runs should be abandoned. main is exempt: a
+  # cancelled run would kill an in-flight Pages deploy, which can leave the
+  # site half-updated. Job-level concurrency cannot express this, because
+  # workflow-level cancellation outranks it.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  checks:
+    name: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # Must precede setup-node: the pnpm cache below needs the pnpm binary to
+      # resolve the store path. Version comes from packageManager in package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Four separate steps rather than one chained command, so a failure is
+      # labelled with which check failed. They total ~4s; the cost is noise.
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test:coverage
+
+      - name: Build
+        run: pnpm build
+
+      # Only main deploys, so only main pays for the artifact.
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    name: deploy
+    needs: checks
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    concurrency:
+      # Killing an in-flight Pages deploy can leave the site half-updated, so
+      # these queue rather than cancel. Matches GitHub's own Pages template.
+      group: pages
+      cancel-in-progress: false
+
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

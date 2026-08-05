@@ -18,6 +18,7 @@ function towersAt(...squares: Square[]): Map<string, Tower> {
         damage: 1,
         fireIntervalMs: 600,
         shield: 0,
+        damageTaken: 0,
       },
     ]),
   )

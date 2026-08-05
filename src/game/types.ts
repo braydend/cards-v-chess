@@ -117,6 +117,19 @@ export interface Tower {
    * Never regenerates.
    */
   readonly shield: number
+  /**
+   * Lifetime damage this Tower has absorbed. Never reduced.
+   *
+   * Deliberately NOT derived as `maxHealth - health`. ♥ repair and ♠ maximum
+   * health both break that identity: a Tower repaired to full must still report
+   * what it has weathered. A Jack's shield breaks it in the other direction —
+   * damage a shield soaked never touched health at all, and it still counts
+   * here, because absorbing a hit is still weathering it.
+   *
+   * Kept out of `structuralKey` on purpose — it only ever changes in the same
+   * breath as `health` or `shield`, both of which are already in the key.
+   */
+  readonly damageTaken: number
 }
 
 /**

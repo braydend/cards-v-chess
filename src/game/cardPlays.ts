@@ -13,7 +13,7 @@ import { applySupport } from './support'
 import type { BuildableRank, GameState, Square, Tower } from './types'
 
 /**
- * A fresh Tower of this rank, at full health with no shield.
+ * A fresh Tower of this rank, at full health with no shield and nothing weathered.
  *
  * Shared by every play that puts a Tower on the board — a Card played for its
  * rank, and a Queen's Echo. Both must seed identical stats from the rank, so
@@ -32,6 +32,7 @@ function newTower(id: string, square: Square, cardRank: BuildableRank): Tower {
     damage: def.damage,
     fireIntervalMs: def.fireIntervalMs,
     shield: 0,
+    damageTaken: 0,
   }
 }
 

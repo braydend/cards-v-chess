@@ -20,13 +20,17 @@ What exists:
 - The rules engine (`src/game/`) with `step` / `tick`, driven by a fixed-timestep accumulator.
 - **The card system.** The Deck, modality (rank builds / suit supports), the rank ladder 2–10, the four suit supports, and all five card actions — Jack Shield, Queen Echo, King Reinforce, Ace Expand, Joker Clear. Playing a card consumes it.
 - **Tower combat.** Firing geometry per rank, Tower health, shields, damage from blocked Pieces, and destruction.
-- The renderer (`src/scene/`), the HUD and the Deck UI (`src/ui/`).
-- 199 tests, all passing, none of which need a browser.
+- **Tower legibility.** A Tower darkens as it loses health, flashes on a hit, pulses at critical health, and flares as it dies; clicking one opens an inspect panel with the exact figures, including lifetime `damageTaken`.
+- The renderer (`src/scene/`), and the HUD, the Deck UI and the Tower panel (`src/ui/`).
+- **CI.** `lint`, `typecheck`, `test:coverage` with per-directory thresholds, and `build` — see "CI" below.
+- 292 tests across 19 files, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
 
 What does **not** exist yet:
 
 - **Ink and packs.** No currency, no pack opening, no cull flow, and no seeded PRNG. The Deck is a fixed authored list in `src/data/deck.ts` — see the file's own comment before touching it.
 - **The piece roster.** One placeholder `pawn` exists with placeholder stats. None of the other five agreed threats are implemented — no promotion, no colour vulnerability, no healing.
+
+Towers fire and can kill Pieces outright, so a round does not resolve by leaking out — it ends when nothing on the board can still act, whether that means every Piece destroyed, stranded, or through the Core.
 
 The design still runs ahead of the code on the economy and the roster, so read `docs/design/game-design.md` for the intended design rather than inferring it from what is built. The largest unbuilt pieces are Ink and packs (with the cull flow and the PRNG) and the rest of the Chess roster.
 
@@ -50,15 +54,30 @@ Chosen because this game is roughly half 3D scene and half dense 2D UI (the Deck
 
 ```bash
 pnpm install
-pnpm dev          # Vite dev server
-pnpm build        # typecheck, then production build
-pnpm test         # Vitest, watch mode
-pnpm test:run     # Vitest, single run (use this in automation)
-pnpm typecheck    # tsc --noEmit
+pnpm dev           # Vite dev server
+pnpm build         # typecheck, then production build
+pnpm test          # Vitest, watch mode
+pnpm test:run      # Vitest, single run (use this in automation)
+pnpm test:coverage # Vitest with coverage + thresholds (what CI runs)
+pnpm typecheck     # tsc --noEmit
 pnpm lint
 ```
 
 **TypeScript is pinned to the 5.x line on purpose.** TypeScript 7 is published as `latest`, but `typescript-eslint` currently declares support only for `>=4.8.4 <6.1.0`, so upgrading breaks `pnpm lint`. Revisit once typescript-eslint ships TS 7 support.
+
+## CI
+
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`: `lint`, `typecheck`, `test:coverage`, `build`. Pushes to `main` also deploy to [GitHub Pages](https://braydend.github.io/cards-v-chess/), gated on those checks passing.
+
+Branch protection is currently **off**, so nothing blocks a direct push to `main` or the merge of a red pull request. What CI does guarantee is that such a commit never reaches the live site — `deploy` declares `needs: checks`. **The gate is on the deployment, not on the branch.**
+
+CI enforces three things beyond "the tests pass":
+
+- The **renderer boundary** — `src/game/` and `src/data/` importing React or Three.js fails `pnpm lint`.
+- **Seeded determinism** — `Math.random` in those directories fails `pnpm lint`.
+- **Engine coverage** — thresholds on `src/game/` and `src/state/`. `src/scene/`, `src/ui/`, `src/data/`, the entry points `src/App.tsx` and `src/main.tsx`, and `src/state/uiStore.ts` are excluded: the renderer needs a browser and is deliberately untested, `data/` is constant tables, and `uiStore.ts` holds view-only UI state (selection, hover), not the simulation bridge the rest of `src/state/` carries. A file added to `state/` is measured unless it, like `uiStore.ts`, holds that kind of view state rather than bridging to the simulation.
+
+Coverage sets `include` explicitly rather than relying on the default. The default counts only files the tests import, so a new untested file in `src/game/` would not move the number at all. Thresholds are a per-directory allowlist, not a global floor — a new measured directory (a future `src/engine/`, say) shows up in the coverage report because `include` catches it, but has no threshold of its own and cannot fail the build until it is given an entry in `vite.config.ts`. The current thresholds — see `vite.config.ts` for the numbers, so this stays the one place they live — are a **regression ratchet, not a baseline**: they sit just under what the code already does. Defining a real baseline is an open follow-up; do not treat passing them as evidence of good coverage.
 
 ## Game design
 
@@ -70,7 +89,7 @@ The player defends a **Core** on a board of chess squares against rounds of inva
 
 Design facts with hard implementation consequences. Breaking one of these is a bug, not a balance choice:
 
-- **`Math.random` must never appear in `src/game/`.** Runs are seeded and the simulation must stay reproducible. Randomness comes from a seeded PRNG carried in `GameState`.
+- **`Math.random` must never appear in `src/game/`.** Runs are seeded and the simulation must stay reproducible. Randomness comes from a seeded PRNG carried in `GameState`. **Enforced by ESLint** — a violation fails `pnpm lint`, and therefore CI.
 - **Ink income must be event-driven** — round completion and kills — **never time-based.** The gap between rounds is untimed, so time-based income is unbounded: the player would just wait.
 - **Playing a card consumes it.** There is no drawing, no shuffling, no discard pile, and no hand. The whole Deck is always visible and playable.
 - **A Card's identity is its `id`, never its rank and suit.** The Deck is a multiset — cards come from random packs, so duplicates are normal, and the authored starting Deck already holds a triple. Three identical 5♦ are three distinct Cards, and playing one must leave the other two. Any lookup or removal keyed on rank+suit is a bug the moment a duplicate exists; go through `findCard` / `removeCard` in `src/game/cards.ts`.
@@ -109,7 +128,7 @@ step(state: GameState, command: Command): GameState   // player actions
 tick(state: GameState, fixedDt: number): GameState    // the simulation
 ```
 
-- `step` handles player commands — play a card, place a Tower, upgrade, start the round. Commands are valid both between rounds and mid-round.
+- `step` handles player commands — play a card for its rank or its suit, start the round, toggle auto-start. Commands are valid both between rounds and mid-round. There is no free Tower placement: every Tower comes from a Card, so there is no `placeTower` command and clicking an empty board with nothing selected does nothing.
 - `tick` advances the simulation: piece movement, tower firing, damage, deaths, round completion.
 - A **fixed-timestep accumulator** drives `tick`. Never pass a raw frame delta into the engine. Tests drive fake time by calling `tick` directly.
 - "Round in progress" is a flag on `GameState`, not a separate code path. There is one state machine, not two.
@@ -145,7 +164,7 @@ src/
   data/       board, piece types, tower ranks, card values, the starting Deck,
               round composition — data, not code
   scene/      R3F components: Board, Core, Towers, Pieces, GameLoop
-  ui/         React DOM overlay: Hud, Deck (later: PackOpen, the cull screen)
+  ui/         React DOM overlay: Hud, Deck, TowerPanel (later: PackOpen, the cull screen)
   state/      simulation (owns live state) + zustand bridge to React
 ```
 
@@ -200,6 +219,8 @@ Use these terms exactly and consistently — in code, comments, and UI copy.
 
 **Careful with "rank".** It means two different things — a Card's rank (2–A) and a board rank (row). Both are standard in their own domain, so keep them apart by context and name variables accordingly (`cardRank` vs `boardRank`) wherever both could appear.
 
+**And two types carry a Card's rank.** `CardRank` is every rank a Card can hold, `2..10 | 'J' | 'Q' | 'K' | 'A'`; `BuildableRank` is the `2..10` subset that builds a Tower. Anything doing arithmetic on a rank, or indexing `TOWER_RANKS` / `RANK_COLOURS`, wants `BuildableRank` — `Tower.cardRank` is one of these, because a Tower is only ever built from a buildable rank. `CardRank` was briefly the name of the narrow set; it is not any more, so treat an old reference to it with suspicion.
+
 Do not introduce synonyms for these. Drifting between "wave" and "round", or "tower" and "defender", makes the codebase harder to search.
 
 ## Testing
@@ -208,6 +229,7 @@ Do not introduce synonyms for these. Drifting between "wave" and "round", or "to
 - Drive time explicitly in tests by calling `tick` with a fixed delta. Never rely on wall-clock time or `requestAnimationFrame`.
 - Test behaviour through the engine's public surface (`step`, `tick`, state queries), not internals.
 - Keep `data/` definitions out of assertions where possible — a balance tweak should not break unrelated tests.
+- **There is no jsdom and no component tests, so a decision left inside a `.tsx` file cannot be tested at all.** Pull any non-trivial branching out into a pure module beside it and test that: `src/game/commandFor.ts` decides which Command a Card produces, `src/scene/boardClick.ts` decides what a board click does. The `.tsx` handler should be plumbing — read the stores, call the pure function, apply the result.
 - Use `pnpm test:run` in automation; `pnpm test` is watch mode.
 
 ## Open design decisions
@@ -218,13 +240,14 @@ Do not duplicate it here. Do not resolve anything on it by guessing.
 
 ## Documentation structure
 
-Three roles, three homes. Putting content in the wrong one is how the docs drift:
+Four roles, four homes. Putting content in the wrong one is how the docs drift:
 
 | File | Role |
 | --- | --- |
 | `CLAUDE.md` | **How to work in this repo.** Stack, commands, architecture, discipline, vocabulary, testing. Design appears only as invariants that constrain code. |
 | `docs/design/game-design.md` | **What the game is.** Living, mutable, single source of truth. Holds the only open-questions list. |
 | `docs/superpowers/specs/*.md` | **Why decisions were made**, and what was rejected. Dated, frozen, never updated. |
+| `docs/superpowers/plans/*.md` | **How a piece of work was carried out.** Dated, completed, frozen once done — a historical record of the tasks and order, not a live description of current state. |
 
 When the design changes, edit `game-design.md`. Add a new dated spec only to record the reasoning behind a substantial decision — never to restate current state.
 

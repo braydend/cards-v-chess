@@ -1,11 +1,13 @@
 import { Instance, Instances } from '@react-three/drei'
 import { useMemo } from 'react'
-import { allSquares, commandFor, findCard, squareKey, type BoardSpec, type PlayTarget } from '../game'
-import * as simulation from '../state/simulation'
+import { allSquares, findCard, squareKey, type BoardSpec } from '../game'
+import { getState } from '../state/simulation'
 import { dispatch } from '../state/store'
 import { useUiStore } from '../state/uiStore'
+import { resolveBoardAction } from './boardClick'
 import { SQUARE_SIZE, fileToWorldX, rankToWorldZ, worldXToFile, worldZToRank } from './coords'
 import { CoveragePreview } from './CoveragePreview'
+import { SelectionMarker } from './SelectionMarker'
 
 const LIGHT_SQUARE = '#e6e0cf'
 const DARK_SQUARE = '#3c4655'
@@ -33,6 +35,7 @@ export function Board({ board }: { board: BoardSpec }) {
       </Instances>
 
       <CoveragePreview board={board} />
+      <SelectionMarker board={board} />
       <PlacementSurface board={board} />
     </>
   )
@@ -68,54 +71,60 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
       onClick={(event) => {
         event.stopPropagation()
 
-        const { selectedCardId, playMode, setSelectedCardId } = useUiStore.getState()
-        if (!selectedCardId) return
-
         const square = {
           file: worldXToFile(board, event.point.x),
           rank: worldZToRank(board, event.point.z),
         }
 
+        const {
+          selectedCardId,
+          setSelectedCardId,
+          playMode,
+          echoSourceTowerId,
+          setEchoSourceTowerId,
+          selectedTowerId,
+          setSelectedTowerId,
+        } = useUiStore.getState()
+
         // Live state, not the published snapshot: a click must act on the board
-        // as it is now, not as it was at the last structural publish.
-        const state = simulation.getState()
-        const card = findCard(state.deck, selectedCardId)
-        if (!card) return
+        // as it is now, not as it was at the last structural publish. Reading on
+        // demand also keeps Board out of the snapshot subscription — subscribing
+        // would re-render all 64 square instances on every Tower hit.
+        const state = getState()
 
-        const clickedTower = state.towers.find(
-          (tower) => tower.square.file === square.file && tower.square.rank === square.rank,
-        )
+        // Every branch below is decided by `resolveBoardAction`, which is pure
+        // and unit-tested. Nothing but plumbing lives in this handler.
+        const action = resolveBoardAction({
+          square,
+          towers: state.towers,
+          selectedTowerId,
+          card: selectedCardId === null ? null : (findCard(state.deck, selectedCardId) ?? null),
+          playMode,
+          echoSourceTowerId,
+        })
 
-        // Echo is the only play needing two board targets: a source Tower to
-        // Echo, then a square to build the copy on. Until a source is picked,
-        // clicking a Tower with a Queen selected picks it rather than
-        // attempting a play — that two-click sequencing is inherent to Echo's
-        // UX and lives here; which Command the resulting target produces does
-        // not, and comes from `commandFor`.
-        const { echoSourceTowerId, setEchoSourceTowerId } = useUiStore.getState()
-
-        if (playMode === 'build' && card.kind === 'standard' && card.rank === 'Q' && !echoSourceTowerId) {
-          if (clickedTower) setEchoSourceTowerId(clickedTower.id)
+        if (action.kind === 'select') {
+          setSelectedTowerId(action.towerId)
           return
         }
 
-        const target: PlayTarget =
-          playMode === 'build' && echoSourceTowerId
-            ? { kind: 'echo', sourceTowerId: echoSourceTowerId, square }
-            : clickedTower
-              ? { kind: 'tower', towerId: clickedTower.id }
-              : { kind: 'square', square }
+        if (action.kind === 'deselect') {
+          setSelectedTowerId(null)
+          return
+        }
 
-        const command = commandFor(card, playMode, target)
-        if (!command) return
+        if (action.kind === 'pickEchoSource') {
+          setEchoSourceTowerId(action.towerId)
+          return
+        }
 
         // `dispatch` reports whether the play actually landed. A refusal (an
         // occupied square, the Core square, an Echo source Tower that died
         // between the two clicks, ...) must not clear the selection — the
         // Card was not consumed, so the player should not have to re-pick it.
-        if (!dispatch(command)) return
+        if (!dispatch(action.command)) return
 
-        if (command.kind === 'echoTower') setEchoSourceTowerId(null)
+        if (action.command.kind === 'echoTower') setEchoSourceTowerId(null)
         setSelectedCardId(null)
       }}
     >

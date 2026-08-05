@@ -32,6 +32,16 @@ interface UiStore {
    */
   echoSourceTowerId: string | null
   setEchoSourceTowerId: (towerId: string | null) => void
+
+  /**
+   * The Tower whose inspect panel is open. Null when nothing is selected.
+   *
+   * Independent of `selectedCardId`: inspecting is what a board click does when
+   * no Card is selected, and a Card whose play targets a Tower takes precedence
+   * over it. See `resolveTowerClick` in `src/scene/boardClick.ts`.
+   */
+  selectedTowerId: string | null
+  setSelectedTowerId: (towerId: string | null) => void
 }
 
 export const useUiStore = create<UiStore>((set) => ({
@@ -43,4 +53,6 @@ export const useUiStore = create<UiStore>((set) => ({
   setPlayMode: (playMode) => set({ playMode }),
   echoSourceTowerId: null,
   setEchoSourceTowerId: (echoSourceTowerId) => set({ echoSourceTowerId }),
+  selectedTowerId: null,
+  setSelectedTowerId: (selectedTowerId) => set({ selectedTowerId }),
 }))

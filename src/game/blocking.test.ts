@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { JACK_SHIELD } from '../data/cards'
 import { BLOCKED_ATTACK_MULTIPLIER, PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
-import { firstTowerId, liveRound, pawnAt, standardCard, withDeck, withTower } from './fixtures'
+import { firstTower, firstTowerId, liveRound, pawnAt, standardCard, withDeck, withTower } from './fixtures'
 import { step, tick } from './index'
 import type { BuildableRank, GameState, Square } from './types'
 
@@ -252,5 +252,61 @@ describe('Tower stats are per-Tower', () => {
     const after = runFor(boosted, TOWER_RANKS[3].fireIntervalMs + DT)
 
     expect(after.pieces).toHaveLength(0)
+  })
+})
+
+describe('damage taken', () => {
+  it('starts at zero on a newly built Tower', () => {
+    const state = withTower(4, { file: 1, rank: 1 })
+
+    expect(firstTower(state).damageTaken).toBe(0)
+  })
+
+  it('accumulates every attack the Tower absorbs', () => {
+    // Rank 5 has the blind spot directly up-file, so it cannot return fire and
+    // the Pawn survives to land a second attack.
+    const state = blockedApproach(5, { file: 3, rank: 4 })
+
+    const after = runFor(state, PAWN.moveIntervalMs * 2 + DT)
+
+    expect(after.towers[0]?.damageTaken).toBe(BLOCKED_DAMAGE * 2)
+  })
+
+  it('stays at zero for a Tower nothing attacks', () => {
+    const placed = withTower(3, { file: 7, rank: 7 })
+
+    const after = runFor(liveRound(placed, []), 3000)
+
+    expect(after.towers[0]?.damageTaken).toBe(0)
+  })
+
+  it('counts damage a shield absorbed, not just what reached health', () => {
+    // A shield large enough to soak every hit in this window: health never
+    // moves, and `damageTaken` must still climb. `damageTaken` records what the
+    // Tower weathered, and absorbing a hit is weathering it.
+    const shielded = blockedApproach(5, { file: 3, rank: 4 })
+    const state: GameState = {
+      ...shielded,
+      towers: shielded.towers.map((tower) => ({ ...tower, shield: BLOCKED_DAMAGE * 10 })),
+    }
+
+    const after = runFor(state, PAWN.moveIntervalMs * 2 + DT)
+
+    expect(after.towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth)
+    expect(after.towers[0]?.damageTaken).toBe(BLOCKED_DAMAGE * 2)
+  })
+
+  it('counts the whole of a hit that a shield only partly absorbed', () => {
+    const shielded = blockedApproach(5, { file: 3, rank: 4 })
+    const partial = BLOCKED_DAMAGE / 2
+    const state: GameState = {
+      ...shielded,
+      towers: shielded.towers.map((tower) => ({ ...tower, shield: partial })),
+    }
+
+    const after = runFor(state, PAWN.moveIntervalMs + DT)
+
+    expect(after.towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth - partial)
+    expect(after.towers[0]?.damageTaken).toBe(BLOCKED_DAMAGE)
   })
 })

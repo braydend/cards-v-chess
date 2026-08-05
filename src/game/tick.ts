@@ -13,9 +13,10 @@ import type { BoardSpec, GameState, Piece, Square, Tower } from './types'
  * delta. That is what makes the simulation deterministic and refresh-rate
  * independent, and it is why tests can drive time by calling this directly.
  *
- * Towers fire, take damage from blocked Pieces, and are destroyed when their
- * health runs out. Shields absorb before health. See `roundTermination.test.ts`
- * for the invariant that makes round completion safe.
+ * Towers fire, take damage from the Pieces they block, and are destroyed when
+ * their health runs out — see `applyTowerDamage` below. Shields absorb before
+ * health. See `roundTermination.test.ts` for the invariant that makes round
+ * completion safe.
  */
 export function tick(state: GameState, dtMs: number): GameState {
   if (state.phase === 'defeated') return state
@@ -325,6 +326,10 @@ function movePieces(
  * A shield absorbs first, and overflow carries into health — a shield of 2
  * taking a 5-damage hit leaves 0 shield and costs 3 health. No hit is wasted,
  * and a shield never blocks more than it is worth.
+ *
+ * `damageTaken` accrues the FULL incoming amount, including the part a shield
+ * soaked. It records what the Tower has weathered, not what reached its health,
+ * and a shield absorbing a hit is still weathering it.
  */
 function applyTowerDamage(towers: readonly Tower[], damage: Map<string, number>): Tower[] {
   if (damage.size === 0) return [...towers]
@@ -340,6 +345,7 @@ function applyTowerDamage(towers: readonly Tower[], damage: Map<string, number>)
         ...tower,
         shield: tower.shield - absorbed,
         health: tower.health - (dealt - absorbed),
+        damageTaken: tower.damageTaken + dealt,
       }
     })
     .filter((tower) => tower.health > 0)
