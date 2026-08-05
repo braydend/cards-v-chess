@@ -1506,7 +1506,38 @@ Create `src/game/cardPlays.ts`:
 import { towerRank } from '../data/towerRanks'
 import { isInBounds, squaresEqual } from './board'
 import { findCard, isBuildableRank, removeCard } from './cards'
-import type { GameState, Square } from './types'
+import type { BuildableRank, GameState, Square, Tower } from './types'
+
+/**
+ * A fresh Tower of this rank, at full health with no shield.
+ *
+ * Shared by every play that puts a Tower on the board — a Card played for its
+ * rank, and a Queen's Echo. Both must seed identical stats from the rank, so
+ * this exists to make drift impossible rather than merely unlikely.
+ */
+function newTower(id: string, square: Square, cardRank: BuildableRank): Tower {
+  const def = towerRank(cardRank)
+
+  return {
+    id,
+    square,
+    cardRank,
+    fireCooldownMs: 0,
+    health: def.maxHealth,
+    maxHealth: def.maxHealth,
+    damage: def.damage,
+    fireIntervalMs: def.fireIntervalMs,
+    shield: 0,
+  }
+}
+
+/** Whether a square is free to build on. */
+function canBuildOn(state: GameState, square: Square): boolean {
+  if (!isInBounds(state.board, square)) return false
+  if (squaresEqual(square, state.core.square)) return false
+
+  return !state.towers.some((tower) => squaresEqual(tower.square, square))
+}
 
 /**
  * Plays a Card for its RANK, converting it into a Tower.
@@ -1520,29 +1551,11 @@ export function buildTower(state: GameState, cardId: string, square: Square): Ga
   const card = findCard(state.deck, cardId)
   if (!card || card.kind !== 'standard') return state
   if (!isBuildableRank(card.rank)) return state
-
-  if (!isInBounds(state.board, square)) return state
-  if (squaresEqual(square, state.core.square)) return state
-  if (state.towers.some((tower) => squaresEqual(tower.square, square))) return state
-
-  const def = towerRank(card.rank)
+  if (!canBuildOn(state, square)) return state
 
   return {
     ...state,
-    towers: [
-      ...state.towers,
-      {
-        id: `tower-${state.nextEntityId}`,
-        square,
-        cardRank: card.rank,
-        fireCooldownMs: 0,
-        health: def.maxHealth,
-        maxHealth: def.maxHealth,
-        damage: def.damage,
-        fireIntervalMs: def.fireIntervalMs,
-        shield: 0,
-      },
-    ],
+    towers: [...state.towers, newTower(`tower-${state.nextEntityId}`, square, card.rank)],
     nextEntityId: state.nextEntityId + 1,
     deck: removeCard(state.deck, cardId),
   }
@@ -2196,34 +2209,20 @@ export function echoTower(
 
   const source = state.towers.find((tower) => tower.id === sourceTowerId)
   if (!source) return state
+  if (!canBuildOn(state, square)) return state
 
-  if (!isInBounds(state.board, square)) return state
-  if (squaresEqual(square, state.core.square)) return state
-  if (state.towers.some((tower) => squaresEqual(tower.square, square))) return state
-
-  const def = towerRank(source.cardRank)
-
+  // `newTower` seeds from the rank alone, which is exactly why the source's
+  // accumulated supports and shield do not carry across.
   return {
     ...state,
-    towers: [
-      ...state.towers,
-      {
-        id: `tower-${state.nextEntityId}`,
-        square,
-        cardRank: source.cardRank,
-        fireCooldownMs: 0,
-        health: def.maxHealth,
-        maxHealth: def.maxHealth,
-        damage: def.damage,
-        fireIntervalMs: def.fireIntervalMs,
-        shield: 0,
-      },
-    ],
+    towers: [...state.towers, newTower(`tower-${state.nextEntityId}`, square, source.cardRank)],
     nextEntityId: state.nextEntityId + 1,
     deck: removeCard(state.deck, cardId),
   }
 }
 ```
+
+`newTower` and `canBuildOn` already exist in this file from Task 6 — do not redefine them.
 
 In `src/game/step.ts`, add:
 
@@ -2705,11 +2704,23 @@ In `src/state/uiStore.ts`, add:
    */
   playMode: 'build' | 'support'
   setPlayMode: (mode: 'build' | 'support') => void
+
+  /**
+   * The Tower a Queen will copy, picked on the first of its two clicks. Null
+   * until then, and cleared once the Echo resolves.
+   *
+   * Echo is the only play needing two board targets — a source to copy and a
+   * destination to build on.
+   */
+  echoSourceTowerId: string | null
+  setEchoSourceTowerId: (towerId: string | null) => void
 ```
 
 ```ts
   playMode: 'build',
   setPlayMode: (playMode) => set({ playMode }),
+  echoSourceTowerId: null,
+  setEchoSourceTowerId: (echoSourceTowerId) => set({ echoSourceTowerId }),
 ```
 
 - [ ] **Step 2: Build the Deck component**
@@ -2772,6 +2783,8 @@ export function Deck() {
   const setSelectedCardId = useUiStore((store) => store.setSelectedCardId)
   const playMode = useUiStore((store) => store.playMode)
   const setPlayMode = useUiStore((store) => store.setPlayMode)
+  const echoSourceTowerId = useUiStore((store) => store.echoSourceTowerId)
+  const setEchoSourceTowerId = useUiStore((store) => store.setEchoSourceTowerId)
 
   const selected = deck.find((card) => card.id === selectedCardId)
 
@@ -2794,7 +2807,11 @@ export function Deck() {
               className={`deck__card${card.id === selectedCardId ? ' deck__card--active' : ''}${
                 card.kind === 'standard' ? ` deck__card--${card.suit}` : ' deck__card--joker'
               }`}
-              onClick={() => setSelectedCardId(card.id === selectedCardId ? null : card.id)}
+              onClick={() => {
+                // Clear any half-finished Echo so it cannot leak into the next play.
+                setEchoSourceTowerId(null)
+                setSelectedCardId(card.id === selectedCardId ? null : card.id)
+              }}
             >
               {cardLabel(card)}
             </button>
@@ -2836,11 +2853,7 @@ export function Deck() {
               Play
             </button>
           ) : (
-            <p className="hud__hint">
-              {playMode === 'support' || (selected.kind === 'standard' && selected.rank === 'J')
-                ? `Click a Tower${towers.length === 0 ? ' — you have none yet' : ''}`
-                : 'Click a square on the board'}
-            </p>
+            <p className="hud__hint">{targetHint(selected, playMode, towers.length, echoSourceTowerId)}</p>
           )}
         </div>
       ) : (
@@ -2856,6 +2869,32 @@ function resolveUntargeted(card: Card) {
   if (card.rank === 'K') return { kind: 'reinforceCore', cardId: card.id } as const
   if (card.rank === 'A') return { kind: 'expandBoard', cardId: card.id } as const
   return null
+}
+
+/** What the player should click next for this Card in this mode. */
+function targetHint(
+  card: Card,
+  playMode: 'build' | 'support',
+  towerCount: number,
+  echoSourceTowerId: string | null,
+): string {
+  const noTowers = towerCount === 0 ? ' — you have none yet' : ''
+
+  if (playMode === 'support' && card.kind === 'standard') {
+    return `Click a Tower to support${noTowers}`
+  }
+
+  if (card.kind === 'standard' && card.rank === 'J') {
+    return `Click a Tower to shield${noTowers}`
+  }
+
+  if (card.kind === 'standard' && card.rank === 'Q') {
+    return echoSourceTowerId
+      ? 'Now click an empty square for the copy'
+      : `Click the Tower to copy${noTowers}`
+  }
+
+  return 'Click a square on the board'
 }
 ```
 
@@ -2898,18 +2937,22 @@ In `src/scene/Board.tsx`, replace the `onClick` handler so it respects the play 
         }
 
         if (card.kind === 'standard' && card.rank === 'Q') {
-          // Echo needs a source Tower as well as a destination. Copy the
-          // player's only Tower when there is exactly one; otherwise require
-          // them to hold a Tower selected first is out of scope for this slice,
-          // so refuse rather than guess.
-          const source = state.towers.length === 1 ? state.towers[0] : undefined
-          if (!source) return
+          // Echo is the only play needing two targets: a Tower to copy, then a
+          // square to build the copy on. First click picks the source.
+          const { echoSourceTowerId, setEchoSourceTowerId } = useUiStore.getState()
+
+          if (!echoSourceTowerId) {
+            if (clickedTower) setEchoSourceTowerId(clickedTower.id)
+            return
+          }
+
           dispatch({
             kind: 'echoTower',
             cardId: selectedCardId,
-            sourceTowerId: source.id,
+            sourceTowerId: echoSourceTowerId,
             square,
           })
+          setEchoSourceTowerId(null)
           setSelectedCardId(null)
           return
         }
@@ -2926,7 +2969,7 @@ import { allSquares, findCard, squareKey, type BoardSpec } from '../game'
 import * as simulation from '../state/simulation'
 ```
 
-**Note on the Queen:** copying works only when the player has exactly one Tower. Picking a source Tower needs a second selection step, which this slice does not build. Record it as a known limitation in the commit message rather than guessing at a UI.
+**Note on the Queen:** it is the only two-click play. Clicking a Tower picks the source; the next click picks the destination square. Selecting a different Card must clear `echoSourceTowerId` so a half-finished Echo cannot leak into the next play — handled in Step 2's Deck component.
 
 - [ ] **Step 4: Render the Deck**
 
@@ -3040,11 +3083,7 @@ Expected: PASS.
 
 ```bash
 git add src/ui/Deck.tsx src/ui/Hud.tsx src/state/uiStore.ts src/scene/Board.tsx src/index.css
-git commit -m "Add the visible Deck and play a Card for its rank or its suit
-
-Queen Echo currently copies only when the player has exactly one Tower;
-choosing a source Tower needs a second selection step this slice does not
-build."
+git commit -m "Add the visible Deck and play a Card for its rank or its suit"
 ```
 
 ---
@@ -3310,10 +3349,15 @@ git commit -m "Update the design docs for the card mechanics"
 | Testing | every task |
 | Documentation to update | 14 |
 
-**Known deviations from the spec**, both recorded in commit messages:
+**Known deviation from the spec:**
 
-- **Queen Echo's source Tower** — the spec says Echo copies "an existing Tower". The engine command takes an explicit `sourceTowerId`, but the UI in Task 12 only resolves it when the player has exactly one Tower. A source-selection step is out of slice. The engine is complete; the UI is partial.
 - **`data/rounds.ts` still derives spawn files from `BOARD.files`** rather than from state. Correct while the Ace grows ranks only, and Task 10 pins that with a test.
+
+**Rulings taken before execution**, so reviewers flagging them get parked rather than re-litigated:
+
+- **Task 2's `targetsPerShot: 1` test is deliberately temporary**, replaced by Task 3. It exists so Task 2 has a red-to-green cycle for the new field. Kept.
+- **`horizontal` stays orphaned** — implemented and tested, used by no rank. Kept as the spec directs; deleting tested working code to tidy a union is churn.
+- **Task 13's tests pass on first run.** They pin behaviour that already holds rather than driving new code, which is the point: they are regression pins for a deliberately deferred decision. Kept.
 
 **Type consistency check.** `BuildableRank` is introduced in Task 2 and used in Tasks 5, 6, 8. `CardRank` is deleted in Task 2 and reintroduced in Task 4 with a wider meaning — Task 2's step 5 lists every call site to migrate, and Task 4's `supportMagnitude(rank: CardRank)` relies on the new meaning. `findCard` / `removeCard` / `isBuildableRank` are defined in Task 4 and consumed in 6, 7, 8, 9, 10, 11. Fixtures are defined in Task 6 and consumed in 6, 7, 8, 9, 10, 11, 13. `applySupport` is defined in Task 7 and consumed by Task 13's repair loop. `selectTargets` replaces `selectTarget` in Task 3 only, and stays module-private.
 
