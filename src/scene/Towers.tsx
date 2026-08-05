@@ -62,8 +62,12 @@ export function Towers({ board }: { board: BoardSpec }) {
       // backwards within a run. Catching that here clears out any ghost still
       // riding out its flare from the previous run immediately, rather than
       // leaving a previous-run ghost on screen for up to DEATH_FLARE_MS after
-      // "Play again".
-      if (snapshot.nextEntityId < lastEntityId.current) setGhosts([])
+      // "Play again". These ghosts are discarded before their own expiry
+      // timeout fires, so their flare-start times must be cleared here too.
+      if (snapshot.nextEntityId < lastEntityId.current) {
+        ghostStartedAt.current.clear()
+        setGhosts([])
+      }
       lastEntityId.current = snapshot.nextEntityId
 
       const fallen = diffTowers(animations.current, snapshot)
@@ -79,6 +83,10 @@ export function Towers({ board }: { board: BoardSpec }) {
       // death appends within the same React batch.
       for (const ghost of fallen) {
         setTimeout(() => {
+          // The timeout is what knows a ghost's life is over, so its
+          // flare-start time is cleaned up here — see the ghost ref callback
+          // below for why that map must not be touched from there.
+          ghostStartedAt.current.delete(ghost.id)
           setGhosts((current) => current.filter((candidate) => candidate.id !== ghost.id))
         }, DEATH_FLARE_MS)
       }
@@ -181,12 +189,24 @@ export function Towers({ board }: { board: BoardSpec }) {
                 // ghost's shrinking scale to the live Tower and evict it from
                 // `meshes`.
                 key={ghost.meshKey}
+                // This ref callback is not unmount-only: drei's Instance calls
+                // useImperativeHandle(ref, () => group.current, []), and React
+                // appends `ref` itself to that dependency array. Since this is
+                // a fresh inline closure every render, the effect's deps
+                // change on every render of Towers, not just when this ghost
+                // mounts or unmounts — so it detaches and reattaches
+                // (`ref(null)` then `ref(mesh)`) on every render this
+                // component happens to do while the ghost is still alive.
+                // Deleting from `meshes` here is safe because re-setting it a
+                // moment later is idempotent, but `ghostStartedAt` must NOT be
+                // touched here: clearing it mid-life would reset the flare's
+                // start time on the very next frame, snapping `remaining`
+                // back to 1 repeatedly instead of letting it shrink. That
+                // cleanup belongs where a ghost's life actually ends — the
+                // expiry timeout above, and the reset branch below it.
                 ref={(mesh: PositionMesh | null) => {
                   if (mesh) meshes.current.set(ghost.meshKey, mesh)
-                  else {
-                    meshes.current.delete(ghost.meshKey)
-                    ghostStartedAt.current.delete(ghost.id)
-                  }
+                  else meshes.current.delete(ghost.meshKey)
                 }}
                 color={RANK_COLOURS[cardRank]}
                 position={[
