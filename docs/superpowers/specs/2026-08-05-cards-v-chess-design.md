@@ -34,7 +34,7 @@ The real choice was R3F versus vanilla Three.js, and it was researched rather th
 - The substantive criticism of R3F for games is **architectural, not performance-related**. React is render-oriented; simulations are data-oriented. Developers who drive the simulation *through* React state describe "fighting the library." This critique is acknowledged by R3F contributors themselves.
 - That failure mode applies to open-world, physics-first games with thousands of entities updating per frame.
 
-**Cards V Chess has the inverse profile:** tens of entities, a discrete grid, a tick-based deterministic simulation — and a *heavy* 2D UI burden (hand, deck, card zoom, mana, tooltips, later a deckbuilder). The UI half is where React is unambiguously strongest, and the simulation half is where R3F's weakness would have bitten.
+**Cards V Chess has the inverse profile:** tens of entities, a discrete grid, a tick-based deterministic simulation — and a *heavy* 2D UI burden (the card Deck, card zoom, tooltips, pack opening, the cull screen). The UI half is where React is unambiguously strongest, and the simulation half is where R3F's weakness would have bitten.
 
 Decisively, the chosen architecture removes the criticism entirely: the simulation does not live in React (see decision 3). React only draws.
 
@@ -120,7 +120,7 @@ Two decisions made during scaffolding that are worth recording:
 - **TypeScript pinned to 5.x.** TS 7 is published as `latest`, but `typescript-eslint` declares support only for `>=4.8.4 <6.1.0`, so TS 7 breaks linting. Revisit when typescript-eslint catches up.
 - **The `game/` boundary is enforced by ESLint**, not merely documented. `no-restricted-imports` blocks renderer imports in `src/game/` and `src/data/`. Verified by deliberately introducing a violation and confirming the failure.
 
-Deferred because they depend on the open decisions: the card pool and hand UI (Towers are currently placed by clicking the board and cost nothing), tower combat behaviour (Towers are placed and rendered but do not fire), and the piece roster beyond one placeholder pawn.
+Deferred because they depend on the open decisions: the card pool and Deck UI (Towers are currently placed by clicking the board and cost nothing), tower combat behaviour (Towers are placed and rendered but do not fire), and the piece roster beyond one placeholder pawn.
 
 **No project skills were written.** Skills for workflows like "add a card" or "add a piece type" would have to describe structures that do not exist yet — the card pool in particular. They should be written against real code, once the content design is settled.
 

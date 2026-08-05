@@ -28,7 +28,7 @@ What exists:
 
 What does **not** exist yet:
 
-- **Cards.** No deck, no hand, no Ink, no modality. Towers are placed by clicking the board and cost nothing.
+- **Cards.** No Deck, no Ink, no modality. Towers are placed by clicking the board.
 - **Tower combat.** Towers are placed and rendered but do not fire, have no health, and cannot be damaged or repaired.
 - **The piece roster.** One placeholder `pawn` exists with placeholder stats. None of the six agreed threats are implemented — no promotion, no colour vulnerability, no healing, no Tower attacks.
 
@@ -48,7 +48,7 @@ Because Towers cannot kill anything, a round currently resolves by leaking out. 
 | Tests | Vitest |
 | Art style | Low-poly |
 
-Chosen because this game is roughly half 3D scene and half dense 2D UI (hand, deck, card zoom, tooltips, and later a deckbuilder). React handles the second half well, and low-poly art means the renderer will not be the bottleneck.
+Chosen because this game is roughly half 3D scene and half dense 2D UI (the Deck, card zoom, tooltips, pack opening, the cull screen). React handles the second half well, and low-poly art means the renderer will not be the bottleneck.
 
 ## Commands
 
@@ -103,9 +103,15 @@ Shape is the rank's identity; **range and damage scale with rank**, since shape 
 
 Rank 5 is diagonal for a reason: diagonals preserve square colour, so a diagonal Tower on a light square only ever hits light squares — which is exactly the Knight's vulnerability window. That counter emerges from real geometry rather than being assigned.
 
-### Playing a card costs nothing
+### Cards are consumed, and there is no drawing
 
-**There is no in-match resource.** Cards are gated by hand size and draw rate, not by spending. A hand limit is already a resource; adding mana on top would be a second constraint for no gain.
+**Playing a card consumes it** — converted into a Tower, or spent on a support action. Nothing returns; there is no discard pile.
+
+**Playing a card costs nothing else.** No mana, no Ink cost. The Deck *is* the resource: the player's total supply of plays for the run, replenished only by packs.
+
+**There is no drawing.** The whole Deck is visible and playable at all times. No shuffling, no draw pile, no per-round draw, no hand limit.
+
+This is a package, not a preference. Towers are permanent and playing costs nothing, so reusable cards would mean unlimited Towers — consumption is what bounds the board. And once cards are consumed, drawing would only hide information about a supply the player must plan against.
 
 ### Ink buys packs
 
@@ -119,17 +125,22 @@ The game is **run-based**, not a persistent collection: the deck is built during
 
 This requires a seeded PRNG carried in `GameState`. **`Math.random` must never appear in `src/game/`** — it breaks determinism and seeds alike. There is currently no randomness in the engine at all; keep it that way.
 
-### Run deck and hand
+### The Deck
 
 | Rule | Value |
 | --- | --- |
-| Run deck cap | **30 cards** |
+| Deck cap | **30 cards** |
 | Copies of any one card | Unlimited |
-| Opening hand | 5 |
-| Draw | 2 per round start |
-| In-match hand cap | 10 |
+| Visibility | Entire Deck always visible and playable |
+| On play | Card is consumed |
 
-**The 30-cap is hard, and acquiring cards forces destroying cards** — buying a 10-card pack while holding 25 means cutting 5. That decision is the point of the cap. There is deliberately **no copy limit**; it would fight the culling mechanic.
+**The 30-cap is hard, and acquiring cards can force destroying cards** — buying a 10-card pack while holding 25 means cutting 5. That decision is the point of the cap. There is deliberately **no copy limit**; it would fight the culling mechanic.
+
+Note the loop: **playing cards frees Deck space**, so culling only bites when the player hoards. Hoarding has a cost, spending has a reward. Preserve that.
+
+**A run opens by opening a pack** — there is no fixed starter Deck. Since packs roll off the seed, the opening is reproducible.
+
+**"Hand" is retired as a term.** With no draw pile there is only one set of cards. Call it the Deck; "hand" implies drawing, which does not exist here.
 
 Packs: **Scrap** (3 random), **Base** (10 random), **Court** (10 weighted high), **Suited** (10 of one chosen suit). Fixed prices per type — packs do **not** escalate in price.
 
@@ -225,7 +236,7 @@ src/
               types, state, step, tick, board helpers
   data/       board, piece types, round composition — data, not code
   scene/      R3F components: Board, Core, Towers, Pieces, GameLoop
-  ui/         React DOM overlay: Hud (later: Hand, CardDetail)
+  ui/         React DOM overlay: Hud (later: Deck, CardDetail, PackOpen)
   state/      simulation (owns live state) + zustand bridge to React
 ```
 
@@ -253,7 +264,7 @@ Use these terms exactly and consistently — in code, comments, and UI copy.
 | --- | --- |
 | **Cards** | The player's faction |
 | **Chess** | The AI attacking faction |
-| **Card** | An item in hand, not yet played. Has a rank and a suit |
+| **Card** | An unplayed item in the Deck. Has a rank and a suit. **Consumed when played** |
 | **Rank** | 2–10, J, Q, K, A. Determines the Tower a Card builds |
 | **Suit** | ♥ ♦ ♠ ♣. Determines the support action a Card can apply |
 | **Tower** | A Card played for its rank — placed, active, and destructible |
@@ -268,9 +279,9 @@ Use these terms exactly and consistently — in code, comments, and UI copy.
 | **Command** | A player action entering the engine |
 | **Leak** | A Piece reaching the Core |
 | **Run** | One playthrough: a sequence of Rounds. Identified by a **seed** |
-| **Deck** | The cards held for the current Run, capped at 30. Grown by **packs** |
-| **Hand** | The cards currently held to play, drawn from the Deck. Capped at 10 |
+| **Deck** | All cards held for the current Run, capped at 30. Fully visible; grown by **packs**. There is no "hand" |
 | **Pack** | A bundle of cards bought with Ink between Rounds |
+| **Cull** | Destroying cards to stay within the 30-card Deck cap |
 | **Square / rank / file** | Board positions, chess terminology |
 
 **Careful with "rank".** It means two different things — a Card's rank (2–A) and a board rank (row). Both are standard in their own domain, so keep them apart by context and name variables accordingly (`cardRank` vs `boardRank`) wherever both could appear.
@@ -291,9 +302,9 @@ These are **deliberately unresolved**. Do not invent answers, silently pick one,
 
 - **Ranks 6–10** — ranks 2–5 are set; the rest of the geometry ladder is undesigned.
 - **Ace, face cards, and Jokers** — they perform specific actions rather than following the rank ladder, in the direction of a Tower upgrade or evolution. Specifics parked.
-- **Starting run deck** — what a run begins with. Must be at or under the 30-cap, so a full 54-card deck is impossible. A ~12–16 card starter growing toward 30 is the obvious shape; size and composition undecided.
+- **Which pack opens a run** — a run starts by opening one, but the type is not fixed.
 - **Run length and loss condition** — how long a run is and what ends it.
-- **Deck reshuffling** — whether the deck reshuffles each round or is drawn down across the run, and what happens when exhausted.
+- **Running out of cards** — cards are consumed and packs are the only source, so a player can hit zero. Whether that is a loss, a stall, or covered by an Ink floor is undecided.
 - **Pack weighting and prices** — how rank scarcity translates into pack contents, and what each type costs.
 - **PRNG streams** — one stream, or separate named streams for packs/rounds/draws so seeds survive code changes.
 - **Board geometry** — still a literal 8x8 placeholder. Note that square colour is now mechanically load-bearing, which argues for keeping a true chessboard.

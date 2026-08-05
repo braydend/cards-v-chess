@@ -59,15 +59,21 @@ Towers are **generic**, not chess-themed. An earlier proposal gave Towers chess-
 
 Ace, Jack, Queen, King, and the two Jokers perform **specific actions rather than following the rank ladder** — an upgrade or an evolution for a Tower is the direction. Deliberately parked: the specifics are not designed yet.
 
-## There is no in-match resource
+## Cards are the resource, and they are consumed
 
-**Playing a card costs nothing.** Cards are gated by hand size and draw rate, not by spending.
+**Playing a card consumes it.** Play the 5♦ and it is gone — the card has been converted into a Tower, or spent on a support action. There is no discard pile and nothing returns.
 
-The reasoning: a card game with a hand limit already has a resource — the cards themselves. Adding a mana-style pool on top is a second constraint that usually just slows play down, and Balatro demonstrates the model works without one. It also keeps rank purely a *power* curve rather than a cost curve, which is simpler to teach.
+**Playing a card costs nothing else.** There is no mana, no Ink cost, no second resource. The Deck *is* the resource: it is the player's total supply of plays, and packs are the only way to replenish it.
 
-Consequence to accept: without a cost, a high card is strictly better than a low one in **both** modes. The decision in hand becomes "build a new Tower, or fix an existing one?" rather than an efficiency puzzle. That is still a real choice, just a different one.
+**There is no drawing.** The whole Deck is visible and available at all times. No shuffling, no draw pile, no per-round draw, no hand limit.
 
-An earlier proposal made the number on the card its Ink cost in both modes, creating a tension where low cards are efficient support and high cards efficient Towers. **Rejected** — Ink is not an in-match resource.
+The reasoning is a package, not a preference. Towers are permanent and playing a card costs nothing, so if cards returned to the Deck the player could build unlimited Towers. Consumption is what bounds the board. Conversely, once cards are consumed, a draw mechanic adds nothing — it would only hide information about a supply the player needs to plan against. **Consumed-with-full-access and reusable-with-drawing are the two coherent packages; this is the first.**
+
+An earlier draft used a traditional TCG loop — opening hand of 5, draw 2 per round, hand cap 10 — designed when this was going to be a persistent-collection card game. **Rejected.** With a run starting around 10 cards and capped at 30, the player would have been holding essentially the whole Deck and the mechanic would have been inert.
+
+Also rejected: making the number on the card its Ink cost in both modes. Ink is not an in-match resource.
+
+Consequence to accept: without a cost, a high card is strictly better than a low one in **both** modes. The decision becomes "build a new Tower, or fix an existing one, and is this card worth spending now?" rather than an efficiency puzzle. That is still a real choice, just a different one.
 
 ## Ink is the run currency
 
@@ -92,7 +98,13 @@ Ink is earned by playing. There are no real-money purchases, which means no paym
 
 ## Runs
 
-The game is **run-based**, not a persistent collection. A run is a sequence of rounds; the deck is built up *during* the run and does not survive it.
+The game is **run-based**, not a persistent collection. A run is a sequence of rounds; the Deck is built up *during* the run and does not survive it.
+
+### A run opens with a pack
+
+**The first thing a run does is open a pack.** There is no fixed starter deck — the player's opening position is whatever that pack gives them, and reading it is the first real decision of the run.
+
+Because packs roll off the run seed, the opening is reproducible: the same seed always deals the same starting cards.
 
 ### Runs are seeded
 
@@ -102,21 +114,22 @@ This requires a **seeded PRNG carried in `GameState`**. The engine currently con
 
 **Caveat:** with a single PRNG stream, any change to the *order* of random calls invalidates existing seeds. Acceptable during development. If seeds should survive updates, use separate named streams — packs, rounds, draws — so adding a call in one does not shift the others.
 
-### Run deck
+### The Deck
 
 | Rule | Value |
 | --- | --- |
-| Run deck cap | **30 cards** |
+| Deck cap | **30 cards** |
 | Copies of any one card | **Unlimited** |
-| Opening hand | 5 |
-| Draw | 2 at each round start |
-| In-match hand cap | 10 |
+| Visibility | Entire Deck always visible and playable |
+| On play | Card is consumed |
 
-**The 30-cap is a hard limit, and acquiring cards forces destroying cards.** Buying a 10-card pack while holding 25 means choosing 5 cards to destroy in order to fit. Every pack is therefore a "what do I cut?" decision, which is the point.
+**The 30-cap is a hard limit, and acquiring cards can force destroying cards.** Buying a 10-card pack while holding 25 means choosing 5 to destroy in order to fit. Every pack is potentially a "what do I cut?" decision, which is the point.
 
-**No copy limit.** An earlier draft capped copies at 2, to stop random packs producing permanently dead duplicates. The 30-cap makes that unnecessary: a bad pull is a cut candidate, not dead weight, and the cap already limits total power. Eight copies of the 5♦ is a legitimate consistency build. A copy limit would fight the culling mechanic rather than support it.
+Note the loop this creates: **playing cards frees Deck space.** Culling only bites when the player is sitting on a large unspent Deck, so hoarding has a cost and spending has a reward. That is a self-regulating tension and worth preserving.
 
-**Terminology:** the cap is on the **deck**, not the hand. *Hand* means the cards held to play during a round (5 opening, drawing 2, capped at 10). Both caps exist and do different jobs; do not let "hand" mean both.
+**No copy limit.** An earlier draft capped copies at 2, to stop random packs producing permanently dead duplicates. The 30-cap makes that unnecessary: a bad pull is a cut candidate, not dead weight, and the cap already limits total supply. A pile of 5♦s is a legitimate build. A copy limit would fight the culling mechanic rather than support it.
+
+**Terminology: "Hand" is retired.** With no draw pile there is only one set of cards, so the earlier hand-versus-deck distinction has collapsed. Call it the **Deck**. Do not reintroduce "hand" — it implies drawing, which does not exist here. (30 cards would not read as a hand visually in any case.)
 
 ## Packs
 
@@ -206,9 +219,9 @@ Do not resolve these by guessing.
 | --- | --- |
 | **Ranks 6–10** | Ranks 2–5 are set. The rest of the geometry ladder is undesigned. |
 | **Ace / face cards / Jokers** | Direction agreed (upgrade or evolution); specifics parked. |
-| **Starting run deck** | What a run begins with. It must be **at or under the 30-cap**, so a full 54-card deck is not an option. A small starter (roughly 12–16 cards) growing toward 30 is the obvious shape, but the size and composition are undecided. |
+| **Which pack opens a run** | A run starts by opening a pack, but which type (presumably Base, 10 cards) is not fixed. |
 | **Run length and loss** | How many rounds a run is, what ends it, and whether difficulty scales per round or in stages. |
-| **Deck reshuffling** | Whether the deck reshuffles each round (Balatro-style) or is drawn down across the whole run, and what happens when it is exhausted. |
+| **Running out of cards** | With cards consumed and packs the only source, a player can reach zero cards. Whether that is a loss, a stall, or covered by a guaranteed Ink floor is undecided. |
 | **Pack weighting and prices** | How rank scarcity translates into pack contents, and what each pack type costs. |
 | **PRNG streams** | Single stream (simplest) versus separate named streams for packs/rounds/draws (seeds survive code changes). |
 | **Board geometry** | Still a literal 8x8 placeholder. Square colour is now mechanically load-bearing, which is an argument for keeping a true chessboard. |
@@ -239,7 +252,7 @@ Build a **thin vertical slice**, not the whole pool:
 
 1. Tower health and repair.
 2. Piece targeting behaviour — bypass versus hunt.
-3. The modal card system: hand, Ink cost, and playing a card for rank or for suit.
+3. The modal card system: a visible Deck, and playing a card for its rank or its suit, consuming it either way.
 4. **Only ranks 2 to 5.**
 
 Five interacting mechanics — modal cards, destructible Towers, split targeting, suit upgrades, colour vulnerability — have all been designed and none played. The rank ladder is the cheapest part to change and the most expensive to guess wrong at scale, so a five-rank slice will teach more than fifty designed cards.
