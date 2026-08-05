@@ -120,7 +120,7 @@ export function Deck() {
           {untargeted ? (
             <button
               type="button"
-              className="hud__button"
+              className="deck__play"
               onClick={() => {
                 // Refused only if the game is defeated (the Card is otherwise
                 // guaranteed legal) — but a refusal must not clear the

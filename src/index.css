@@ -301,6 +301,32 @@ canvas {
   gap: 0.4rem;
 }
 
+/* The Deck's own Play button, for a King, Ace or Joker's untargeted play.
+   Deliberately NOT `.hud__button`: those three are the scarcest,
+   highest-impact Cards in the Deck, spending one is irreversible — there is
+   no undo and no discard pile — and the button sits about 1rem from "Start
+   round". Amber reads as "this one is consequential" without reusing red
+   (already the hearts/diamonds colour) or teal (already "selected"). */
+.deck__play {
+  padding: 0.55rem 0.9rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: #9c5b18;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.deck__play:hover {
+  background: #b56a20;
+}
+
+.deck__play:focus-visible {
+  outline: 2px solid #e0a458;
+  outline-offset: 1px;
+}
+
 /* Stacked rather than side by side: the two labels are sentences of very
    different lengths — "Build — range 4, 2 dmg" against "Speed 7". */
 .deck__modes {
