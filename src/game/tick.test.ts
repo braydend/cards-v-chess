@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
+import { KING_SPEED_MULTIPLIER } from './auras'
 import { createInitialState, step, tick } from './index'
-import type { GameState, Handedness } from './types'
+import type { GameState, Handedness, Piece, PieceTypeId, Square } from './types'
 
 /** The fixed timestep the app runs at. Tests drive time; nothing reads a clock. */
 const DT = 1000 / 60
@@ -43,6 +44,32 @@ function rookOnBackRank(file: number, handedness: Handedness): GameState {
         buffed: false,
       },
     ],
+  }
+}
+
+/**
+ * A Piece placed directly, bypassing the spawn pipeline, with just the square
+ * and any overrides spelled out — everything else defaulted the way a fresh
+ * spawn would have it.
+ */
+function pieceAt(
+  id: string,
+  typeId: PieceTypeId,
+  square: Square,
+  overrides: Partial<Piece> = {},
+): Piece {
+  return {
+    id,
+    typeId,
+    square,
+    prevSquare: square,
+    health: PIECE_TYPES[typeId].maxHealth,
+    moveCooldownMs: 0,
+    moveCount: 0,
+    handedness: 1,
+    auraCooldownMs: 0,
+    buffed: false,
+    ...overrides,
   }
 }
 
@@ -232,6 +259,86 @@ describe('tick: motion state', () => {
 
     expect(state.phase).not.toBe('inProgress')
     expect(state.leaks).toBeGreaterThan(0)
+  })
+})
+
+describe('tick: the King aura', () => {
+  it('speeds up a Piece standing beside a King', () => {
+    const state: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      pieces: [pieceAt('king', 'king', { file: 0, rank: 7 }), pieceAt('pawn', 'pawn', { file: 1, rank: 7 })],
+    }
+
+    // Buffed, the Pawn's 900ms interval becomes 900 * KING_SPEED_MULTIPLIER =
+    // 630ms (exact in IEEE754). Unbuffed it would need the full 900ms and
+    // would still be standing on rank 7 at this mark.
+    const buffedIntervalMs = PIECE_TYPES.pawn.moveIntervalMs * KING_SPEED_MULTIPLIER
+    const after = runFor(state, buffedIntervalMs + DT)
+
+    expect(after.pieces.find((piece) => piece.id === 'pawn')?.square.rank).toBe(6)
+  })
+
+  it('grants extra slide distance to a buffed slider but not a buffed non-slider, and records both', () => {
+    // A single tick, not runFor: the buffed threshold is crossed on this one
+    // tick for both the Rook and the Pawn, and both slide away from the King
+    // in that same hop. Running longer would let the Rook's own movement carry
+    // it out of adjacency before the assertion runs, making `buffed` correctly
+    // read false again on some later tick for an unrelated reason — a single
+    // tick pins the flag to the moment the buffed hop actually happens.
+    const rookBuffedMs = PIECE_TYPES.rook.moveIntervalMs * KING_SPEED_MULTIPLIER
+    const pawnBuffedMs = PIECE_TYPES.pawn.moveIntervalMs * KING_SPEED_MULTIPLIER
+
+    const state: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      pieces: [
+        pieceAt('king', 'king', { file: 0, rank: 7 }),
+        pieceAt('rook', 'rook', { file: 1, rank: 7 }, { moveCooldownMs: rookBuffedMs }),
+        pieceAt('pawn', 'pawn', { file: 1, rank: 6 }, { moveCooldownMs: pawnBuffedMs }),
+      ],
+    }
+
+    const after = tick(state, DT)
+
+    const king = after.pieces.find((piece) => piece.id === 'king')
+    const rook = after.pieces.find((piece) => piece.id === 'rook')
+    const pawn = after.pieces.find((piece) => piece.id === 'pawn')
+
+    // The Rook's hop covers 1 + KING_SLIDE_BONUS squares. The Pawn is buffed
+    // too — equally adjacent to the King — but is not a slider, so
+    // slideBonusFor returns 0 for it regardless: it covers only one square.
+    // That contrast is what pins "sliders only".
+    expect(rook?.square).toEqual({ file: 1, rank: 5 })
+    expect(pawn?.square).toEqual({ file: 1, rank: 5 })
+    expect(rook?.buffed).toBe(true)
+    expect(king?.buffed).toBe(false)
+  })
+
+  it('computes the aura once per tick, from tick-start positions, not per Piece mid-loop', () => {
+    // The King is listed first, so it is processed first. Its moveCooldownMs
+    // starts at exactly its own 1800ms interval, so it hops this very tick —
+    // from (4,6) to (4,5). At tick start King and Pawn are Chebyshev distance
+    // 1 apart (buffed, 630ms threshold); after the King's hop they would be
+    // distance 2 apart (unbuffed, 900ms threshold). The Pawn's moveCooldownMs
+    // starts at 630, so +DT clears 630 but not 900 (630 + DT ≈ 646.67).
+    // The Pawn hops this tick if and only if its buff was decided from
+    // tick-start positions rather than recomputed after the King had already
+    // moved — which is the property under test. Recomputing it per Piece
+    // mid-loop would see the King's post-move square and leave the Pawn
+    // unbuffed, so it would not hop at all this tick.
+    const state: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      pieces: [
+        pieceAt('king', 'king', { file: 4, rank: 6 }, { moveCooldownMs: PIECE_TYPES.king.moveIntervalMs }),
+        pieceAt('pawn', 'pawn', { file: 5, rank: 7 }, { moveCooldownMs: 630 }),
+      ],
+    }
+
+    const after = tick(state, DT)
+
+    expect(after.pieces.find((piece) => piece.id === 'pawn')?.square.rank).toBe(6)
   })
 })
 
