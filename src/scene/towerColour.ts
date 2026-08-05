@@ -47,7 +47,7 @@ export function towerColour(
     // Sine rather than a sawtooth so the pulse eases at both ends instead of
     // snapping, which reads as a heartbeat rather than a strobe.
     const pulse = (Math.sin(criticalPhase * Math.PI * 2) + 1) / 2
-    target.lerp(DAMAGED, pulse * 0.6)
+    target.lerp(CRITICAL, pulse * 0.6)
   }
 
   if (flashProgress > 0) {

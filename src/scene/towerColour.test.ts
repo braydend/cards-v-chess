@@ -20,7 +20,10 @@ describe('towerColour', () => {
 
   it('darkens as health drops', () => {
     expect(brightness(0.5)).toBeLessThan(brightness(1))
-    expect(brightness(0)).toBeLessThan(brightness(0.5))
+    // Probed at the pulse trough (phase 0.75): below the critical threshold the
+    // pulse brightens the Tower, so measuring the ramp at any other phase
+    // conflates the two signals.
+    expect(brightness(0, 0, 0.75)).toBeLessThan(brightness(0.5))
   })
 
   it('brightens for the duration of a hit flash', () => {
