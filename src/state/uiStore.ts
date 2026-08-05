@@ -15,6 +15,23 @@ interface UiStore {
   /** The square under the pointer, for previewing coverage. */
   hoveredSquare: Square | null
   setHoveredSquare: (square: Square | null) => void
+
+  /**
+   * Which of a Card's two modes the next click applies. Rank builds, suit
+   * supports — the choice happens at play time, not at selection time.
+   */
+  playMode: 'build' | 'support'
+  setPlayMode: (mode: 'build' | 'support') => void
+
+  /**
+   * The Tower a Queen will copy, picked on the first of its two clicks. Null
+   * until then, and cleared once the Echo resolves.
+   *
+   * Echo is the only play needing two board targets — a source to copy and a
+   * destination to build on.
+   */
+  echoSourceTowerId: string | null
+  setEchoSourceTowerId: (towerId: string | null) => void
 }
 
 export const useUiStore = create<UiStore>((set) => ({
@@ -22,4 +39,8 @@ export const useUiStore = create<UiStore>((set) => ({
   setSelectedCardId: (selectedCardId) => set({ selectedCardId }),
   hoveredSquare: null,
   setHoveredSquare: (hoveredSquare) => set({ hoveredSquare }),
+  playMode: 'build',
+  setPlayMode: (playMode) => set({ playMode }),
+  echoSourceTowerId: null,
+  setEchoSourceTowerId: (echoSourceTowerId) => set({ echoSourceTowerId }),
 }))

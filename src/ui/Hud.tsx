@@ -1,14 +1,13 @@
 import { reset } from '../state/simulation'
 import { dispatch, useGameStore } from '../state/store'
+import { Deck } from './Deck'
 
 /**
- * Minimal HUD: enough to drive the round loop and read the game's state.
+ * The HUD: the run's state, the Deck, and the round controls.
  *
- * Deliberately plain. There is no Deck display yet, so nothing here can pick a
- * Card — and building now costs one, which leaves the board unbuildable until
- * the Deck UI lands. The real card UI, showing the visible Deck with each card's
- * modal rank/suit choice, is where the visual design effort belongs. See
- * CLAUDE.md.
+ * Reading top to bottom follows the order the player works in — see where the
+ * run stands, play Cards, then start the round. The Deck owns all card copy, so
+ * nothing here repeats it.
  */
 export function Hud() {
   const snapshot = useGameStore((store) => store.snapshot)
@@ -43,6 +42,8 @@ export function Hud() {
           </div>
         </dl>
 
+        <Deck />
+
         <div className="hud__actions">
           {phase === 'defeated' ? (
             <button type="button" className="hud__button" onClick={reset}>
@@ -71,9 +72,7 @@ export function Hud() {
           </label>
         </div>
 
-        <p className="hud__hint">
-          {phase === 'defeated' ? 'The Core has fallen.' : 'Pick a Card, then click the board to build.'}
-        </p>
+        {phase === 'defeated' ? <p className="hud__hint">The Core has fallen.</p> : null}
       </div>
     </div>
   )

@@ -1,6 +1,7 @@
 import { Instance, Instances } from '@react-three/drei'
 import { useMemo } from 'react'
-import { allSquares, squareKey, type BoardSpec } from '../game'
+import { allSquares, findCard, squareKey, type BoardSpec } from '../game'
+import * as simulation from '../state/simulation'
 import { dispatch } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { SQUARE_SIZE, fileToWorldX, rankToWorldZ, worldXToFile, worldZToRank } from './coords'
@@ -67,17 +68,61 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
       onClick={(event) => {
         event.stopPropagation()
 
-        const cardId = useUiStore.getState().selectedCardId
-        if (!cardId) return
+        const { selectedCardId, playMode, setSelectedCardId } = useUiStore.getState()
+        if (!selectedCardId) return
 
-        dispatch({
-          kind: 'buildTower',
-          cardId,
-          square: {
-            file: worldXToFile(board, event.point.x),
-            rank: worldZToRank(board, event.point.z),
-          },
-        })
+        const square = {
+          file: worldXToFile(board, event.point.x),
+          rank: worldZToRank(board, event.point.z),
+        }
+
+        // Live state, not the published snapshot: a click must act on the board
+        // as it is now, not as it was at the last structural publish.
+        const state = simulation.getState()
+        const card = findCard(state.deck, selectedCardId)
+        if (!card) return
+
+        const clickedTower = state.towers.find(
+          (tower) => tower.square.file === square.file && tower.square.rank === square.rank,
+        )
+
+        if (playMode === 'support' && card.kind === 'standard') {
+          if (!clickedTower) return
+          dispatch({ kind: 'supportTower', cardId: selectedCardId, towerId: clickedTower.id })
+          setSelectedCardId(null)
+          return
+        }
+
+        if (card.kind === 'standard' && card.rank === 'J') {
+          if (!clickedTower) return
+          dispatch({ kind: 'shieldTower', cardId: selectedCardId, towerId: clickedTower.id })
+          setSelectedCardId(null)
+          return
+        }
+
+        if (card.kind === 'standard' && card.rank === 'Q') {
+          // Echo is the only play needing two targets: a Tower to copy, then a
+          // square to build the copy on. First click picks the source.
+          const { echoSourceTowerId, setEchoSourceTowerId } = useUiStore.getState()
+
+          if (!echoSourceTowerId) {
+            if (clickedTower) setEchoSourceTowerId(clickedTower.id)
+            return
+          }
+
+          dispatch({
+            kind: 'echoTower',
+            cardId: selectedCardId,
+            sourceTowerId: echoSourceTowerId,
+            square,
+          })
+          setEchoSourceTowerId(null)
+          setSelectedCardId(null)
+          return
+        }
+
+        dispatch({ kind: 'buildTower', cardId: selectedCardId, square })
+        setSelectedCardId(null)
       }}
     >
       <planeGeometry args={[board.files * SQUARE_SIZE, board.ranks * SQUARE_SIZE]} />
