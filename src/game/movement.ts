@@ -30,6 +30,85 @@ export interface MoveRequest {
  */
 const FORWARD = -1
 
+/** One legal square, plus the handedness the Piece carries away from it. */
+interface Step {
+  readonly to: Square
+  readonly handedness: Handedness
+}
+
+/** How a Piece type picks its next single square. `undefined` means no move. */
+type Stepper = (from: Square, handedness: Handedness, board: BoardSpec) => Step | undefined
+
+/**
+ * Sideways along the rank, reflecting off the file edges.
+ *
+ * Reflection **flips handedness** rather than retrying the same side. Without
+ * that, a Piece on file 0 preferring file −1 would bounce 0→1→0→1 forever and
+ * the round would never end. Flipping makes it traverse the rank, so it crosses
+ * the Core's file and leaks. Round termination depends on this.
+ *
+ * The direction is fixed by handedness, never chosen by where the Core is —
+ * that would be goal-seeking.
+ */
+function lateralStep(from: Square, handedness: Handedness, board: BoardSpec): Step | undefined {
+  const sideways: Square = { file: from.file + handedness, rank: from.rank }
+  if (isInBounds(board, sideways)) return { to: sideways, handedness }
+
+  const reflected: Handedness = handedness === 1 ? -1 : 1
+  const back: Square = { file: from.file + reflected, rank: from.rank }
+  if (isInBounds(board, back)) return { to: back, handedness: reflected }
+
+  return undefined
+}
+
+/** Straight down the file, sweeping sideways once the back rank is reached. */
+const rookStep: Stepper = (from, handedness, board) => {
+  const ahead: Square = { file: from.file, rank: from.rank + FORWARD }
+  if (isInBounds(board, ahead)) return { to: ahead, handedness }
+  return lateralStep(from, handedness, board)
+}
+
+/**
+ * Walks a Piece along its committed line, **one square at a time**.
+ *
+ * Stepping rather than jumping is what keeps Towers blocking: a slide can never
+ * pass over one. A Piece that has already covered ground this hop keeps it and
+ * attacks next hop; one blocked immediately attacks now.
+ */
+function travel(
+  from: Square,
+  handedness: Handedness,
+  steps: number,
+  stepper: Stepper,
+  board: BoardSpec,
+  coreSquare: Square,
+  towerBySquare: ReadonlyMap<string, Tower>,
+): MoveOutcome {
+  let square = from
+  let side = handedness
+  let advanced = false
+
+  for (let remaining = steps; remaining > 0; remaining -= 1) {
+    const step = stepper(square, side, board)
+    if (!step) break
+
+    if (squaresEqual(step.to, coreSquare)) return { kind: 'reachCore' }
+
+    const blocker = towerBySquare.get(squareKey(step.to))
+    if (blocker) {
+      return advanced
+        ? { kind: 'move', to: square, handedness: side }
+        : { kind: 'attackTower', towerId: blocker.id }
+    }
+
+    square = step.to
+    side = step.handedness
+    advanced = true
+  }
+
+  return advanced ? { kind: 'move', to: square, handedness: side } : { kind: 'stuck' }
+}
+
 /**
  * Resolves one move for a Piece using **chess movement**, not a walk toward the
  * Core.
@@ -48,11 +127,20 @@ export function nextMove(
   switch (request.typeId) {
     case 'pawn':
       return pawnMove(request.from, board, coreSquare, towerBySquare)
+    case 'rook':
+      return travel(
+        request.from,
+        request.handedness,
+        1 + request.slideBonus,
+        rookStep,
+        board,
+        coreSquare,
+        towerBySquare,
+      )
     // Resolvers arrive in later tasks. Returning `stuck` is safe because
     // rounds.ts cannot spawn these types yet.
     case 'knight':
     case 'bishop':
-    case 'rook':
     case 'queen':
     case 'king':
       return { kind: 'stuck' }

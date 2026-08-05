@@ -121,3 +121,62 @@ describe('pawn movement', () => {
     expect(outcome.kind).toBe('stuck')
   })
 })
+
+describe('rook movement', () => {
+  it('advances one square down its file', () => {
+    expect(move('rook', { file: 5, rank: 6 })).toEqual({
+      kind: 'move',
+      to: { file: 5, rank: 5 },
+      handedness: 1,
+    })
+  })
+
+  it('covers two squares when a King aura grants a slide bonus', () => {
+    expect(move('rook', { file: 5, rank: 6 }, NO_TOWERS, { slideBonus: 1 })).toEqual({
+      kind: 'move',
+      to: { file: 5, rank: 4 },
+      handedness: 1,
+    })
+  })
+
+  it('attacks a Tower rather than sliding over it', () => {
+    const towers = towersAt({ file: 5, rank: 5 })
+
+    expect(move('rook', { file: 5, rank: 6 }, towers, { slideBonus: 1 })).toEqual({
+      kind: 'attackTower',
+      towerId: 'tower-0',
+    })
+  })
+
+  it('stops short when a Tower interrupts a slide it has already begun', () => {
+    const towers = towersAt({ file: 5, rank: 4 })
+
+    expect(move('rook', { file: 5, rank: 6 }, towers, { slideBonus: 1 })).toEqual({
+      kind: 'move',
+      to: { file: 5, rank: 5 },
+      handedness: 1,
+    })
+  })
+
+  it('sweeps sideways along the back rank when forward is off the board', () => {
+    expect(move('rook', { file: 5, rank: 0 }, NO_TOWERS, { handedness: -1 })).toEqual({
+      kind: 'move',
+      to: { file: 4, rank: 0 },
+      handedness: -1,
+    })
+  })
+
+  it('reflects off file 0 and flips handedness, so it never oscillates', () => {
+    expect(move('rook', { file: 0, rank: 0 }, NO_TOWERS, { handedness: -1 })).toEqual({
+      kind: 'move',
+      to: { file: 1, rank: 0 },
+      handedness: 1,
+    })
+  })
+
+  it('leaks into the Core when its sweep reaches the Core file', () => {
+    expect(move('rook', { file: 4, rank: 0 }, NO_TOWERS, { handedness: -1 })).toEqual({
+      kind: 'reachCore',
+    })
+  })
+})
