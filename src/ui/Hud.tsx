@@ -3,6 +3,7 @@ import { BUILDABLE_RANKS, towerRank } from '../data/towerRanks'
 import { reset } from '../state/simulation'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
+import { formatStat } from './formatStat'
 import { GEOMETRY_LABELS } from './geometryLabels'
 import { TowerPanel } from './TowerPanel'
 
@@ -71,8 +72,8 @@ export function Hud() {
             {GEOMETRY_LABELS[selected.geometry]}
             <br />
             <span className="hud__muted">
-              range {selected.range} · {selected.damage} dmg · {selected.fireIntervalMs}ms ·{' '}
-              {selected.maxHealth} hp
+              range {selected.range} · {formatStat(selected.damage)} dmg ·{' '}
+              {selected.fireIntervalMs}ms · {formatStat(selected.maxHealth)} hp
             </span>
           </p>
         </div>

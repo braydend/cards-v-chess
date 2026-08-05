@@ -38,6 +38,7 @@ export function Towers({ board }: { board: BoardSpec }) {
   const animations = useRef(new Map<string, TowerAnimation>())
   const ghostStartedAt = useRef(new Map<string, number>())
   const meshes = useRef(new Map<string, PositionMesh>())
+  const lastEntityId = useRef(0)
 
   // The diff runs from a store subscription rather than a render-driven effect.
   // Two reasons: a Tower death is an external event, so `setGhosts` belongs in a
@@ -46,30 +47,43 @@ export function Towers({ board }: { board: BoardSpec }) {
   // subscription fires on every publish, not only on renders this component
   // happens to perform.
   useEffect(() => {
+    const initialSnapshot = useGameStore.getState().snapshot
+    lastEntityId.current = initialSnapshot.nextEntityId
+
     // Seed from whatever is already on the board. The returned list is
     // necessarily empty: nothing can have fallen out of a map that was empty a
     // moment ago, which is why no state update belongs here.
-    diffTowers(animations.current, useGameStore.getState().snapshot)
+    diffTowers(animations.current, initialSnapshot)
 
     return useGameStore.subscribe((store) => {
-      const fallen = diffTowers(animations.current, store.snapshot)
-      if (fallen.length > 0) setGhosts((current) => [...current, ...fallen])
+      const snapshot = store.snapshot
+
+      // `reset()` rewinds `nextEntityId` to 1 — the only way it can ever go
+      // backwards within a run. Catching that here clears out any ghost still
+      // riding out its flare from the previous run immediately, rather than
+      // leaving a previous-run ghost on screen for up to DEATH_FLARE_MS after
+      // "Play again".
+      if (snapshot.nextEntityId < lastEntityId.current) setGhosts([])
+      lastEntityId.current = snapshot.nextEntityId
+
+      const fallen = diffTowers(animations.current, snapshot)
+      if (fallen.length === 0) return
+
+      setGhosts((current) => [...current, ...fallen])
+
+      // Each ghost expires on its own timer rather than a shared batch one. A
+      // batch timer restarts on every death, so sustained fire would keep an
+      // already-invisible ghost mounted — an instance slot and a per-frame call
+      // — until a DEATH_FLARE_MS quiet gap. Filtering by id is additive-safe:
+      // this can only remove the ghosts scheduled right here, never one a later
+      // death appends within the same React batch.
+      for (const ghost of fallen) {
+        setTimeout(() => {
+          setGhosts((current) => current.filter((candidate) => candidate.id !== ghost.id))
+        }, DEATH_FLARE_MS)
+      }
     })
   }, [])
-
-  // Ghosts are cleared as a batch. Two deaths close together therefore leave the
-  // first ghost on screen slightly longer, which is invisible in practice — its
-  // scale has already reached zero.
-  useEffect(() => {
-    if (ghosts.length === 0) return
-
-    const timer = setTimeout(() => {
-      setGhosts([])
-      ghostStartedAt.current.clear()
-    }, DEATH_FLARE_MS)
-
-    return () => clearTimeout(timer)
-  }, [ghosts])
 
   useFrame((state) => {
     const now = state.clock.elapsedTime
@@ -104,7 +118,8 @@ export function Towers({ board }: { board: BoardSpec }) {
     }
 
     for (const ghost of ghosts) {
-      const mesh = meshes.current.get(ghost.id)
+      // See the ghost `<Instance>` ref below for why this key is namespaced.
+      const mesh = meshes.current.get(`ghost:${ghost.id}`)
       if (!mesh) continue
 
       let startedAt = ghostStartedAt.current.get(ghost.id)
@@ -157,10 +172,19 @@ export function Towers({ board }: { board: BoardSpec }) {
 
             {dying.map((ghost) => (
               <Instance
-                key={ghost.id}
+                // Namespaced so this can never collide with a live Tower's key.
+                // Tower ids restart at 1 after reset(), and a ghost outlives its
+                // Tower by up to DEATH_FLARE_MS, so a fresh `tower-1` and a
+                // dying `tower-1` can coexist for a moment — sharing one key
+                // would apply the ghost's shrinking scale to the live Tower and
+                // evict it from `meshes`.
+                key={`ghost:${ghost.id}`}
                 ref={(mesh: PositionMesh | null) => {
-                  if (mesh) meshes.current.set(ghost.id, mesh)
-                  else meshes.current.delete(ghost.id)
+                  if (mesh) meshes.current.set(`ghost:${ghost.id}`, mesh)
+                  else {
+                    meshes.current.delete(`ghost:${ghost.id}`)
+                    ghostStartedAt.current.delete(ghost.id)
+                  }
                 }}
                 color={RANK_COLOURS[cardRank]}
                 position={[

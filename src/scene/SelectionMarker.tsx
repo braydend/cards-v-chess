@@ -28,7 +28,13 @@ export function SelectionMarker({ board }: { board: BoardSpec }) {
       rotation={[-Math.PI / 2, 0, 0]}
       position={[
         fileToWorldX(board, selected.square.file),
-        0.05,
+        // CoveragePreview's box is 0.02 tall centred at y=0.04, so its top face
+        // sits at exactly y=0.05. Matching that here would make the two
+        // coplanar — both use depthWrite: false, so which draws on top would
+        // flip with camera orbit whenever the selected Tower's square falls
+        // inside the hovered coverage footprint. Raised clear of it; do not
+        // lower this back to 0.05.
+        0.06,
         rankToWorldZ(board, selected.square.rank),
       ]}
     >
