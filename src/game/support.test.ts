@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { MIN_FIRE_INTERVAL_MS, supportMagnitude } from '../data/cards'
 import { TOWER_RANKS } from '../data/towerRanks'
-import { firstTower, firstTowerId, standardCard, withDeck, withTower } from './fixtures'
-import { step } from './index'
+import { firstTower, firstTowerId, liveRound, pawnAt, standardCard, withDeck, withTower } from './fixtures'
+import { step, tick } from './index'
 import type { GameState } from './types'
+
+const DT = 1000 / 60
 
 const SQUARE = { file: 2, rank: 2 }
 
@@ -67,6 +69,46 @@ describe('♦ Speed', () => {
     }
 
     expect(state.towers[0]?.fireIntervalMs).toBe(MIN_FIRE_INTERVAL_MS)
+  })
+
+  it('fires more often than its rank alone would once ticked', () => {
+    // Mirrors "fires using the Tower's own damage, not its rank's" in
+    // blocking.test.ts, which does the equivalent job for ♣. Nothing anywhere
+    // ticks a ♦-supported Tower, so this suite would still pass if
+    // fireTowers read the rank definition's interval instead of the Tower's
+    // own.
+    const built = withTower(5, SQUARE)
+    const towerId = firstTowerId(built)
+
+    // Two Aces played for ♦ shrink the 500ms rank interval by 280ms (2 * 14
+    // magnitude * 10ms), to 220ms — comfortably under half, so two shots fit
+    // inside one rank-interval-sized window.
+    const withCards = withDeck(
+      [standardCard('d0', 'A', 'diamonds'), standardCard('d1', 'A', 'diamonds')],
+      built,
+    )
+    const supportedOnce = step(withCards, { kind: 'supportTower', cardId: 'd0', towerId })
+    const boosted = step(supportedOnce, { kind: 'supportTower', cardId: 'd1', towerId })
+
+    expect(boosted.towers[0]?.fireIntervalMs).toBeLessThan(TOWER_RANKS[5].fireIntervalMs / 2)
+
+    // Two Pieces, each one-shot by the rank's own damage (3 vs. 3 health),
+    // sitting on opposite diagonals so both are covered.
+    const state = liveRound(boosted, [
+      pawnAt('a', { file: 1, rank: 1 }),
+      pawnAt('b', { file: 3, rank: 3 }),
+    ])
+
+    // A window just over the rank's OWN interval: at that interval only one
+    // shot would land, so only using the Tower's own (post-support) interval
+    // gets through both Pieces in time.
+    let current = state
+    const windowMs = TOWER_RANKS[5].fireIntervalMs + DT
+    for (let elapsed = 0; elapsed < windowMs; elapsed += DT) {
+      current = tick(current, DT)
+    }
+
+    expect(current.pieces).toHaveLength(0)
   })
 })
 
