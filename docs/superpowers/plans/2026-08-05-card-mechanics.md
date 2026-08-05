@@ -1093,24 +1093,37 @@ describe('Tower shields', () => {
     expect(after.towers[0]?.shield).toBe(4 - BLOCKED_DAMAGE)
   })
 
-  it('carries overflow into health once the shield is gone', () => {
-    // Shield 1, incoming 3: the shield eats 1 and health loses 2.
-    const shielded = blockedApproach(3, { file: 3, rank: 4 })
+  it('splits a single hit across shield and health', () => {
+    // Rank 5's diagonal geometry cannot cover the square directly up-file, so
+    // the Piece is never shot and the hits land on schedule. Any multi-hit
+    // shield test must use rank 5 for this reason — a rank 3 Tower fires up its
+    // own file and kills the attacker.
+    const shielded = blockedApproach(5, { file: 3, rank: 4 })
+    const partial = BLOCKED_DAMAGE / 2
     const state: GameState = {
       ...shielded,
-      towers: shielded.towers.map((tower) => ({ ...tower, shield: 1 })),
-      pieces: shielded.pieces.map((piece) => ({ ...piece, health: 99 })),
+      towers: shielded.towers.map((tower) => ({ ...tower, shield: partial })),
     }
 
-    // One hop lands BLOCKED_DAMAGE. Give the shield less than that so overflow
-    // is forced on the very first hit.
-    const after = runFor(
-      { ...state, towers: state.towers.map((tower) => ({ ...tower, shield: 0.5 })) },
-      PAWN.moveIntervalMs + DT,
-    )
+    const after = runFor(state, PAWN.moveIntervalMs + DT)
 
     expect(after.towers[0]?.shield).toBe(0)
-    expect(after.towers[0]?.health).toBe(TOWER_RANKS[3].maxHealth - (BLOCKED_DAMAGE - 0.5))
+    expect(after.towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth - partial)
+  })
+
+  it('carries overflow into health once the shield is gone', () => {
+    // Shield equal to exactly one hit: the first hop is fully absorbed, the
+    // second lands on health.
+    const shielded = blockedApproach(5, { file: 3, rank: 4 })
+    const state: GameState = {
+      ...shielded,
+      towers: shielded.towers.map((tower) => ({ ...tower, shield: BLOCKED_DAMAGE })),
+    }
+
+    const after = runFor(state, PAWN.moveIntervalMs * 2 + DT)
+
+    expect(after.towers[0]?.shield).toBe(0)
+    expect(after.towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth - BLOCKED_DAMAGE)
   })
 })
 
