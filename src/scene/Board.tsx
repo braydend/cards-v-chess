@@ -1,8 +1,10 @@
 import { Instance, Instances } from '@react-three/drei'
 import { useMemo } from 'react'
 import { allSquares, squareKey, type BoardSpec } from '../game'
+import { getState } from '../state/simulation'
 import { dispatch } from '../state/store'
 import { useUiStore } from '../state/uiStore'
+import { resolveBoardClick } from './boardClick'
 import { SQUARE_SIZE, fileToWorldX, rankToWorldZ, worldXToFile, worldZToRank } from './coords'
 import { CoveragePreview } from './CoveragePreview'
 
@@ -66,14 +68,30 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
       onPointerOut={() => setHoveredSquare(null)}
       onClick={(event) => {
         event.stopPropagation()
-        dispatch({
-          kind: 'placeTower',
-          square: {
-            file: worldXToFile(board, event.point.x),
-            rank: worldZToRank(board, event.point.z),
-          },
-          cardRank: useUiStore.getState().selectedRank,
-        })
+
+        const square = {
+          file: worldXToFile(board, event.point.x),
+          rank: worldZToRank(board, event.point.z),
+        }
+
+        // Live state rather than a store subscription. Subscribing Board to the
+        // snapshot would re-render all 64 square instances on every Tower hit;
+        // a click is rare enough to read state on demand.
+        const { selectedTowerId, setSelectedTowerId, selectedRank } = useUiStore.getState()
+        const outcome = resolveBoardClick(square, getState().towers, selectedTowerId)
+
+        if (outcome.kind === 'select') {
+          setSelectedTowerId(outcome.towerId)
+          return
+        }
+
+        if (outcome.kind === 'deselect') {
+          setSelectedTowerId(null)
+          return
+        }
+
+        setSelectedTowerId(null)
+        dispatch({ kind: 'placeTower', square, cardRank: selectedRank })
       }}
     >
       <planeGeometry args={[board.files * SQUARE_SIZE, board.ranks * SQUARE_SIZE]} />
