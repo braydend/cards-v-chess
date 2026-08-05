@@ -699,7 +699,9 @@ git commit -m "Add Bishop movement, reflecting off the file edges"
 
 ### Task 5: Knight movement
 
-Zig-zag two-forward L-hops, with two one-forward hops as a fallback so a Knight on rank 1 can still reach rank 0 — and can capture the Core from `(1,1)` or `(5,1)`, which is its only route to a leak.
+Zig-zag two-forward L-hops, with two one-forward hops as a fallback so a Knight on rank 1 can still reach rank 0 — which *sometimes* lands it on the Core, giving the Knight its only route to a leak.
+
+**Corrected during review:** an earlier draft of this task claimed a Knight captures the Core from `(1,1)` or `(5,1)`. That is false for `(5,1)` with handedness `+1`: candidates are tried in order and the Knight commits to the first in-bounds one, which there is `(7,0)` — legal and not the Core — so candidate 4 (`(3,0)`, the Core) is never evaluated. The Core is on file 3, which is not centred on files 0-7, so the two files are not symmetric. Committing to the first legal candidate is exactly what no-goal-seeking requires, so **the code is right and the claim was wrong**. Do not add a Core preference.
 
 **Knights strand on rank 0 and that is deliberate.** Every Knight move from rank 0 goes backwards. A Knight bouncing back up the board could always act, so `stillActive` would never go false and the round would hang forever.
 
@@ -785,8 +787,9 @@ Add below `bishopStep`:
  * uses `travel`.
  *
  * Candidates are tried in order: the zig-zag hop, its mirror (for file edges),
- * then the two one-forward hops so a Knight on rank 1 can still reach rank 0
- * and capture the Core from (1,1) or (5,1).
+ * then the two one-forward hops so a Knight on rank 1 can still reach rank 0 —
+ * which sometimes lands it on the Core, depending on its file and handedness,
+ * in the same emergent way a Pawn only threatens the Core from certain files.
  *
  * A Tower on the chosen landing square is attacked rather than hopped over or
  * routed around — the no-pathfinding invariant applies to the Knight too.
