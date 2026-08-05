@@ -236,6 +236,11 @@ function drainDueSpawns(
       prevSquare: square,
       health: pieceType(spawn.typeId).maxHealth,
       moveCooldownMs: 0,
+      moveCount: 0,
+      // Entity-id parity, so consecutively spawned Pieces weave opposite ways.
+      handedness: nextEntityId % 2 === 0 ? 1 : -1,
+      auraCooldownMs: 0,
+      buffed: false,
     })
     nextEntityId += 1
   }

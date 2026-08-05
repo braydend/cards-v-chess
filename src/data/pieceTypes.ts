@@ -1,26 +1,23 @@
 import type { PieceTypeDef, PieceTypeId } from '../game/types'
 
 /**
- * PLACEHOLDER roster. Exactly one piece type exists so the scaffold has
- * something to render and test.
+ * The Chess roster. Each Piece's threat comes from the design doc; the numbers
+ * are PLACEHOLDER balance, not design decisions.
  *
- * The six-piece roster and its threats ARE now designed — Pawn chaff with
- * promotion, colour-flicker Knight, healer Bishop, armoured Rook, elite Queen,
- * commander King. None of it is implemented here yet, and the stats below are
- * placeholders rather than balance decisions.
+ * Tower targeting is settled: every Piece attacks a Tower that blocks it, at
+ * `BLOCKED_ATTACK_MULTIPLIER`. There is no designated Tower-hunter.
  *
- * Read the card system spec before extending this. Tower targeting is settled:
- * every Piece attacks a Tower that blocks it, at `BLOCKED_ATTACK_MULTIPLIER`.
- * There is no designated Tower-hunter. See CLAUDE.md.
+ * The Rook has no armour stat — high health *is* its armour. `coverage.ts` is
+ * explicit that piercing is not part of the design, and flat reduction against
+ * the low buildable ranks would make much of the pool useless against Rooks.
  */
 export const PIECE_TYPES: Record<PieceTypeId, PieceTypeDef> = {
-  pawn: {
-    id: 'pawn',
-    label: 'Pawn',
-    moveIntervalMs: 900,
-    maxHealth: 3,
-    attackDamage: 2,
-  },
+  pawn: { id: 'pawn', label: 'Pawn', moveIntervalMs: 900, maxHealth: 3, attackDamage: 2, slides: false },
+  knight: { id: 'knight', label: 'Knight', moveIntervalMs: 1100, maxHealth: 4, attackDamage: 2, slides: false },
+  bishop: { id: 'bishop', label: 'Bishop', moveIntervalMs: 1000, maxHealth: 5, attackDamage: 1, slides: true },
+  rook: { id: 'rook', label: 'Rook', moveIntervalMs: 1600, maxHealth: 14, attackDamage: 4, slides: true },
+  queen: { id: 'queen', label: 'Queen', moveIntervalMs: 1000, maxHealth: 9, attackDamage: 5, slides: true },
+  king: { id: 'king', label: 'King', moveIntervalMs: 1800, maxHealth: 12, attackDamage: 3, slides: false },
 }
 
 /**

@@ -48,6 +48,14 @@ export function nextMove(
   switch (request.typeId) {
     case 'pawn':
       return pawnMove(request.from, board, coreSquare, towerBySquare)
+    // Resolvers arrive in later tasks. Returning `stuck` is safe because
+    // rounds.ts cannot spawn these types yet.
+    case 'knight':
+    case 'bishop':
+    case 'rook':
+    case 'queen':
+    case 'king':
+      return { kind: 'stuck' }
   }
 }
 
@@ -97,9 +105,8 @@ export function isStuck(
   const request: MoveRequest = {
     typeId: piece.typeId,
     from: piece.square,
-    // Task 2 wires these to the Piece
-    moveCount: 0,
-    handedness: 1,
+    moveCount: piece.moveCount,
+    handedness: piece.handedness,
     slideBonus: 0,
   }
   return nextMove(request, board, coreSquare, towerBySquare).kind === 'stuck'

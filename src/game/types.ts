@@ -16,12 +16,8 @@ export interface BoardSpec {
   readonly ranks: number
 }
 
-/**
- * Only the placeholder Pawn is implemented. The full roster is designed —
- * pawn, knight, bishop, rook, queen, king — with a distinct threat each.
- * See the card system spec before widening this union.
- */
-export type PieceTypeId = 'pawn'
+/** The full Chess roster. Each type maps a real chess trait onto a threat. */
+export type PieceTypeId = 'pawn' | 'knight' | 'bishop' | 'rook' | 'queen' | 'king'
 
 export interface PieceTypeDef {
   readonly id: PieceTypeId
@@ -35,6 +31,11 @@ export interface PieceTypeDef {
    * demolition, which is what makes a Tower a real obstacle.
    */
   readonly attackDamage: number
+  /**
+   * Whether this Piece slides along a line. Sliders move one square per hop
+   * and gain +1 from a King aura; everything else has a fixed hop.
+   */
+  readonly slides: boolean
 }
 
 /**
@@ -55,6 +56,18 @@ export interface Piece {
   readonly health: number
   /** Milliseconds accumulated toward this piece's next hop. */
   readonly moveCooldownMs: number
+  /** Hops completed. Drives the Knight's zig-zag and the Queen's alternation. */
+  readonly moveCount: number
+  /**
+   * Which way sideways. Set at spawn from entity-id parity so consecutively
+   * spawned Pieces weave opposite ways, and flipped when a Piece reflects off
+   * a file edge.
+   */
+  readonly handedness: Handedness
+  /** Milliseconds toward this Piece's next aura pulse. Bishops only. */
+  readonly auraCooldownMs: number
+  /** Whether a King aura reached this Piece on the last tick. Renderer-facing. */
+  readonly buffed: boolean
 }
 
 /**
