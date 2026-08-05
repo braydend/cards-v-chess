@@ -168,3 +168,29 @@ describe('coversSquare: colour, which the Knight depends on', () => {
     expect(colours.size).toBe(2)
   })
 })
+
+describe('coversSquare: star', () => {
+  it('covers along the file, like cross', () => {
+    expect(coversSquare('star', 3, ORIGIN, { file: 4, rank: 6 })).toBe(true)
+  })
+
+  it('covers along the rank, like cross', () => {
+    expect(coversSquare('star', 3, ORIGIN, { file: 6, rank: 4 })).toBe(true)
+  })
+
+  it('covers the diagonals too', () => {
+    expect(coversSquare('star', 3, ORIGIN, { file: 6, rank: 6 })).toBe(true)
+  })
+
+  it('does not cover an off-ray square', () => {
+    expect(coversSquare('star', 3, ORIGIN, { file: 6, rank: 5 })).toBe(false)
+  })
+
+  it('does not cover its own square', () => {
+    expect(coversSquare('star', 3, ORIGIN, ORIGIN)).toBe(false)
+  })
+
+  it('respects range', () => {
+    expect(coversSquare('star', 2, ORIGIN, { file: 7, rank: 4 })).toBe(false)
+  })
+})

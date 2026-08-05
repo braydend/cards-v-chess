@@ -55,7 +55,13 @@ export interface Piece {
  * A Tower's firing geometry, set by the rank of the Card that built it.
  * Towers are generic — this is NOT chess-piece movement.
  */
-export type TowerGeometry = 'adjacent' | 'horizontal' | 'vertical' | 'cross' | 'diagonal'
+export type TowerGeometry =
+  | 'adjacent'
+  | 'horizontal'
+  | 'vertical'
+  | 'cross'
+  | 'diagonal'
+  | 'star'
 
 /**
  * Only ranks 2–5 are designed. Ranks 6–10 and the face cards, Ace, and Jokers

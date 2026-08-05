@@ -10,6 +10,7 @@ const GEOMETRY_LABELS: Record<string, string> = {
   vertical: 'Fires along its file',
   cross: 'Fires along rank and file',
   diagonal: 'Fires along diagonals — one colour only',
+  star: 'Fires along rank, file and diagonals',
 }
 
 /**
