@@ -182,3 +182,4 @@ export type Command =
       readonly sourceTowerId: string
       readonly square: Square
     }
+  | { readonly kind: 'reinforceCore'; readonly cardId: string }

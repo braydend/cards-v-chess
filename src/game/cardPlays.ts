@@ -5,7 +5,7 @@
  * state unchanged — never throws, and never consumes the Card. The UI is
  * responsible for not offering illegal actions; the engine just refuses them.
  */
-import { JACK_SHIELD, supportMagnitude } from '../data/cards'
+import { JACK_SHIELD, KING_CORE_HEALTH, supportMagnitude } from '../data/cards'
 import { towerRank } from '../data/towerRanks'
 import { isInBounds, squaresEqual } from './board'
 import { findCard, isBuildableRank, removeCard } from './cards'
@@ -141,6 +141,30 @@ export function echoTower(
     ...state,
     towers: [...state.towers, newTower(`tower-${state.nextEntityId}`, square, source.cardRank)],
     nextEntityId: state.nextEntityId + 1,
+    deck: removeCard(state.deck, cardId),
+  }
+}
+
+/**
+ * King: raises Core health, current and maximum together.
+ *
+ * The only card in the game that touches the Core, and the only Core recovery
+ * that exists — `tick` otherwise only ever subtracts from it. Each leak costs
+ * exactly 1 Core health, so this buys exactly one extra leak.
+ */
+export function reinforceCore(state: GameState, cardId: string): GameState {
+  if (state.phase === 'defeated') return state
+
+  const card = findCard(state.deck, cardId)
+  if (!card || card.kind !== 'standard' || card.rank !== 'K') return state
+
+  return {
+    ...state,
+    core: {
+      ...state.core,
+      health: state.core.health + KING_CORE_HEALTH,
+      maxHealth: state.core.maxHealth + KING_CORE_HEALTH,
+    },
     deck: removeCard(state.deck, cardId),
   }
 }

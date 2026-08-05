@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { JACK_SHIELD } from '../data/cards'
+import { JACK_SHIELD, KING_CORE_HEALTH } from '../data/cards'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { firstTowerId, standardCard, withDeck, withTower } from './fixtures'
 import { step } from './index'
@@ -158,5 +158,45 @@ describe('Queen — Echo', () => {
     expect(
       step(state, { kind: 'echoTower', cardId: 'five', sourceTowerId: firstTowerId(state), square: ELSEWHERE }),
     ).toBe(state)
+  })
+})
+
+describe('King — Reinforce', () => {
+  function withKing(): GameState {
+    return withDeck([standardCard('k', 'K', 'clubs')])
+  }
+
+  it('raises both current and maximum Core health', () => {
+    const state = withKing()
+    const after = step(state, { kind: 'reinforceCore', cardId: 'k' })
+
+    expect(after.core.health).toBe(state.core.health + KING_CORE_HEALTH)
+    expect(after.core.maxHealth).toBe(state.core.maxHealth + KING_CORE_HEALTH)
+  })
+
+  it('is playable with no Tower on the board, unlike a Jack or Queen', () => {
+    const state = withKing()
+
+    expect(state.towers).toHaveLength(0)
+    expect(step(state, { kind: 'reinforceCore', cardId: 'k' }).core.health).toBeGreaterThan(
+      state.core.health,
+    )
+  })
+
+  it('heals a damaged Core rather than only granting headroom', () => {
+    const state = withKing()
+    const hurt: GameState = { ...state, core: { ...state.core, health: 5 } }
+
+    expect(step(hurt, { kind: 'reinforceCore', cardId: 'k' }).core.health).toBe(5 + KING_CORE_HEALTH)
+  })
+
+  it('consumes the Card', () => {
+    expect(step(withKing(), { kind: 'reinforceCore', cardId: 'k' }).deck).toHaveLength(0)
+  })
+
+  it('refuses a non-King', () => {
+    const state = withDeck([standardCard('five', 5, 'hearts')])
+
+    expect(step(state, { kind: 'reinforceCore', cardId: 'five' })).toBe(state)
   })
 })
