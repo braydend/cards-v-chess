@@ -524,16 +524,35 @@ jobs:
 
 - [ ] **Step 3: Validate the YAML parses before pushing**
 
+Use a real YAML parser, not a regex. A regex over indentation cannot tell a job name from
+a trigger name — both sit at two spaces — so it will happily report `pull_request` and
+`push` as jobs.
+
 ```bash
-node -e "
-const fs=require('fs');
-const t=fs.readFileSync('.github/workflows/ci.yml','utf8');
-if(t.includes('\t')) throw new Error('tabs are invalid in YAML');
-console.log('no tabs; jobs found:', [...t.matchAll(/^  (\w+):$/gm)].map(m=>m[1]).join(', '));
+python3 -c "
+import yaml
+d = yaml.safe_load(open('.github/workflows/ci.yml'))
+# PyYAML resolves the bare key \`on\` to boolean True under YAML 1.1. GitHub's own
+# parser reads it as 'on' correctly; this is a quirk of the checker, not the file.
+triggers = d[True] if True in d else d['on']
+print('jobs:      ', list(d['jobs'].keys()))
+print('triggers:  ', triggers)
+print('deploy gate:', d['jobs']['deploy']['needs'], '|', d['jobs']['deploy']['if'])
+print('top perms: ', d['permissions'])
 "
 ```
 
-Expected: `no tabs; jobs found: checks, deploy`
+Expected, exactly:
+```
+jobs:       ['checks', 'deploy']
+triggers:   {'pull_request': None, 'push': {'branches': ['main']}}
+deploy gate: checks | github.ref == 'refs/heads/main'
+top perms:  {'contents': 'read'}
+```
+
+If `yaml` is unavailable, `pip install pyyaml` or fall back to checking only that the file
+contains no tab characters (`grep -Pq '\t' .github/workflows/ci.yml && echo 'TABS - invalid'`)
+— but a tab check alone does not verify structure, so prefer the parse.
 
 - [ ] **Step 4: Commit and push the branch**
 
