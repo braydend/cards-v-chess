@@ -5,11 +5,15 @@ import type { Piece, Square } from './types'
  * Aura effects, derived from Piece positions.
  *
  * `chebyshev` and `slideBonusFor` are plain geometry helpers with no opinion
- * about when they are called. `buffedPieceIds` and `applyHealing` are the
- * ones that carry the tick-start discipline: `tick.ts` calls each exactly
- * once per tick, from the Piece list as it stood at tick start, so nothing
- * depends on the order Pieces are processed in — the same discipline it
- * applies to its Tower map.
+ * about when they are called. `buffedPieceIds` and `applyHealing` read a
+ * Piece list too, but the property that matters is not *when in the tick*
+ * that list was taken — the two are fed at different points (`tick.ts` calls
+ * `buffedPieceIds` before movement, `applyHealing` after Tower fire) — it is
+ * that each reads its input as a frozen array and never the result it is
+ * building. Neither one mutates or re-reads its own output mid-pass, so the
+ * outcome for any one Piece cannot depend on which other Piece the caller
+ * happened to process first — the same discipline `tick.ts` applies to its
+ * Tower map.
  */
 
 /** Move interval multiplier for a Piece standing beside a King. Lower is faster. */

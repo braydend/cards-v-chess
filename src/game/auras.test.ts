@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
-import { BISHOP_HEAL_INTERVAL_MS, applyHealing, buffedPieceIds } from './auras'
+import { BISHOP_HEAL_AMOUNT, BISHOP_HEAL_INTERVAL_MS, applyHealing, buffedPieceIds } from './auras'
 import type { Handedness, Piece, PieceTypeId, Square } from './types'
 
 function piece(id: string, typeId: PieceTypeId, square: Square, handedness: Handedness = 1): Piece {
@@ -66,6 +66,18 @@ describe('the Bishop healing aura', () => {
     const healed = applyHealing(pieces, 100)
 
     expect(healed.find((each) => each.id === 'p')?.health).toBe(1)
+  })
+
+  it('resolves every pulse a single large dtMs spans, not just one', () => {
+    // A Rook, not a Pawn: its 14 max health absorbs two pulses (2 * 2 = 4)
+    // without hitting the cap, so a dropped or double-counted pulse actually
+    // shows up in the asserted amount instead of being hidden by clamping.
+    const hurt = { ...piece('r', 'rook', { file: 4, rank: 5 }), health: 1 }
+    const pieces = [piece('b', 'bishop', { file: 4, rank: 4 }), hurt]
+
+    const healed = applyHealing(pieces, 2 * BISHOP_HEAL_INTERVAL_MS)
+
+    expect(healed.find((each) => each.id === 'r')?.health).toBe(1 + 2 * BISHOP_HEAL_AMOUNT)
   })
 
   it('never heals past a Piece maximum health', () => {
