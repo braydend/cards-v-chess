@@ -1,4 +1,3 @@
-import { SPAWN_RANK } from '../data/board'
 import { BLOCKED_ATTACK_MULTIPLIER, pieceType } from '../data/pieceTypes'
 import { towerRank, type TowerRankDef } from '../data/towerRanks'
 import { squareKey } from './board'
@@ -214,7 +213,9 @@ function drainDueSpawns(
   for (const spawn of state.pendingSpawns) {
     if (spawn.atMs > roundElapsedMs) continue
 
-    const square: Square = { file: spawn.file, rank: SPAWN_RANK }
+    // Read from state, not a constant: an Ace grows the board and Pieces must
+    // then enter from the new far rank.
+    const square: Square = { file: spawn.file, rank: state.board.ranks - 1 }
     spawned.push({
       id: `piece-${nextEntityId}`,
       typeId: spawn.typeId,

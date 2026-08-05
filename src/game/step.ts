@@ -1,5 +1,5 @@
 import { roundSpec } from '../data/rounds'
-import { buildTower, echoTower, reinforceCore, shieldTower, supportTower } from './cardPlays'
+import { buildTower, echoTower, expandBoard, reinforceCore, shieldTower, supportTower } from './cardPlays'
 import type { Command, GameState } from './types'
 
 /**
@@ -28,6 +28,8 @@ export function step(state: GameState, command: Command): GameState {
       return echoTower(state, command.cardId, command.sourceTowerId, command.square)
     case 'reinforceCore':
       return reinforceCore(state, command.cardId)
+    case 'expandBoard':
+      return expandBoard(state, command.cardId)
   }
 }
 

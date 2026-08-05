@@ -183,3 +183,4 @@ export type Command =
       readonly square: Square
     }
   | { readonly kind: 'reinforceCore'; readonly cardId: string }
+  | { readonly kind: 'expandBoard'; readonly cardId: string }

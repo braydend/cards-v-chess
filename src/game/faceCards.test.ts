@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { JACK_SHIELD, KING_CORE_HEALTH } from '../data/cards'
+import { ACE_BOARD_RANKS, JACK_SHIELD, KING_CORE_HEALTH } from '../data/cards'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { firstTowerId, standardCard, withDeck, withTower } from './fixtures'
-import { step } from './index'
+import { step, tick } from './index'
 import type { GameState } from './types'
 
 const SQUARE = { file: 2, rank: 2 }
@@ -198,5 +198,60 @@ describe('King — Reinforce', () => {
     const state = withDeck([standardCard('five', 5, 'hearts')])
 
     expect(step(state, { kind: 'reinforceCore', cardId: 'five' })).toBe(state)
+  })
+})
+
+describe('Ace — Expand', () => {
+  function withAce(): GameState {
+    return withDeck([standardCard('a', 'A', 'hearts')])
+  }
+
+  it('adds a rank to the board', () => {
+    const state = withAce()
+    const after = step(state, { kind: 'expandBoard', cardId: 'a' })
+
+    expect(after.board.ranks).toBe(state.board.ranks + ACE_BOARD_RANKS)
+  })
+
+  it('leaves the files alone, so spawn files stay valid', () => {
+    const state = withAce()
+
+    expect(step(state, { kind: 'expandBoard', cardId: 'a' }).board.files).toBe(state.board.files)
+  })
+
+  it('leaves the Core where it is, so the run to it lengthens', () => {
+    const state = withAce()
+
+    expect(step(state, { kind: 'expandBoard', cardId: 'a' }).core.square).toEqual(state.core.square)
+  })
+
+  it('is playable with no Tower on the board', () => {
+    const state = withAce()
+
+    expect(state.towers).toHaveLength(0)
+    expect(step(state, { kind: 'expandBoard', cardId: 'a' }).board.ranks).toBeGreaterThan(
+      state.board.ranks,
+    )
+  })
+
+  it('consumes the Card', () => {
+    expect(step(withAce(), { kind: 'expandBoard', cardId: 'a' }).deck).toHaveLength(0)
+  })
+
+  it('refuses a non-Ace', () => {
+    const state = withDeck([standardCard('five', 5, 'hearts')])
+
+    expect(step(state, { kind: 'expandBoard', cardId: 'five' })).toBe(state)
+  })
+
+  it('spawns Pieces from the new far rank, not the old one', () => {
+    const grown = step(withAce(), { kind: 'expandBoard', cardId: 'a' })
+    const started = step(grown, { kind: 'startRound' })
+
+    const after = tick(started, 1000 / 60)
+    const spawned = after.pieces[0]
+
+    expect(spawned).toBeDefined()
+    expect(spawned?.square.rank).toBe(grown.board.ranks - 1)
   })
 })

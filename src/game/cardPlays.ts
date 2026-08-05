@@ -5,7 +5,7 @@
  * state unchanged — never throws, and never consumes the Card. The UI is
  * responsible for not offering illegal actions; the engine just refuses them.
  */
-import { JACK_SHIELD, KING_CORE_HEALTH, supportMagnitude } from '../data/cards'
+import { ACE_BOARD_RANKS, JACK_SHIELD, KING_CORE_HEALTH, supportMagnitude } from '../data/cards'
 import { towerRank } from '../data/towerRanks'
 import { isInBounds, squaresEqual } from './board'
 import { findCard, isBuildableRank, removeCard } from './cards'
@@ -165,6 +165,30 @@ export function reinforceCore(state: GameState, cardId: string): GameState {
       health: state.core.health + KING_CORE_HEALTH,
       maxHealth: state.core.maxHealth + KING_CORE_HEALTH,
     },
+    deck: removeCard(state.deck, cardId),
+  }
+}
+
+/**
+ * Ace: grows the board by a rank, lengthening the run to the Core.
+ *
+ * Ranks only, never files — `data/rounds.ts` derives spawn files from
+ * `BOARD.files`, and leaving files fixed keeps that correct.
+ *
+ * Growth is uncapped, which is safe only because this slice's Deck is authored
+ * and holds a known number of Aces. Once packs land, unlimited copies mean an
+ * arbitrarily long board — a rendering and camera problem as much as a balance
+ * one. It will want a cap then.
+ */
+export function expandBoard(state: GameState, cardId: string): GameState {
+  if (state.phase === 'defeated') return state
+
+  const card = findCard(state.deck, cardId)
+  if (!card || card.kind !== 'standard' || card.rank !== 'A') return state
+
+  return {
+    ...state,
+    board: { ...state.board, ranks: state.board.ranks + ACE_BOARD_RANKS },
     deck: removeCard(state.deck, cardId),
   }
 }
