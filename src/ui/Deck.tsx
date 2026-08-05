@@ -3,6 +3,7 @@ import { towerRank } from '../data/towerRanks'
 import { commandFor, isBuildableRank, type Card } from '../game'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
+import { GEOMETRY_LABELS } from './geometryLabels'
 
 const SUIT_GLYPH = { hearts: '♥', diamonds: '♦', spades: '♠', clubs: '♣' } as const
 
@@ -30,13 +31,25 @@ function cardLabel(card: Card): string {
  *
  * A numbered Card builds; a face Card acts instead; a Joker has one play and no
  * rank at all.
+ *
+ * Geometry leads range and damage here on purpose: shape is what decides
+ * whether a Tower is worth building at all (a diagonal Tower only ever hits
+ * one square colour), where range and damage are just numbers on a curve. The
+ * geometry text is `GEOMETRY_LABELS` verbatim — this must never fork into a
+ * second copy of that table.
+ *
+ * `range` is abbreviated to `R` because the button is one line in a narrow
+ * panel and the longest geometry sentence (diagonal's, with its own aside)
+ * does not leave room for the whole word — spelling it out wraps the label
+ * even at the panel's normal resting width. `TowerPanel` still spells it out
+ * in full; it has a whole line to itself there.
  */
 function rankModeLabel(card: Card): string {
   if (card.kind === 'joker') return 'Clear every Piece'
   if (!isBuildableRank(card.rank)) return FACE_ACTION[card.rank]
 
   const def = towerRank(card.rank)
-  return `Build — range ${def.range}, ${def.damage} dmg`
+  return `Build — ${GEOMETRY_LABELS[def.geometry]} (R${def.range}, ${def.damage} dmg)`
 }
 
 /**
