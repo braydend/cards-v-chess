@@ -192,3 +192,31 @@ export function expandBoard(state: GameState, cardId: string): GameState {
     deck: removeCard(state.deck, cardId),
   }
 }
+
+/**
+ * Joker: destroys every Piece standing on the board.
+ *
+ * Towers are untouched — they are permanent once placed and only ever destroyed
+ * by Pieces. `pendingSpawns` is untouched too, so a round still spawning
+ * continues rather than ending early.
+ *
+ * Being suitless, this is a Joker's only play.
+ *
+ * It is also the one card that can always break a grind, which makes it the
+ * safety valve for the repair-versus-the-wall stall. See the spec.
+ *
+ * NOTE for when Ink lands: clearing twenty Pawns must not pay twenty kill
+ * rewards, or this becomes an income exploit.
+ */
+export function clearPieces(state: GameState, cardId: string): GameState {
+  if (state.phase === 'defeated') return state
+
+  const card = findCard(state.deck, cardId)
+  if (!card || card.kind !== 'joker') return state
+
+  return {
+    ...state,
+    pieces: [],
+    deck: removeCard(state.deck, cardId),
+  }
+}

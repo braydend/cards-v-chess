@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ACE_BOARD_RANKS, JACK_SHIELD, KING_CORE_HEALTH } from '../data/cards'
 import { TOWER_RANKS } from '../data/towerRanks'
-import { firstTowerId, standardCard, withDeck, withTower } from './fixtures'
+import { firstTowerId, jokerCard, liveRound, pawnAt, standardCard, withDeck, withTower } from './fixtures'
 import { step, tick } from './index'
 import type { GameState } from './types'
 
@@ -253,5 +253,62 @@ describe('Ace — Expand', () => {
 
     expect(spawned).toBeDefined()
     expect(spawned?.square.rank).toBe(grown.board.ranks - 1)
+  })
+})
+
+describe('Joker — Clear', () => {
+  function withJoker(): GameState {
+    const built = withTower(5, SQUARE)
+    const seeded = withDeck([jokerCard('joker')], built)
+
+    return liveRound(seeded, [pawnAt('a', { file: 1, rank: 6 }), pawnAt('b', { file: 6, rank: 3 })])
+  }
+
+  it('destroys every Piece on the board', () => {
+    const after = step(withJoker(), { kind: 'clearPieces', cardId: 'joker' })
+
+    expect(after.pieces).toHaveLength(0)
+  })
+
+  it('spares the Towers, which are only ever destroyed by Pieces', () => {
+    const after = step(withJoker(), { kind: 'clearPieces', cardId: 'joker' })
+
+    expect(after.towers).toHaveLength(1)
+  })
+
+  it('leaves pendingSpawns alone, so a round still spawning continues', () => {
+    const state = withJoker()
+    const spawning: GameState = {
+      ...state,
+      pendingSpawns: [{ atMs: 9_000, typeId: 'pawn', file: 2 }],
+    }
+
+    const after = step(spawning, { kind: 'clearPieces', cardId: 'joker' })
+
+    expect(after.pendingSpawns).toHaveLength(1)
+    expect(after.phase).toBe('inProgress')
+  })
+
+  it('consumes the Card', () => {
+    expect(step(withJoker(), { kind: 'clearPieces', cardId: 'joker' }).deck).toHaveLength(0)
+  })
+
+  it("refuses a standard card, since Clear is a Joker's only play", () => {
+    const state = withDeck([standardCard('five', 5, 'hearts')], withTower(5, SQUARE))
+
+    expect(step(state, { kind: 'clearPieces', cardId: 'five' })).toBe(state)
+  })
+
+  it('breaks a grind, so a stalled round can always be resolved', () => {
+    // A rank-5 diagonal Tower cannot cover the square directly up-file, so this
+    // Pawn grinds it forever. The Joker is the one card that always ends it.
+    const built = withTower(5, { file: 3, rank: 4 })
+    const seeded = withDeck([jokerCard('joker')], built)
+    const stalled = liveRound(seeded, [pawnAt('grinder', { file: 3, rank: 5 })])
+
+    const cleared = step(stalled, { kind: 'clearPieces', cardId: 'joker' })
+    const after = tick(cleared, 1000 / 60)
+
+    expect(after.phase).toBe('gap')
   })
 })
