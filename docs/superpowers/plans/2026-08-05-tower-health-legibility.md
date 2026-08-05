@@ -352,7 +352,14 @@ The click rules, exhaustively — the plan states all four so there is nothing t
 | A Tower that is not selected | It becomes selected |
 | The already-selected Tower | Deselected (the gesture toggles) |
 | An empty square | Builds as it does today, and clears any selection |
-| The Core's square | `placeTower` refuses it, as today. Selection untouched |
+| The Core's square | `placeTower` refuses it as today, so nothing is built — but the selection clears, because this is not a Tower |
+
+That last row was corrected during implementation: an earlier draft claimed the
+selection was left untouched, which `resolveBoardClick` cannot express — it sees
+only squares and Towers, so the Core's square is indistinguishable from any other
+square without a Tower on it. The rule the code implements is the simpler one, and
+the one a player can predict: **clicking anything that is not a Tower clears the
+selection.**
 
 - [ ] **Step 1: Write the failing tests**
 
