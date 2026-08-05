@@ -211,11 +211,12 @@ stopping early on a Tower (which it attacks) or the Core (which it leaks into).
 A slide can never jump over a Tower, so blocking still works and the
 no-pathfinding invariant holds.
 
-**Lateral fallback direction** is toward file 0, reflecting at file 0 to travel
-back up the files. This guarantees a sweeping Piece crosses file 3 — the Core's
-file — within eight hops from anywhere on the rank, which is what makes rounds
-terminate. The direction is fixed, not chosen: picking the side the Core happens
-to be on would be goal-seeking.
+**Lateral fallback direction** is given by `handedness`, and **reflecting off a
+file edge flips it**. The flip is what makes rounds terminate: a stateless rule
+that always tried file − 1 first would bounce a Piece between files 0 and 1
+forever. Flipping makes it traverse the whole rank instead, so it crosses file 3
+— the Core's file — and leaks. The direction is carried, never chosen: picking
+the side the Core happens to be on would be goal-seeking.
 
 **Neither aura stacks.** Adjacency to two Kings buffs exactly as much as one.
 Multiple Bishops *do* each heal independently, since they are separate sources
