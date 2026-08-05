@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { jokerCard, standardCard, withDeck } from './fixtures'
+import { firstTowerId, jokerCard, standardCard, withDeck, withTower } from './fixtures'
 import { createInitialState, step } from './index'
-import type { GameState } from './types'
+import type { Command, GameState } from './types'
 
 describe('step: startRound', () => {
   it('moves from the untimed gap into live combat', () => {
@@ -131,5 +131,53 @@ describe('step: buildTower', () => {
     const state = step(initial, { kind: 'buildTower', cardId: 'five', square: initial.core.square })
 
     expect(state.deck).toHaveLength(1)
+  })
+})
+
+describe('step: the defeated guard', () => {
+  // src/ui/Hud.tsx only swaps the round button once defeated — <Deck /> stays
+  // mounted and clickable — so every one of these seven plays is genuinely
+  // reachable from a defeated game, not just theoretically.
+  //
+  // Every card and target below is otherwise entirely legal: a real Tower to
+  // support/shield/echo onto, a free square to build or echo onto, and one
+  // Card of the exact right kind for each play. If any handler's `if
+  // (state.phase === 'defeated') return state` guard were missing, that play
+  // would succeed instead of being refused.
+  const BUILD_SQUARE = { file: 4, rank: 4 }
+
+  function defeatedState(): GameState {
+    const built = withTower(5, { file: 2, rank: 2 })
+    const withCards = withDeck(
+      [
+        standardCard('build', 3, 'hearts'),
+        standardCard('support', 5, 'diamonds'),
+        standardCard('shield', 'J', 'hearts'),
+        standardCard('echo', 'Q', 'diamonds'),
+        standardCard('king', 'K', 'clubs'),
+        standardCard('ace', 'A', 'hearts'),
+        jokerCard('joker'),
+      ],
+      built,
+    )
+
+    return { ...withCards, phase: 'defeated' }
+  }
+
+  it.each<[string, (towerId: string) => Command]>([
+    ['buildTower', () => ({ kind: 'buildTower', cardId: 'build', square: BUILD_SQUARE })],
+    ['supportTower', (towerId) => ({ kind: 'supportTower', cardId: 'support', towerId })],
+    ['shieldTower', (towerId) => ({ kind: 'shieldTower', cardId: 'shield', towerId })],
+    [
+      'echoTower',
+      (towerId) => ({ kind: 'echoTower', cardId: 'echo', sourceTowerId: towerId, square: BUILD_SQUARE }),
+    ],
+    ['reinforceCore', () => ({ kind: 'reinforceCore', cardId: 'king' })],
+    ['expandBoard', () => ({ kind: 'expandBoard', cardId: 'ace' })],
+    ['clearPieces', () => ({ kind: 'clearPieces', cardId: 'joker' })],
+  ])('%s: refuses to act once defeated, leaving state (and the Card) untouched', (_kind, buildCommand) => {
+    const state = defeatedState()
+
+    expect(step(state, buildCommand(firstTowerId(state)))).toBe(state)
   })
 })
