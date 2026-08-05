@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { BLOCKED_ATTACK_MULTIPLIER, PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
-import { createInitialState, step, tick } from './index'
+import { liveRound, pawnAt, withTower } from './fixtures'
+import { tick } from './index'
 import type { BuildableRank, GameState, Square } from './types'
 
 const DT = 1000 / 60
@@ -23,38 +24,15 @@ function runFor(state: GameState, durationMs: number): GameState {
  * down the same file, so its next step lands on the Tower.
  */
 function blockedApproach(cardRank: BuildableRank, towerSquare: Square): GameState {
-  const placed = step(createInitialState(), {
-    kind: 'placeTower',
-    square: towerSquare,
-    cardRank,
-  })
-
+  const placed = withTower(cardRank, towerSquare)
   const pieceSquare = { file: towerSquare.file, rank: towerSquare.rank + 1 }
 
-  return {
-    ...placed,
-    phase: 'inProgress',
-    pendingSpawns: [],
-    pieces: [
-      {
-        id: 'blocked',
-        typeId: 'pawn',
-        square: pieceSquare,
-        prevSquare: pieceSquare,
-        health: PAWN.maxHealth,
-        moveCooldownMs: 0,
-      },
-    ],
-  }
+  return liveRound(placed, [pawnAt('blocked', pieceSquare)])
 }
 
-describe('placeTower: health', () => {
+describe('buildTower: health', () => {
   it('starts a Tower at the full health of its rank', () => {
-    const state = step(createInitialState(), {
-      kind: 'placeTower',
-      square: { file: 1, rank: 1 },
-      cardRank: 4,
-    })
+    const state = withTower(4, { file: 1, rank: 1 })
 
     expect(state.towers[0]?.health).toBe(TOWER_RANKS[4].maxHealth)
     expect(state.towers[0]?.maxHealth).toBe(TOWER_RANKS[4].maxHealth)
@@ -117,26 +95,7 @@ describe('blocked Pieces attack at half strength', () => {
 
   it('does not damage a Tower it is not blocked by', () => {
     // Tower off to the side, not on the Piece's path.
-    const placed = step(createInitialState(), {
-      kind: 'placeTower',
-      square: { file: 7, rank: 7 },
-      cardRank: 3,
-    })
-    const state: GameState = {
-      ...placed,
-      phase: 'inProgress',
-      pendingSpawns: [],
-      pieces: [
-        {
-          id: 'passer',
-          typeId: 'pawn',
-          square: { file: 0, rank: 5 },
-          prevSquare: { file: 0, rank: 5 },
-          health: PAWN.maxHealth,
-          moveCooldownMs: 0,
-        },
-      ],
-    }
+    const state = liveRound(withTower(3, { file: 7, rank: 7 }), [pawnAt('passer', { file: 0, rank: 5 })])
 
     const after = runFor(state, 3000)
 

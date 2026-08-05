@@ -173,4 +173,4 @@ export interface GameState {
 export type Command =
   | { readonly kind: 'startRound' }
   | { readonly kind: 'setAutoStart'; readonly enabled: boolean }
-  | { readonly kind: 'placeTower'; readonly square: Square; readonly cardRank: BuildableRank }
+  | { readonly kind: 'buildTower'; readonly cardId: string; readonly square: Square }

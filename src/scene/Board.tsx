@@ -66,13 +66,17 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
       onPointerOut={() => setHoveredSquare(null)}
       onClick={(event) => {
         event.stopPropagation()
+
+        const cardId = useUiStore.getState().selectedCardId
+        if (!cardId) return
+
         dispatch({
-          kind: 'placeTower',
+          kind: 'buildTower',
+          cardId,
           square: {
             file: worldXToFile(board, event.point.x),
             rank: worldZToRank(board, event.point.z),
           },
-          cardRank: useUiStore.getState().selectedRank,
         })
       }}
     >

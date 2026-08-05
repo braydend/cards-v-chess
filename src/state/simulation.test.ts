@@ -1,9 +1,25 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { isBuildableRank } from '../game'
 import { advance, dispatch, getState, reset } from './simulation'
 import { useGameStore } from './store'
 
 const FRAME_MS = 1000 / 60
 const MAX_CATCHUP_STEPS = 5
+
+/**
+ * A Card in the live Deck that will build a Tower.
+ *
+ * Found in state rather than hardcoded, so re-authoring the starting Deck does
+ * not break a test that is about dispatch rather than about deck contents.
+ */
+function buildableCardId(): string {
+  const card = getState().deck.find(
+    (entry) => entry.kind === 'standard' && isBuildableRank(entry.rank),
+  )
+  if (!card) throw new Error('the starting Deck holds no buildable Card')
+
+  return card.id
+}
 
 beforeEach(() => {
   reset()
@@ -103,7 +119,7 @@ describe('React re-render pressure', () => {
 
 describe('dispatch', () => {
   it('applies commands to the live state', () => {
-    dispatch({ kind: 'placeTower', square: { file: 2, rank: 3 }, cardRank: 2 })
+    dispatch({ kind: 'buildTower', cardId: buildableCardId(), square: { file: 2, rank: 3 } })
 
     expect(getState().towers).toHaveLength(1)
   })
@@ -111,7 +127,7 @@ describe('dispatch', () => {
   it('keeps the same state object when a command is refused', () => {
     const before = getState()
 
-    dispatch({ kind: 'placeTower', square: { file: -1, rank: 0 }, cardRank: 2 })
+    dispatch({ kind: 'buildTower', cardId: buildableCardId(), square: { file: -1, rank: 0 } })
 
     expect(getState()).toBe(before)
   })

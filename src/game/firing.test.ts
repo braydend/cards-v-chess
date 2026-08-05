@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
-import { createInitialState, step, tick } from './index'
+import { liveRound, pawnAt, withTower } from './fixtures'
+import { tick } from './index'
 import type { BuildableRank, GameState, Square } from './types'
 
 const DT = 1000 / 60
@@ -41,25 +42,10 @@ function scenario(
   towerSquare: Square,
   pieceSquares: readonly Square[],
 ): GameState {
-  const placed = step(createInitialState(), {
-    kind: 'placeTower',
-    square: towerSquare,
-    cardRank,
-  })
-
-  return {
-    ...placed,
-    phase: 'inProgress',
-    pendingSpawns: [],
-    pieces: pieceSquares.map((square, index) => ({
-      id: `target-${index}`,
-      typeId: 'pawn' as const,
-      square,
-      prevSquare: square,
-      health: PAWN_HEALTH,
-      moveCooldownMs: 0,
-    })),
-  }
+  return liveRound(
+    withTower(cardRank, towerSquare),
+    pieceSquares.map((square, index) => pawnAt(`target-${index}`, square)),
+  )
 }
 
 describe('tower firing', () => {

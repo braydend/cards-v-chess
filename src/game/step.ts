@@ -1,7 +1,6 @@
 import { roundSpec } from '../data/rounds'
-import { towerRank } from '../data/towerRanks'
-import { isInBounds, squaresEqual } from './board'
-import type { BuildableRank, Command, GameState, Square } from './types'
+import { buildTower } from './cardPlays'
+import type { Command, GameState } from './types'
 
 /**
  * Applies a player command. Pure: returns new state, never mutates.
@@ -19,8 +18,8 @@ export function step(state: GameState, command: Command): GameState {
       return startRound(state)
     case 'setAutoStart':
       return { ...state, autoStart: command.enabled }
-    case 'placeTower':
-      return placeTower(state, command.square, command.cardRank)
+    case 'buildTower':
+      return buildTower(state, command.cardId, command.square)
   }
 }
 
@@ -32,41 +31,5 @@ function startRound(state: GameState): GameState {
     phase: 'inProgress',
     roundElapsedMs: 0,
     pendingSpawns: roundSpec(state.roundNumber).spawns,
-  }
-}
-
-/**
- * Placing a Tower currently costs nothing, and is triggered by clicking the
- * board rather than by playing a card.
- *
- * The intended design exists and is not implemented here: a Tower is built by
- * playing a Card for its **rank**, paid for in **Ink**. Towers will also carry
- * health, since they are destructible. See the card system spec.
- */
-function placeTower(state: GameState, square: Square, cardRank: BuildableRank): GameState {
-  if (state.phase === 'defeated') return state
-  if (!isInBounds(state.board, square)) return state
-  if (squaresEqual(square, state.core.square)) return state
-  if (state.towers.some((tower) => squaresEqual(tower.square, square))) return state
-
-  const def = towerRank(cardRank)
-
-  return {
-    ...state,
-    towers: [
-      ...state.towers,
-      {
-        id: `tower-${state.nextEntityId}`,
-        square,
-        cardRank,
-        fireCooldownMs: 0,
-        health: def.maxHealth,
-        maxHealth: def.maxHealth,
-        damage: def.damage,
-        fireIntervalMs: def.fireIntervalMs,
-        shield: 0,
-      },
-    ],
-    nextEntityId: state.nextEntityId + 1,
   }
 }
