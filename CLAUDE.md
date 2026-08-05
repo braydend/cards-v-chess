@@ -55,11 +55,38 @@ pnpm dev          # Vite dev server
 pnpm build        # typecheck, then production build
 pnpm test         # Vitest, watch mode
 pnpm test:run     # Vitest, single run (use this in automation)
+pnpm test:coverage # Vitest with coverage + thresholds (what CI runs)
 pnpm typecheck    # tsc --noEmit
 pnpm lint
 ```
 
 **TypeScript is pinned to the 5.x line on purpose.** TypeScript 7 is published as `latest`, but `typescript-eslint` currently declares support only for `>=4.8.4 <6.1.0`, so upgrading breaks `pnpm lint`. Revisit once typescript-eslint ships TS 7 support.
+
+## CI
+
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`: `lint`, `typecheck`,
+`test:coverage`, `build`. Pushes to `main` also deploy to
+[GitHub Pages](https://braydend.github.io/cards-v-chess/), gated on those checks passing.
+
+Branch protection is currently **off**, so nothing blocks a direct push to `main` or the merge of a red
+pull request. What CI does guarantee is that such a commit never reaches the live site — `deploy`
+declares `needs: checks`. **The gate is on the deployment, not on the branch.**
+
+CI enforces three things beyond "the tests pass":
+
+- The **renderer boundary** — `src/game/` and `src/data/` importing React or Three.js fails `pnpm lint`.
+- **Seeded determinism** — `Math.random` in those directories fails `pnpm lint`.
+- **Engine coverage** — thresholds on `src/game/` and `src/state/`. `src/scene/`, `src/ui/`, `src/data/`,
+  and `src/state/uiStore.ts` are excluded: the renderer needs a browser and is deliberately untested,
+  `data/` is constant tables, and `uiStore.ts` holds view-only UI state (selection, hover), not the
+  simulation bridge the rest of `src/state/` carries. A file added to `state/` is measured unless it,
+  like `uiStore.ts`, holds that kind of view state rather than bridging to the simulation.
+
+Coverage sets `include` explicitly rather than relying on the default. The default counts only files the
+tests import, so a new untested file in `src/game/` would not move the number at all. The current
+thresholds — see `vite.config.ts` for the numbers, so this stays the one place they live — are a
+**regression ratchet, not a baseline**: they sit just under what the code already does. Defining a real
+baseline is an open follow-up; do not treat passing them as evidence of good coverage.
 
 ## Game design
 
@@ -71,7 +98,7 @@ The player defends a **Core** on a chessboard against rounds of invading chess P
 
 Design facts with hard implementation consequences. Breaking one of these is a bug, not a balance choice:
 
-- **`Math.random` must never appear in `src/game/`.** Runs are seeded and the simulation must stay reproducible. Randomness comes from a seeded PRNG carried in `GameState`.
+- **`Math.random` must never appear in `src/game/`.** Runs are seeded and the simulation must stay reproducible. Randomness comes from a seeded PRNG carried in `GameState`. **Enforced by ESLint** — a violation fails `pnpm lint`, and therefore CI.
 - **Ink income must be event-driven** — round completion and kills — **never time-based.** The gap between rounds is untimed, so time-based income is unbounded: the player would just wait.
 - **Playing a card consumes it.** There is no drawing, no shuffling, no discard pile, and no hand. The whole Deck is always visible and playable.
 - **Towers block movement, and blocked Pieces attack them at half damage.** A Piece whose next square holds a Tower does not advance.
