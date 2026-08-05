@@ -174,3 +174,56 @@ canvas {
   line-height: 1.45;
   color: #7d8b9e;
 }
+
+/* The Tower inspect panel. Bottom-right so it never covers the HUD panel.
+   `.hud` is pointer-events: none, so this must re-enable them like .hud__panel.
+   Offsets are 0 rather than 1rem: `.hud` already carries 1rem of padding, and an
+   absolutely positioned child is placed against its padding box. */
+.towerPanel {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 13rem;
+  padding: 0.9rem 1.05rem;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 0.6rem;
+  background: rgb(16 20 26 / 88%);
+  color: #e8edf4;
+}
+
+.towerPanel p {
+  margin: 0;
+}
+
+.towerPanel__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.towerPanel__close {
+  padding: 0 0.25rem;
+  border: 0;
+  background: none;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: #8fa0b5;
+  cursor: pointer;
+}
+
+.towerPanel__close:hover {
+  color: #e8edf4;
+}
+
+.towerPanel__geometry {
+  font-size: 0.85rem;
+  color: #c3cdda;
+}

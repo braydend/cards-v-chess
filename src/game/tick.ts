@@ -14,9 +14,9 @@ import type { BoardSpec, GameState, Piece, Square, Tower } from './types'
  * delta. That is what makes the simulation deterministic and refresh-rate
  * independent, and it is why tests can drive time by calling this directly.
  *
- * Towers fire, but do not yet have health and cannot be damaged or repaired,
- * and a Piece that lands on a Tower does not yet attack it. Those are the next
- * part of this slice. See CLAUDE.md.
+ * Towers fire, have health, and are damaged by the Pieces they block — see
+ * `applyTowerDamage` below. ♥ repair is the part that does not exist yet.
+ * See CLAUDE.md.
  */
 export function tick(state: GameState, dtMs: number): GameState {
   if (state.phase === 'defeated') return state
@@ -302,7 +302,9 @@ function applyTowerDamage(towers: readonly Tower[], damage: Map<string, number>)
   return towers
     .map((tower) => {
       const dealt = damage.get(tower.id)
-      return dealt === undefined ? tower : { ...tower, health: tower.health - dealt }
+      return dealt === undefined
+        ? tower
+        : { ...tower, health: tower.health - dealt, damageTaken: tower.damageTaken + dealt }
     })
     .filter((tower) => tower.health > 0)
 }

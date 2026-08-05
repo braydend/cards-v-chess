@@ -18,6 +18,10 @@ interface UiStore {
   /** The square under the pointer, for previewing coverage. */
   hoveredSquare: Square | null
   setHoveredSquare: (square: Square | null) => void
+
+  /** The Tower whose inspect panel is open. Null when nothing is selected. */
+  selectedTowerId: string | null
+  setSelectedTowerId: (towerId: string | null) => void
 }
 
 export const useUiStore = create<UiStore>((set) => ({
@@ -25,4 +29,6 @@ export const useUiStore = create<UiStore>((set) => ({
   setSelectedRank: (selectedRank) => set({ selectedRank }),
   hoveredSquare: null,
   setHoveredSquare: (hoveredSquare) => set({ hoveredSquare }),
+  selectedTowerId: null,
+  setSelectedTowerId: (selectedTowerId) => set({ selectedTowerId }),
 }))
