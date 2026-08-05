@@ -179,4 +179,36 @@ describe('rook movement', () => {
       kind: 'reachCore',
     })
   })
+
+  it('reflects off the high file edge and flips handedness', () => {
+    expect(move('rook', { file: 7, rank: 0 })).toEqual({
+      kind: 'move',
+      to: { file: 6, rank: 0 },
+      handedness: -1,
+    })
+  })
+
+  it('ends a bonus slide at the corner rather than bending into an L', () => {
+    // Forward to (5,0), then the only remaining step is sideways. A Rook does
+    // not move in an L, so the slide stops.
+    expect(
+      move('rook', { file: 5, rank: 1 }, NO_TOWERS, { handedness: -1, slideBonus: 1 }),
+    ).toEqual({
+      kind: 'move',
+      to: { file: 5, rank: 0 },
+      handedness: -1,
+    })
+  })
+
+  it('never returns to its own square when a bonus slide meets a file edge', () => {
+    // Sideways to file 0, where the next step would reflect back to file 1.
+    // Stopping at the corner keeps the hop meaningful; the reflection happens next hop.
+    expect(
+      move('rook', { file: 1, rank: 0 }, NO_TOWERS, { handedness: -1, slideBonus: 1 }),
+    ).toEqual({
+      kind: 'move',
+      to: { file: 0, rank: 0 },
+      handedness: -1,
+    })
+  })
 })

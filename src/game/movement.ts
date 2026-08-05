@@ -87,10 +87,27 @@ function travel(
   let square = from
   let side = handedness
   let advanced = false
+  let committed: { readonly file: number; readonly rank: number } | undefined
 
-  for (let remaining = steps; remaining > 0; remaining -= 1) {
+  // A Piece with a legal move must never strand itself over an arithmetic
+  // slip in the slide count — clamp rather than let `steps <= 0` fall through
+  // to the loop never running, which would return `stuck`. tick.ts treats
+  // `stuck` as permanent, so a bad count here would maroon the Piece for the
+  // rest of the run instead of just under-sliding it by one hop.
+  const hops = Math.max(1, steps)
+
+  for (let remaining = hops; remaining > 0; remaining -= 1) {
     const step = stepper(square, side, board)
     if (!step) break
+
+    const delta = { file: step.to.file - square.file, rank: step.to.rank - square.rank }
+
+    // A slide holds ONE line. A stepper turns when it reflects off a board edge,
+    // and a Rook that went forward then sideways in a single hop would have moved
+    // in an L. The slide ends at the corner instead, and the turn happens on the
+    // next hop — which is also why `side` is left alone here.
+    if (committed && (delta.file !== committed.file || delta.rank !== committed.rank)) break
+    committed = delta
 
     if (squaresEqual(step.to, coreSquare)) return { kind: 'reachCore' }
 
