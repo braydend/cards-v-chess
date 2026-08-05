@@ -9,8 +9,9 @@ import type { PieceTypeDef, PieceTypeId } from '../game/types'
  * commander King. None of it is implemented here yet, and the stats below are
  * placeholders rather than balance decisions.
  *
- * Read the card system spec before extending this. What remains genuinely
- * undecided is which Pieces attack Towers. See CLAUDE.md.
+ * Read the card system spec before extending this. Tower targeting is settled:
+ * every Piece attacks a Tower that blocks it, at `BLOCKED_ATTACK_MULTIPLIER`.
+ * There is no designated Tower-hunter. See CLAUDE.md.
  */
 export const PIECE_TYPES: Record<PieceTypeId, PieceTypeDef> = {
   pawn: {
