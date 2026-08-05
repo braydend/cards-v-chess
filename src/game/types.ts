@@ -73,6 +73,17 @@ export interface Tower {
   readonly health: number
   /** Separate from the rank's base value so ♠ can raise it later. */
   readonly maxHealth: number
+  /**
+   * Lifetime damage this Tower has absorbed. Never reduced.
+   *
+   * Deliberately NOT derived as `maxHealth - health`. ♥ repair and ♠ maximum
+   * health are both designed, and each breaks that identity: a Tower repaired
+   * to full must still report what it has weathered.
+   *
+   * Kept out of `structuralKey` on purpose — it only ever changes in the same
+   * breath as `health`, which is already in the key.
+   */
+  readonly damageTaken: number
 }
 
 /**

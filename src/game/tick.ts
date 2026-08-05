@@ -302,7 +302,9 @@ function applyTowerDamage(towers: readonly Tower[], damage: Map<string, number>)
   return towers
     .map((tower) => {
       const dealt = damage.get(tower.id)
-      return dealt === undefined ? tower : { ...tower, health: tower.health - dealt }
+      return dealt === undefined
+        ? tower
+        : { ...tower, health: tower.health - dealt, damageTaken: tower.damageTaken + dealt }
     })
     .filter((tower) => tower.health > 0)
 }

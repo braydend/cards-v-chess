@@ -15,6 +15,7 @@ function towersAt(...squares: Square[]): Map<string, Tower> {
         fireCooldownMs: 0,
         health: 8,
         maxHealth: 8,
+        damageTaken: 0,
       },
     ]),
   )

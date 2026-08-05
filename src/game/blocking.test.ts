@@ -171,3 +171,37 @@ describe('blocking: determinism', () => {
     expect(a).toEqual(b)
   })
 })
+
+describe('damage taken', () => {
+  it('starts at zero on a newly placed Tower', () => {
+    const state = step(createInitialState(), {
+      kind: 'placeTower',
+      square: { file: 1, rank: 1 },
+      cardRank: 4,
+    })
+
+    expect(state.towers[0]?.damageTaken).toBe(0)
+  })
+
+  it('accumulates every attack the Tower absorbs', () => {
+    // Rank 5 has the blind spot directly up-file, so it cannot return fire and
+    // the Pawn survives to land a second attack.
+    const state = blockedApproach(5, { file: 3, rank: 4 })
+
+    const after = runFor(state, PAWN.moveIntervalMs * 2 + DT)
+
+    expect(after.towers[0]?.damageTaken).toBe(BLOCKED_DAMAGE * 2)
+  })
+
+  it('stays at zero for a Tower nothing attacks', () => {
+    const placed = step(createInitialState(), {
+      kind: 'placeTower',
+      square: { file: 7, rank: 7 },
+      cardRank: 3,
+    })
+
+    const after = runFor({ ...placed, phase: 'inProgress', pendingSpawns: [] }, 3000)
+
+    expect(after.towers[0]?.damageTaken).toBe(0)
+  })
+})

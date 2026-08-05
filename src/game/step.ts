@@ -60,6 +60,7 @@ function placeTower(state: GameState, square: Square, cardRank: CardRank): GameS
         fireCooldownMs: 0,
         health: towerRank(cardRank).maxHealth,
         maxHealth: towerRank(cardRank).maxHealth,
+        damageTaken: 0,
       },
     ],
     nextEntityId: state.nextEntityId + 1,
