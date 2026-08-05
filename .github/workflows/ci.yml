@@ -10,14 +10,18 @@ permissions:
   contents: read
 
 concurrency:
-  # Pushing twice to a branch should abandon the superseded run.
+  # Superseded pull-request runs should be abandoned. main is exempt: a
+  # cancelled run would kill an in-flight Pages deploy, which can leave the
+  # site half-updated. Job-level concurrency cannot express this, because
+  # workflow-level cancellation outranks it.
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   checks:
     name: checks
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
