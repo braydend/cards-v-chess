@@ -21,8 +21,9 @@ function damagedColour(base: string, healthFraction: number): string {
  * is placed.
  *
  * They block movement and take damage from the Pieces they block, darkening as
- * their health drops. ♥ repair does not exist yet, so a Tower under sustained
- * attack always eventually falls.
+ * their health drops. ♥ repair exists, but it is bounded by a finite Deck — see
+ * the load-bearing invariant comment in `src/game/tick.ts:80-90` for why a
+ * Tower under sustained attack still always eventually falls.
  *
  * Grouped by rank so each rank gets its own instanced draw call, keeping one
  * shared geometry and material per group.

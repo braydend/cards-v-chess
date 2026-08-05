@@ -101,7 +101,7 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
         }
 
         if (card.kind === 'standard' && card.rank === 'Q') {
-          // Echo is the only play needing two targets: a Tower to copy, then a
+          // Echo is the only play needing two targets: a Tower to Echo, then a
           // square to build the copy on. First click picks the source.
           const { echoSourceTowerId, setEchoSourceTowerId } = useUiStore.getState()
 
