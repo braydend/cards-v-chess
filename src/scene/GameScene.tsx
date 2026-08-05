@@ -1,5 +1,4 @@
 import { OrbitControls } from '@react-three/drei'
-import { CORE_MAX_HEALTH } from '../data/board'
 import { useGameStore } from '../state/store'
 import { Board } from './Board'
 import { Core } from './Core'
@@ -19,7 +18,7 @@ export function GameScene() {
       <directionalLight position={[6, 10, 4]} intensity={1.6} castShadow />
 
       <Board board={board} />
-      <Core board={board} square={core.square} healthFraction={core.health / CORE_MAX_HEALTH} />
+      <Core board={board} square={core.square} healthFraction={core.health / core.maxHealth} />
       <Towers board={board} />
       <Pieces board={board} />
 
