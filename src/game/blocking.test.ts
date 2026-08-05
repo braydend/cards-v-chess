@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { JACK_SHIELD } from '../data/cards'
 import { BLOCKED_ATTACK_MULTIPLIER, PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
-import { liveRound, pawnAt, withTower } from './fixtures'
-import { tick } from './index'
+import { firstTowerId, liveRound, pawnAt, standardCard, withDeck, withTower } from './fixtures'
+import { step, tick } from './index'
 import type { BuildableRank, GameState, Square } from './types'
 
 const DT = 1000 / 60
@@ -186,6 +187,44 @@ describe('Tower shields', () => {
 
     expect(after.towers[0]?.shield).toBe(0)
     expect(after.towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth - BLOCKED_DAMAGE)
+  })
+
+  it('absorbs damage before health when the shield comes from a real played Jack', () => {
+    // Every other shield test in this file hand-mutates `shield` into state,
+    // so a Jack played through `step`/`shieldTower` is never actually the
+    // thing under attack — JACK_SHIELD and applyTowerDamage are never
+    // composed. This test plays a real Jack, then grinds the Tower under
+    // attack for real.
+    //
+    // Rank 5's diagonal geometry cannot cover the square directly up-file
+    // (fileDistance 0, rankDistance 1 never satisfies fileDistance ===
+    // rankDistance), so the blocking Piece here is never shot back and the
+    // hit schedule is exactly one BLOCKED_DAMAGE per move interval.
+    const built = withTower(5, { file: 3, rank: 4 })
+    const withJackInDeck = withDeck([standardCard('jack', 'J', 'hearts')], built)
+    const shielded = step(withJackInDeck, {
+      kind: 'shieldTower',
+      cardId: 'jack',
+      towerId: firstTowerId(withJackInDeck),
+    })
+
+    expect(shielded.towers[0]?.shield).toBe(JACK_SHIELD)
+    expect(shielded.deck).toHaveLength(0)
+
+    const state = liveRound(shielded, [pawnAt('blocked', { file: 3, rank: 5 })])
+
+    // JACK_SHIELD (10) divides evenly by BLOCKED_DAMAGE (1): exactly ten hits
+    // exhaust the shield with health untouched.
+    const shieldHits = JACK_SHIELD / BLOCKED_DAMAGE
+    const shieldGone = runFor(state, PAWN.moveIntervalMs * shieldHits + DT)
+
+    expect(shieldGone.towers[0]?.shield).toBe(0)
+    expect(shieldGone.towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth)
+
+    // The next hit has nothing left to absorb it, so it lands on health.
+    const afterOneMore = runFor(shieldGone, PAWN.moveIntervalMs + DT)
+
+    expect(afterOneMore.towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth - BLOCKED_DAMAGE)
   })
 })
 
