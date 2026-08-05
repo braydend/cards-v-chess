@@ -18,8 +18,19 @@ export const PIECE_TYPES: Record<PieceTypeId, PieceTypeDef> = {
     label: 'Pawn',
     moveIntervalMs: 900,
     maxHealth: 3,
+    attackDamage: 2,
   },
 }
+
+/**
+ * A Piece blocked by a Tower attacks at half strength. Attacking is an
+ * incidental action forced on it, not what it is for — which is what lets a
+ * Tower function as an obstacle rather than a speed bump.
+ *
+ * Kept as a multiplier rather than baked into `attackDamage` so that a future
+ * Piece designed to demolish Towers can attack at full effect.
+ */
+export const BLOCKED_ATTACK_MULTIPLIER = 0.5
 
 export function pieceType(id: PieceTypeId): PieceTypeDef {
   return PIECE_TYPES[id]

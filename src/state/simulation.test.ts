@@ -103,7 +103,7 @@ describe('React re-render pressure', () => {
 
 describe('dispatch', () => {
   it('applies commands to the live state', () => {
-    dispatch({ kind: 'placeTower', square: { file: 2, rank: 3 } })
+    dispatch({ kind: 'placeTower', square: { file: 2, rank: 3 }, cardRank: 2 })
 
     expect(getState().towers).toHaveLength(1)
   })
@@ -111,7 +111,7 @@ describe('dispatch', () => {
   it('keeps the same state object when a command is refused', () => {
     const before = getState()
 
-    dispatch({ kind: 'placeTower', square: { file: -1, rank: 0 } })
+    dispatch({ kind: 'placeTower', square: { file: -1, rank: 0 }, cardRank: 2 })
 
     expect(getState()).toBe(before)
   })

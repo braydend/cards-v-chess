@@ -1,6 +1,7 @@
 import { roundSpec } from '../data/rounds'
+import { towerRank } from '../data/towerRanks'
 import { isInBounds, squaresEqual } from './board'
-import type { Command, GameState, Square } from './types'
+import type { CardRank, Command, GameState, Square } from './types'
 
 /**
  * Applies a player command. Pure: returns new state, never mutates.
@@ -19,7 +20,7 @@ export function step(state: GameState, command: Command): GameState {
     case 'setAutoStart':
       return { ...state, autoStart: command.enabled }
     case 'placeTower':
-      return placeTower(state, command.square)
+      return placeTower(state, command.square, command.cardRank)
   }
 }
 
@@ -42,7 +43,7 @@ function startRound(state: GameState): GameState {
  * playing a Card for its **rank**, paid for in **Ink**. Towers will also carry
  * health, since they are destructible. See the card system spec.
  */
-function placeTower(state: GameState, square: Square): GameState {
+function placeTower(state: GameState, square: Square, cardRank: CardRank): GameState {
   if (state.phase === 'defeated') return state
   if (!isInBounds(state.board, square)) return state
   if (squaresEqual(square, state.core.square)) return state
@@ -50,7 +51,17 @@ function placeTower(state: GameState, square: Square): GameState {
 
   return {
     ...state,
-    towers: [...state.towers, { id: `tower-${state.nextEntityId}`, square }],
+    towers: [
+      ...state.towers,
+      {
+        id: `tower-${state.nextEntityId}`,
+        square,
+        cardRank,
+        fireCooldownMs: 0,
+        health: towerRank(cardRank).maxHealth,
+        maxHealth: towerRank(cardRank).maxHealth,
+      },
+    ],
     nextEntityId: state.nextEntityId + 1,
   }
 }

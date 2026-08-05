@@ -1,6 +1,7 @@
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import { ConeGeometry, MeshStandardMaterial, type BufferGeometry, type Material, type Mesh } from 'three'
+import { pieceType } from '../data/pieceTypes'
 import type { BoardSpec } from '../game'
 import { getState } from '../state/simulation'
 import { useGameStore } from '../state/store'
@@ -87,6 +88,12 @@ function PieceMesh({
       PIECE_REST_Y + Math.sin(progress * Math.PI) * HOP_ARC,
       fromZ + (toZ - fromZ) * progress,
     )
+
+    // Shrink as it takes damage, so Tower fire has visible effect before the
+    // Piece dies. Mutation only — no state, no allocation.
+    const healthFraction = piece.health / pieceType(piece.typeId).maxHealth
+    const scale = 0.55 + healthFraction * 0.45
+    mesh.scale.set(scale, scale, scale)
   })
 
   return <mesh ref={ref} geometry={geometry} material={material} castShadow />

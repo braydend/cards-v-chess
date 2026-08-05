@@ -133,14 +133,23 @@ describe('tick: leaks', () => {
 
 describe('tick: round completion', () => {
   it('returns to the untimed gap and advances the round number', () => {
-    // Towers cannot kill anything yet, so a round resolves by leaking out.
     const state = runFor(startedRound(), 60_000)
 
     expect(state.phase).toBe('gap')
     expect(state.roundNumber).toBe(2)
-    expect(state.pieces).toHaveLength(0)
     expect(state.pendingSpawns).toHaveLength(0)
     expect(state.roundElapsedMs).toBe(0)
+  })
+
+  it('completes once nothing can act, not once the board is empty', () => {
+    // Chess pawns are confined to their file, so those off the Core's file reach
+    // the back rank and strand. They are left standing on purpose — deleting
+    // them would hide the gap that Pawn promotion is meant to fill.
+    const state = runFor(startedRound(), 60_000)
+
+    expect(state.phase).toBe('gap')
+    expect(state.pieces.length).toBeGreaterThan(0)
+    expect(state.pieces.every((piece) => piece.square.rank === 0)).toBe(true)
   })
 
   it('scales the next round up', () => {

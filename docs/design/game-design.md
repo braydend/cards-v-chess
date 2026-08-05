@@ -49,12 +49,16 @@ Support magnitude scales with rank, as Tower power does: a 9♥ is a large repai
 
 | Rank | Firing geometry |
 | --- | --- |
-| **2** | Horizontal — along its board rank |
+| **2** | Adjacent — the eight surrounding squares |
 | **3** | Vertical — along its file |
 | **4** | Cross — horizontal and vertical |
 | **5** | Diagonal — the X |
 | 6–10 | **Open** |
 | J, Q, K, A, Jokers | **Open** — these do not follow the ladder |
+
+Rank 2 was originally **horizontal** and was changed after measuring it. Pieces travel down a file, so a horizontal line caught each Piece for exactly one move interval — one shot, which a Pawn survived: 1 damage against rank 3's 6. Adjacent keeps a Piece covered for three squares of its approach instead, and gives the lowest rank a coherent identity as a short-range blocker with teeth.
+
+Chess movement, added afterwards, sharpened this rather than changing it: a pawn is now *strictly* confined to its file, so a horizontal Tower would have been worse still.
 
 Shape is the rank's *identity*; **range and damage scale with rank**. Shape alone gives no power curve — diagonal is not inherently better than cross — so a 5 out-damages a 4 despite a narrower pattern.
 
@@ -147,6 +151,21 @@ Bloons-style rounds:
 
 Chess pieces move in **discrete hops** on a per-piece cadence, not by sliding continuously. The renderer interpolates between squares so motion reads as smooth, while the hop preserves the chess identity and keeps threat ranges legible.
 
+## Movement is chess movement
+
+**Pieces move by real chess rules, not by walking toward the Core.** They have no pathfinding and no goal-seeking: each type moves as its chess counterpart would, and whether that happens to bring it near the Core is a property of the board, not of its intent.
+
+This has large consequences that are accepted deliberately:
+
+- **A Piece can only threaten the Core if chess movement can reach it.** A pawn is confined to its file, so only the Core's own file and the two files diagonally adjacent are dangerous. Every other pawn marches to the back rank and stops.
+- **Pieces strand.** A pawn that reaches the back rank off the Core's file has no legal move for the rest of the run. This is a real chess outcome, not a bug.
+- **A round therefore ends when nothing on the board can still act**, not when the board is empty. Waiting for an empty board would hang the round forever.
+- **Stranded Pieces are left standing**, not quietly deleted, so the gap stays visible. The designed answer is **Pawn promotion** — in chess a pawn promotes on reaching the far rank, and here the back rank is exactly where they pile up. Not yet implemented.
+
+### Pawn
+
+Advances one square down its file. **Captures the Core diagonally forward**, as a pawn takes in chess. A Tower directly ahead blocks it, and it attacks that Tower instead of advancing. A Tower off to the diagonal is ignored while the path ahead is clear — the pawn's job is to advance, not to detour.
+
 ## The Chess roster
 
 | Piece | Chess trait | Threat | Forces |
@@ -168,15 +187,21 @@ Pawn promotion turns a chaff wave into a timer: ignore the weak pieces and they 
 
 **Towers are permanent once placed** — they are never removed by the player, only destroyed.
 
-### Targeting is emergent
+### Towers block, and blocked Pieces attack
 
 **No Piece type is a designated Tower-hunter.** One rule covers every Piece:
 
-> A Piece whose move would land it on a Tower's square **attacks that Tower instead of moving**.
+> A Piece whose next square holds a Tower **does not advance**. It attacks that Tower instead, at **half** its attack damage.
 
-**Towers do not block movement.** If they blocked, Towers would *be* walls and mazing would return. Pieces cannot be redirected — the player only chooses whether to place a Tower in harm's way, which makes placement a **risk decision** rather than a pure coverage puzzle.
+**Towers block movement.** This reverses an earlier decision that they never do. The earlier wording was self-contradictory — it declared Towers non-blocking and then defined them as stopping Pieces in the same breath.
 
-Every Piece therefore contributes anti-Tower pressure, so repair reliably has a job.
+Half damage is what makes the mechanic work: Pieces are poor demolitionists, so a Tower is a real obstacle rather than a speed bump. The multiplier is kept separate from a Piece's base attack damage so that a future Piece *designed* to demolish Towers can attack at full effect.
+
+**There is no pathfinding.** A blocked Piece waits and grinds; it never routes around. This is deliberate — routing around would let the player steer Pieces by placing Towers, which is exactly the mazing the design rejects. The player can *wall*, but cannot *herd*.
+
+Every Piece therefore contributes anti-Tower pressure, so repair will reliably have a job.
+
+**A Tower's own geometry decides whether it can defend itself.** A vertical, cross, or adjacent Tower covers the square a Piece attacks it from, so it shoots back. A **diagonal** Tower does not — a Piece attacking from directly along its file sits in a blind spot. That asymmetry is emergent from real geometry, not assigned, and it is the case to watch when repair arrives.
 
 ### No walls, no mazing
 
@@ -197,7 +222,9 @@ This is a **coverage** tower defense, not a **maze** one: defense is about which
 | **Running out of cards** | Cards are consumed and packs are the only source, so a player can reach zero. Loss, stall, or covered by a guaranteed Ink floor? |
 | **Pack weighting and prices** | How rank scarcity translates into pack contents, and what each type costs. |
 | **PRNG streams** | One stream (simplest) versus separate named streams for packs/rounds/draws, so seeds survive code changes. |
-| **Stalling on an indestructible Tower** | If a Piece keeps attacking a Tower it cannot destroy and its only path runs through that square, the round never ends. Needs a stopping rule — route around after N attempts, guaranteed Tower death, or attacks displacing the Piece. |
-| **Per-piece movement rules** | The roster assigns each Piece a *threat*, but not its exact movement. The Knight's colour-flicker requires that it genuinely alternates square colour each hop. |
+| **Repair versus the wall** | **Not yet reachable, but will be the moment ♥ repair lands.** Towers block and there is no pathfinding, so a repaired Tower a Piece cannot break is a permanent wall — and against a diagonal Tower's blind spot the Piece cannot even be shot, so the round never ends. Candidate answers: attacked Towers lose *maximum* health permanently so repair only delays; repair capped per round; or a blocked Piece eventually breaks through regardless. Decide with play experience, not on paper. |
+| **How far do sliding Pieces move?** | **Blocks Bishop, Rook, and Queen.** In chess these slide any distance along a line, which here would carry them most of the way to the Core in a single move. Chess-exact is probably unplayable; a capped slide is not really chess. Needs deciding before those types can be added. Pawn, Knight (L-hop), and King (one square) are unambiguous and need no decision. |
+| **Stranded Pieces** | Pawns off the Core's file reach the back rank and can never move again. They currently remain on the board and accumulate across rounds. Pawn promotion is the designed answer; until then this is visible clutter. |
+| **The Core is hard to reach** | With chess pawn movement, only three of eight files threaten the Core at all. Whether that is acceptable difficulty, or wants a wider Core, a different board, or piece types that can traverse files, is undecided. |
 | **Board geometry** | Still a literal 8x8. Square colour being load-bearing argues for keeping a true chessboard. |
 | **Multiplayer scope** | Still assumed single-player versus AI, no backend, no netcode. |
