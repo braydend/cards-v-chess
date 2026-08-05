@@ -2,39 +2,12 @@ import { Instance, Instances, type PositionMesh } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useRef, useState } from 'react'
 import { BUILDABLE_RANKS } from '../data/towerRanks'
-import type { BoardSpec, CardRank, GameState } from '../game'
+import type { BoardSpec, CardRank } from '../game'
 import { useGameStore } from '../state/store'
 import { fileToWorldX, rankToWorldZ } from './coords'
 import { RANK_COLOURS } from './rankColours'
 import { CRITICAL_PULSE_HZ, DEATH_FLARE_MS, HIT_FLASH_MS, towerColour } from './towerColour'
-
-/** A Tower that has fallen, held briefly so its destruction is visible. */
-interface Ghost {
-  readonly id: string
-  readonly cardRank: CardRank
-  readonly file: number
-  readonly boardRank: number
-}
-
-/**
- * Per-Tower animation bookkeeping. Lives in a ref, never in state: it is
- * written by the frame loop, and routing it through React would be the
- * per-frame render CLAUDE.md forbids.
- *
- * It carries the Tower's square and card rank as well as its health, because a
- * destroyed Tower leaves `GameState` entirely — this record is the only place
- * the renderer still knows where it was.
- */
-interface TowerAnimation {
-  cardRank: CardRank
-  file: number
-  boardRank: number
-  lastHealth: number
-  /** Set by the snapshot diff; the next frame stamps it with a clock time. */
-  flashPending: boolean
-  /** Clock seconds when the current flash began; -1 when idle. */
-  flashStartedAt: number
-}
+import { diffTowers, type Ghost, type TowerAnimation } from './towerDiff'
 
 function towerHeight(cardRank: CardRank): number {
   return 0.55 + cardRank * 0.06
@@ -73,63 +46,13 @@ export function Towers({ board }: { board: BoardSpec }) {
   // subscription fires on every publish, not only on renders this component
   // happens to perform.
   useEffect(() => {
-    /**
-     * Reconciles animation bookkeeping against a published snapshot and returns
-     * the Towers that fell. Writes refs only, never state.
-     */
-    function diffTowers(snapshot: GameState): Ghost[] {
-      const live = new Set<string>()
-
-      for (const tower of snapshot.towers) {
-        live.add(tower.id)
-        const existing = animations.current.get(tower.id)
-
-        if (!existing) {
-          animations.current.set(tower.id, {
-            cardRank: tower.cardRank,
-            file: tower.square.file,
-            boardRank: tower.square.rank,
-            lastHealth: tower.health,
-            flashPending: false,
-            flashStartedAt: -1,
-          })
-          continue
-        }
-
-        if (tower.health < existing.lastHealth) existing.flashPending = true
-        existing.lastHealth = tower.health
-      }
-
-      const fallen: Ghost[] = []
-
-      for (const [id, animation] of animations.current) {
-        if (live.has(id)) continue
-        animations.current.delete(id)
-
-        // Towers only ever die during a live round. Gating on the phase is what
-        // stops `reset()` — which clears the whole board at once from the
-        // defeated screen — from firing a death flare for every Tower the
-        // player built.
-        if (snapshot.phase === 'inProgress') {
-          fallen.push({
-            id,
-            cardRank: animation.cardRank,
-            file: animation.file,
-            boardRank: animation.boardRank,
-          })
-        }
-      }
-
-      return fallen
-    }
-
     // Seed from whatever is already on the board. The returned list is
     // necessarily empty: nothing can have fallen out of a map that was empty a
     // moment ago, which is why no state update belongs here.
-    diffTowers(useGameStore.getState().snapshot)
+    diffTowers(animations.current, useGameStore.getState().snapshot)
 
     return useGameStore.subscribe((store) => {
-      const fallen = diffTowers(store.snapshot)
+      const fallen = diffTowers(animations.current, store.snapshot)
       if (fallen.length > 0) setGhosts((current) => [...current, ...fallen])
     })
   }, [])
