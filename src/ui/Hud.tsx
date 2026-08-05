@@ -4,6 +4,7 @@ import { reset } from '../state/simulation'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { GEOMETRY_LABELS } from './geometryLabels'
+import { TowerPanel } from './TowerPanel'
 
 /**
  * Minimal HUD: enough to drive the round loop and read the game's state.
@@ -17,6 +18,7 @@ export function Hud() {
   const snapshot = useGameStore((store) => store.snapshot)
   const selectedRank = useUiStore((store) => store.selectedRank)
   const setSelectedRank = useUiStore((store) => store.setSelectedRank)
+  const setSelectedTowerId = useUiStore((store) => store.setSelectedTowerId)
   const { phase, roundNumber, core, leaks, autoStart, pieces, towers } = snapshot
   const selected = towerRank(selectedRank)
 
@@ -77,7 +79,14 @@ export function Hud() {
 
         <div className="hud__actions">
           {phase === 'defeated' ? (
-            <button type="button" className="hud__button" onClick={reset}>
+            <button
+              type="button"
+              className="hud__button"
+              onClick={() => {
+                setSelectedTowerId(null)
+                reset()
+              }}
+            >
               Play again
             </button>
           ) : (
@@ -109,6 +118,8 @@ export function Hud() {
             : 'Hover the board to preview coverage, click to build — during a round or between them.'}
         </p>
       </div>
+
+      <TowerPanel />
     </div>
   )
 }
