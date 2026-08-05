@@ -16,13 +16,16 @@ export function structuralKey(state: GameState): string {
     .map((piece) => `${piece.id}@${piece.square.file},${piece.square.rank}:${piece.health}`)
     .join('|')
 
-  // Tower health, shield, damage and fire interval are included so support
-  // effects are visible, but `fireCooldownMs` is NOT: that changes every tick
-  // and would force a React render per frame.
+  // Tower health, maxHealth, shield, damage and fire interval are included so
+  // support effects are visible — maxHealth matters because Towers.tsx draws
+  // `tower.health / tower.maxHealth`, and a ♠ raises the ceiling without
+  // changing health, so maxHealth alone can be the only thing that changed.
+  // `fireCooldownMs` is deliberately NOT here: that changes every tick and
+  // would force a React render per frame.
   const towers = state.towers
     .map(
       (tower) =>
-        `${tower.id}@${tower.square.file},${tower.square.rank}:${tower.health}:${tower.shield}:${tower.damage}:${tower.fireIntervalMs}`,
+        `${tower.id}@${tower.square.file},${tower.square.rank}:${tower.health}:${tower.maxHealth}:${tower.shield}:${tower.damage}:${tower.fireIntervalMs}`,
     )
     .join('|')
 
