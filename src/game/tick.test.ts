@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { createInitialState, step, tick } from './index'
-import type { GameState } from './types'
+import type { GameState, Handedness } from './types'
 
 /** The fixed timestep the app runs at. Tests drive time; nothing reads a clock. */
 const DT = 1000 / 60
@@ -16,6 +16,34 @@ function runFor(state: GameState, durationMs: number): GameState {
 
 function startedRound(): GameState {
   return step(createInitialState(), { kind: 'startRound' })
+}
+
+/**
+ * A single Rook placed directly on the back rank, bypassing the spawn
+ * pipeline entirely. `src/data/rounds.ts` spawns Pawns exclusively, so this
+ * is the only way to get a sliding, reflecting Piece under test — a Pawn's
+ * `move` outcome never carries a `handedness`, so it cannot exercise the
+ * handedness-threading fix on its own.
+ */
+function rookOnBackRank(file: number, handedness: Handedness): GameState {
+  return {
+    ...createInitialState(),
+    phase: 'inProgress',
+    pieces: [
+      {
+        id: 'test-rook',
+        typeId: 'rook',
+        square: { file, rank: 0 },
+        prevSquare: { file, rank: 0 },
+        health: PIECE_TYPES.rook.maxHealth,
+        moveCooldownMs: 0,
+        moveCount: 0,
+        handedness,
+        auraCooldownMs: 0,
+        buffed: false,
+      },
+    ],
+  }
 }
 
 describe('tick: phase handling', () => {
@@ -173,6 +201,37 @@ describe('tick: motion state', () => {
     const sides = state.pieces.map((piece) => piece.handedness)
 
     expect(new Set(sides).size).toBe(2)
+  })
+
+  // A Pawn's `move` outcome never carries a `handedness` (it isn't a slider),
+  // so the tests above never actually exercise threading the *returned*
+  // handedness forward — they pass on spawn-parity alone, which predates this
+  // fix. A Rook does: it reflects off a file edge, which is the one place a
+  // move outcome returns a handedness that differs from the one it was given.
+  it('carries the handedness a slide reflection returns, not just the spawned value', () => {
+    const rook = rookOnBackRank(6, 1)
+    const state = runFor(rook, PIECE_TYPES.rook.moveIntervalMs * 2 + DT)
+
+    // Hop 1: (6,0) -> (7,0), sideways move stays in bounds, handedness stays +1.
+    // Hop 2: (7,0) has nowhere further sideways to go at +1, so it reflects
+    // back to (6,0) and the returned handedness flips to -1. Discarding that
+    // return (the bug this task fixes) would leave handedness at +1 forever.
+    expect(state.pieces[0]?.square).toEqual({ file: 6, rank: 0 })
+    expect(state.pieces[0]?.handedness).toBe(-1)
+  })
+
+  // Task 11 adds a dedicated termination.test.ts covering every Piece type.
+  // This test narrows that down to the one case this task's fix addresses —
+  // deliberately redundant with that future coverage, not duplication to
+  // prune, because a permanent round hang is severe enough to guard twice.
+  it('lets a sweeping Rook cross the Core file and leak instead of oscillating forever', () => {
+    const rook = rookOnBackRank(6, 1)
+    // Five hops: (6,0) -> (7,0) -> (6,0) -> (5,0) -> (4,0) -> Core. Without
+    // the fix the Rook oscillates 6<->7 forever and the round never ends.
+    const state = runFor(rook, PIECE_TYPES.rook.moveIntervalMs * 5 + DT)
+
+    expect(state.phase).not.toBe('inProgress')
+    expect(state.leaks).toBeGreaterThan(0)
   })
 })
 
