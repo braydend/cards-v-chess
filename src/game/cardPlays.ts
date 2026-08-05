@@ -5,7 +5,7 @@
  * state unchanged — never throws, and never consumes the Card. The UI is
  * responsible for not offering illegal actions; the engine just refuses them.
  */
-import { supportMagnitude } from '../data/cards'
+import { JACK_SHIELD, supportMagnitude } from '../data/cards'
 import { towerRank } from '../data/towerRanks'
 import { isInBounds, squaresEqual } from './board'
 import { findCard, isBuildableRank, removeCard } from './cards'
@@ -86,6 +86,61 @@ export function supportTower(state: GameState, cardId: string, towerId: string):
     towers: state.towers.map((tower) =>
       tower.id === towerId ? applySupport(tower, card.suit, magnitude) : tower,
     ),
+    deck: removeCard(state.deck, cardId),
+  }
+}
+
+/**
+ * Jack: grants a Tower a shield, absorbed before health.
+ *
+ * A shield differs from ♥ repair in kind, not magnitude: repair is reactive and
+ * can be out-paced, a shield is pre-emptive and cannot.
+ */
+export function shieldTower(state: GameState, cardId: string, towerId: string): GameState {
+  if (state.phase === 'defeated') return state
+
+  const card = findCard(state.deck, cardId)
+  if (!card || card.kind !== 'standard' || card.rank !== 'J') return state
+
+  if (!state.towers.some((tower) => tower.id === towerId)) return state
+
+  return {
+    ...state,
+    towers: state.towers.map((tower) =>
+      tower.id === towerId ? { ...tower, shield: tower.shield + JACK_SHIELD } : tower,
+    ),
+    deck: removeCard(state.deck, cardId),
+  }
+}
+
+/**
+ * Queen: builds a copy of an existing Tower's RANK on an empty square.
+ *
+ * Accumulated ♦ ♠ ♣ supports and any shield are deliberately NOT copied —
+ * otherwise Echo becomes the strongest support multiplier in the game rather
+ * than a second Tower.
+ */
+export function echoTower(
+  state: GameState,
+  cardId: string,
+  sourceTowerId: string,
+  square: Square,
+): GameState {
+  if (state.phase === 'defeated') return state
+
+  const card = findCard(state.deck, cardId)
+  if (!card || card.kind !== 'standard' || card.rank !== 'Q') return state
+
+  const source = state.towers.find((tower) => tower.id === sourceTowerId)
+  if (!source) return state
+  if (!canBuildOn(state, square)) return state
+
+  // `newTower` seeds from the rank alone, which is exactly why the source's
+  // accumulated supports and shield do not carry across.
+  return {
+    ...state,
+    towers: [...state.towers, newTower(`tower-${state.nextEntityId}`, square, source.cardRank)],
+    nextEntityId: state.nextEntityId + 1,
     deck: removeCard(state.deck, cardId),
   }
 }

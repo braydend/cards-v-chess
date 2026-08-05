@@ -175,3 +175,10 @@ export type Command =
   | { readonly kind: 'setAutoStart'; readonly enabled: boolean }
   | { readonly kind: 'buildTower'; readonly cardId: string; readonly square: Square }
   | { readonly kind: 'supportTower'; readonly cardId: string; readonly towerId: string }
+  | { readonly kind: 'shieldTower'; readonly cardId: string; readonly towerId: string }
+  | {
+      readonly kind: 'echoTower'
+      readonly cardId: string
+      readonly sourceTowerId: string
+      readonly square: Square
+    }
