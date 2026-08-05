@@ -2,11 +2,15 @@ import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
 // GitHub Pages serves this project at /cards-v-chess/, so production assets need
-// that prefix or every URL 404s. Dev stays at the root.
+// that prefix or every URL 404s. Dev stays at the root, since the dev server
+// serves files directly and has no subpath to account for. Preview must use
+// the same base as build: `vite preview` serves the already-built `dist/`,
+// whose index.html hard-codes whatever base build ran with, so serving preview
+// from `/` would 404 every asset and silently fall through to the SPA fallback.
 const PAGES_BASE = '/cards-v-chess/'
 
-export default defineConfig(({ command }) => ({
-  base: command === 'build' ? PAGES_BASE : '/',
+export default defineConfig(({ command, isPreview }) => ({
+  base: command === 'build' || isPreview ? PAGES_BASE : '/',
   plugins: [react()],
   test: {
     // The rules engine is pure TypeScript and needs no DOM. If a UI test ever
