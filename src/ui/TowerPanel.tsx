@@ -61,7 +61,7 @@ export function TowerPanel() {
       <p className="towerPanel__geometry">{GEOMETRY_LABELS[def.geometry]}</p>
 
       <p className="hud__muted">
-        range {def.range} · {formatStat(def.damage)} dmg · {def.fireIntervalMs}ms
+        range {def.range} · {formatStat(tower.damage)} dmg · {tower.fireIntervalMs}ms
       </p>
     </div>
   )
