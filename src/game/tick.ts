@@ -12,8 +12,9 @@ import type { GameState, Piece, Square } from './types'
  * independent, and it is why tests can drive time by calling this directly.
  *
  * Note that Towers currently have no combat behaviour: they are placed and
- * rendered but do not fire. Damage, range, and targeting depend on the card
- * pool, which is an open design decision. See CLAUDE.md.
+ * rendered but do not fire, have no health, and cannot be damaged or repaired.
+ * A Tower's firing geometry comes from the Card rank that built it; the rank
+ * ladder is only partly designed. See CLAUDE.md.
  */
 export function tick(state: GameState, dtMs: number): GameState {
   if (state.phase === 'defeated') return state

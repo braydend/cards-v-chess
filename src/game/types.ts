@@ -17,8 +17,9 @@ export interface BoardSpec {
 }
 
 /**
- * Only one placeholder type exists so far. The real roster and each type's
- * characteristics are an open design decision — see CLAUDE.md.
+ * Only the placeholder Pawn is implemented. The full roster is designed —
+ * pawn, knight, bishop, rook, queen, king — with a distinct threat each.
+ * See the card system spec before widening this union.
  */
 export type PieceTypeId = 'pawn'
 

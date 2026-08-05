@@ -1,8 +1,12 @@
 import type { BoardSpec, Square } from '../game/types'
 
 /**
- * PLACEHOLDER. Board geometry is an open design decision — whether the board
- * is a literal 8x8 chessboard or something larger is unresolved. See CLAUDE.md.
+ * Board geometry remains an open design decision — whether the board is a
+ * literal 8x8 chessboard or something larger is unresolved.
+ *
+ * Note when revisiting: square colour is now mechanically load-bearing (the
+ * Knight is only damageable on light squares), which is an argument for keeping
+ * a true chessboard rather than an arbitrary grid. See CLAUDE.md.
  */
 export const BOARD: BoardSpec = { files: 8, ranks: 8 }
 

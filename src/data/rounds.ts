@@ -9,8 +9,8 @@ import { BOARD } from './board'
  * later it must come from a seeded PRNG carried in state, never `Math.random`,
  * or the simulation stops being reproducible in tests.
  *
- * Real wave composition depends on the piece roster, which is an open design
- * decision. See CLAUDE.md.
+ * Real round composition depends on the piece roster, which is now designed but
+ * not yet implemented — only the placeholder Pawn exists to spawn. See CLAUDE.md.
  */
 export function roundSpec(roundNumber: number): RoundSpec {
   const count = 2 + roundNumber

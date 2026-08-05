@@ -9,8 +9,9 @@ const CARDS_COLOUR = '#2e86c1'
  * Towers are static, so they need no frame loop at all — they re-render only
  * when one is placed.
  *
- * They have no combat behaviour yet. Damage, range, and targeting depend on the
- * card pool, which is an open design decision. See CLAUDE.md.
+ * They have no combat behaviour and no health yet. Towers are designed to be
+ * destructible, and their firing geometry comes from the Card rank that built
+ * them. Neither is implemented. See CLAUDE.md.
  */
 export function Towers({ board }: { board: BoardSpec }) {
   const towers = useGameStore((store) => store.snapshot.towers)

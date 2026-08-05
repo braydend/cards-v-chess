@@ -35,9 +35,12 @@ function startRound(state: GameState): GameState {
 }
 
 /**
- * Placing a Tower currently costs nothing. That is not a balance decision — the
- * economy (what resource gates playing a card, and how it is earned) is an open
- * design decision, and no resource has been named yet. See CLAUDE.md.
+ * Placing a Tower currently costs nothing, and is triggered by clicking the
+ * board rather than by playing a card.
+ *
+ * The intended design exists and is not implemented here: a Tower is built by
+ * playing a Card for its **rank**, paid for in **Ink**. Towers will also carry
+ * health, since they are destructible. See the card system spec.
  */
 function placeTower(state: GameState, square: Square): GameState {
   if (state.phase === 'defeated') return state

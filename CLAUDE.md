@@ -4,10 +4,15 @@ A web-based 3D tower defense game with trading-card-game mechanics.
 
 Two factions, and the name is literal:
 
-- **Cards** — the player. Your deck is your arsenal. You play cards to place and upgrade **Towers** that defend the **Core**.
-- **Chess** — the AI opponent. Waves of chess pieces invade the board, each piece type with its own movement and characteristics, trying to reach the Core.
+- **Cards** — the player. A **standard 54-card deck** is your arsenal. Cards are modal: **rank builds** a Tower, **suit supports** an existing one.
+- **Chess** — the AI opponent. Waves of chess pieces invade the board, each type mapping a real chess trait onto a tower-defense threat, trying to reach the **Core**.
 
 It is a **one-sided defense**. The player is always Cards; Chess is always the attacker. There is no mode where the player commands chess pieces.
+
+**Design specs, in order — read these before designing anything:**
+
+1. [Foundation](docs/superpowers/specs/2026-08-05-cards-v-chess-design.md) — stack, time model, architecture rationale.
+2. [Card system and roster](docs/superpowers/specs/2026-08-05-card-system-and-roster-design.md) — the card grammar, economy, chess roster. **Partly supersedes the foundation spec**, and carries the current list of open questions.
 
 ## Current state
 
@@ -19,13 +24,17 @@ What exists:
 - The renderer (`src/scene/`) and a minimal HUD (`src/ui/`).
 - 38 tests, all passing, none of which need a browser.
 
-What does **not** exist yet, because it depends on open design decisions:
+**The design has moved well ahead of the code.** The card grammar, economy, and chess roster are now agreed (see the specs above), but none of it is implemented. Do not read the current code as evidence of the intended design.
 
-- **Cards.** There is no hand, no deck, and no card pool. Towers are placed by clicking the board, and cost nothing.
-- **Tower combat.** Towers are placed and rendered but do not fire. Damage, range, and targeting depend on the card pool.
-- **The piece roster.** One placeholder type (`pawn`) exists so there is something to render and test.
+What does **not** exist yet:
+
+- **Cards.** No deck, no hand, no Ink, no modality. Towers are placed by clicking the board and cost nothing.
+- **Tower combat.** Towers are placed and rendered but do not fire, have no health, and cannot be damaged or repaired.
+- **The piece roster.** One placeholder `pawn` exists with placeholder stats. None of the six agreed threats are implemented — no promotion, no colour vulnerability, no healing, no Tower attacks.
 
 Because Towers cannot kill anything, a round currently resolves by leaking out. That is expected, not a bug.
+
+**Next implementation step** is a thin vertical slice — Tower health and repair, Piece targeting, and the modal card system with **only ranks 2–5** — rather than the full pool. Rationale in the card system spec.
 
 ## Tech stack
 
@@ -54,6 +63,62 @@ pnpm lint
 ```
 
 **TypeScript is pinned to the 5.x line on purpose.** TypeScript 7 is published as `latest`, but `typescript-eslint` currently declares support only for `>=4.8.4 <6.1.0`, so upgrading breaks `pnpm lint`. Revisit once typescript-eslint ships TS 7 support.
+
+## Game design
+
+Summary only — the [card system spec](docs/superpowers/specs/2026-08-05-card-system-and-roster-design.md) is the authority, and it lists what is still open.
+
+### Card grammar
+
+The player's deck is a **standard 54-card deck** (2–10, J, Q, K, A, two Jokers). Not bespoke cards.
+
+Every card is **modal** — playing it means choosing one of two uses:
+
+> **Rank builds. Suit supports.**
+
+| Suit | Action on a Tower |
+| --- | --- |
+| ♥ Hearts | Repair — restore lost health |
+| ♦ Diamonds | Speed — increase fire rate |
+| ♠ Spades | Health — increase maximum health |
+| ♣ Clubs | Damage — increase damage *(proposed, unconfirmed)* |
+
+Because every card can always build, the player can never be stuck holding only support cards. Preserve that property.
+
+Rank sets a Tower's firing geometry and power. **Towers are generic, never chess-themed** — giving Towers chess firing patterns was explicitly rejected.
+
+### Ink
+
+**Ink** is the resource gating card play. Earned from **round income** (lump sum at round start) and **kill rewards** (scaled by Piece type). Unspent Ink carries between rounds.
+
+**Ink must never accrue over time.** The gap between rounds is untimed, so any time-based income is unbounded — the player just waits. Income is event-driven only. This is structural, not a balance knob.
+
+### Deck and draw
+
+Deck 30, max 2 copies of a card, opening hand 5, draw 2 per round start, hand cap 10. Sized so the player sees nearly the whole deck in a match: draw luck affects **ordering, not access**.
+
+### The Chess roster
+
+| Piece | Threat |
+| --- | --- |
+| **Pawn** | Chaff swarm. **Promotes to a Queen if it survives long enough.** |
+| **Knight** | Colour-flicker — only damageable while on a **light** square |
+| **Bishop** | Healer — sustains the wave until killed |
+| **Rook** | Armoured tank |
+| **Queen** | Elite — flexible, rare, dangerous |
+| **King** | Commander — buffs adjacent Pieces |
+
+Square colour is **mechanically load-bearing** because of the Knight. It is not decoration.
+
+### Towers are destructible
+
+Towers have health, take damage from Pieces, and are repaired with ♥ cards.
+
+**Which Pieces attack Towers is an open question** — that they *differ* is agreed, the assignment is not. Do not implement a targeting split until it is settled.
+
+### No walls, no mazing
+
+There are no wall or blocker cards, and the player never reshapes the path. Pieces cannot be herded. This is a **coverage** tower defense, not a maze one — defense is about which squares you can hit. Do not add path manipulation without revisiting the spec.
 
 ## Architecture
 
@@ -146,16 +211,25 @@ Use these terms exactly and consistently — in code, comments, and UI copy.
 | --- | --- |
 | **Cards** | The player's faction |
 | **Chess** | The AI attacking faction |
-| **Card** | An item in hand, not yet played |
-| **Tower** | A Card's placed, active instance on the board |
+| **Card** | An item in hand, not yet played. Has a rank and a suit |
+| **Rank** | 2–10, J, Q, K, A. Determines the Tower a Card builds |
+| **Suit** | ♥ ♦ ♠ ♣. Determines the support action a Card can apply |
+| **Tower** | A Card played for its rank — placed, active, and destructible |
+| **Support** | A Card played for its suit, applied to an existing Tower |
+| **Ink** | The resource gating card play |
 | **Piece** | One Chess-faction invader instance |
 | **Piece type** | Pawn, knight, bishop, rook, queen, king |
+| **Promotion** | A surviving Pawn becoming a Queen |
 | **Core** | What the player defends |
 | **Round** | One wave of invaders. Always "round", never "wave" |
 | **Tick** | One fixed-timestep simulation step |
 | **Command** | A player action entering the engine |
 | **Leak** | A Piece reaching the Core |
+| **Collection** | The player's owned cards, a multiset. Grown by opening **packs** |
+| **Deck** | The 30 cards chosen from the Collection for a match |
 | **Square / rank / file** | Board positions, chess terminology |
+
+**Careful with "rank".** It means two different things — a Card's rank (2–A) and a board rank (row). Both are standard in their own domain, so keep them apart by context and name variables accordingly (`cardRank` vs `boardRank`) wherever both could appear.
 
 Do not introduce synonyms for these. Drifting between "wave" and "round", or "tower" and "defender", makes the codebase harder to search.
 
@@ -171,12 +245,22 @@ Do not introduce synonyms for these. Drifting between "wave" and "round", or "to
 
 These are **deliberately unresolved**. Do not invent answers, silently pick one, or write code that hardcodes an assumption about them. Ask.
 
-- **Per-piece characteristics** — movement cadence, health, armour, abilities, and how closely each piece type follows real chess movement.
-- **The card pool** — what card types exist, what they do, rarity and card categories.
-- **Economy** — how cards are drawn, what resource gates playing them, how it is earned. No term has been chosen for this resource yet; do not coin one.
-- **Multiplayer scope** — currently assumed single-player versus AI, with no backend, no accounts, and no netcode. Not yet confirmed.
-- **Persistence and metagame** — whether there is a collection, deckbuilding, or progression, and whether any of it is saved.
-- **Board geometry** — whether the board is a literal 8x8 chessboard or a larger/differently shaped grid.
+- **The rank ladder** — only "a 2 fires horizontally" is agreed. Ranks 3–10 are undesigned. The principle (simple and cheap at the bottom, powerful and scarcer toward the top) is agreed; the assignments are not.
+- **Ace, face cards, and Jokers** — they perform specific actions rather than following the rank ladder, in the direction of a Tower upgrade or evolution. Specifics parked.
+- **Bishop's role** — it is currently both a healer *and* a Tower-attacker. Two roles on one Piece will read as muddy; needs resolving to one.
+- **♣ = damage** — inferred to complete the suit quartet, never confirmed.
+- **Which Pieces attack Towers** — that Pieces differ is agreed; the assignment is not. An early sketch (Pawns bypass, Knights and Bishops attack) was a suggestion only and is under discussion.
+- **Pack weighting** — how rank scarcity translates into the contents of a 10-card pack.
+- **Board geometry** — still a literal 8x8 placeholder. Note that square colour is now mechanically load-bearing, which argues for keeping a true chessboard.
+- **Multiplayer scope** — still assumed single-player versus AI, no backend, no netcode.
+
+**Resolved since the foundation spec** — do not treat these as open, and do not revisit the rejected options without cause:
+
+- Persistence and a collection metagame are **in** (packs, collection, deckbuilding), stored locally. Earned currency only, no real money.
+- The resource is named **Ink**.
+- Cards are **playing cards**, not bespoke designed cards, and are modal.
+- Towers are **destructible**, reversing the foundation spec.
+- Rejected: chess-themed Tower firing patterns; bespoke named cards; separate Tower/Tactic/Upgrade categories; invented rarity tiers; wall or blocker cards.
 
 ## Working agreements
 

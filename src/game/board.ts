@@ -19,8 +19,10 @@ export function isInBounds(board: BoardSpec, square: Square): boolean {
  * One step from `from` toward `to`, moving along whichever axis has further to
  * travel.
  *
- * Placeholder pathing. Real per-piece movement — how closely each piece type
- * follows actual chess movement — is an open design decision. See CLAUDE.md.
+ * Placeholder pathing, applied uniformly to every Piece. The designed roster
+ * gives each Piece type its own movement character — the Knight changing square
+ * colour on every hop is load-bearing, since that is when it can be damaged.
+ * None of that is implemented here. See CLAUDE.md.
  */
 export function stepToward(from: Square, to: Square): Square {
   const fileDelta = to.file - from.file

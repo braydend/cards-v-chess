@@ -1,7 +1,13 @@
 # Cards V Chess — Design
 
 **Date:** 2026-08-05
-**Status:** Foundation agreed. Game content and rules deliberately unresolved.
+**Status:** Foundation agreed. **Partly superseded** — see below.
+
+> **Partly superseded by [2026-08-05-card-system-and-roster-design.md](2026-08-05-card-system-and-roster-design.md).**
+>
+> Still authoritative here: the tech stack and the reasoning behind it, the time model, the architecture and the `game/` boundary, and the testing approach.
+>
+> Overtaken there: the "Open design decisions" table below. Persistence and a collection metagame are now **in**; the economy is decided and named (**Ink**); the card pool has an agreed grammar; the piece roster is assigned; and **Towers are destructible**.
 
 This document records the decisions made and, more importantly, why. Conventions derived from these decisions live in `CLAUDE.md`.
 

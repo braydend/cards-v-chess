@@ -5,10 +5,10 @@ import { dispatch, useGameStore } from '../state/store'
 /**
  * Minimal HUD: enough to drive the round loop and read the game's state.
  *
- * Deliberately plain. There is no hand, no deck, and no card display, because
- * the card pool and the economy are open design decisions and inventing
- * placeholder cards would bake in assumptions. The real card UI is where the
- * visual design effort belongs. See CLAUDE.md.
+ * Deliberately plain. There is no hand, no deck, no Ink display and no card
+ * display — none of the card system is implemented yet, even though it is now
+ * designed. The real card UI, showing a hand of playing cards with their modal
+ * rank/suit choice, is where the visual design effort belongs. See CLAUDE.md.
  */
 export function Hud() {
   const snapshot = useGameStore((store) => store.snapshot)

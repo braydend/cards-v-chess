@@ -4,9 +4,13 @@ import type { PieceTypeDef, PieceTypeId } from '../game/types'
  * PLACEHOLDER roster. Exactly one piece type exists so the scaffold has
  * something to render and test.
  *
- * The real roster and each type's characteristics — movement cadence, health,
- * armour, abilities, and how strictly each follows real chess movement — are
- * an open design decision. Do not extend this speculatively. See CLAUDE.md.
+ * The six-piece roster and its threats ARE now designed — Pawn chaff with
+ * promotion, colour-flicker Knight, healer Bishop, armoured Rook, elite Queen,
+ * commander King. None of it is implemented here yet, and the stats below are
+ * placeholders rather than balance decisions.
+ *
+ * Read the card system spec before extending this. What remains genuinely
+ * undecided is which Pieces attack Towers. See CLAUDE.md.
  */
 export const PIECE_TYPES: Record<PieceTypeId, PieceTypeDef> = {
   pawn: {
