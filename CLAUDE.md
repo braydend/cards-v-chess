@@ -132,7 +132,7 @@ This bridge is the part most likely to get broken by accident, so understand it 
 3. `state/store.ts` subscribes to the simulation and publishes a snapshot to zustand **only when `structuralKey` changes** — that key deliberately excludes `roundElapsedMs`, `moveCooldownMs`, and `prevSquare`, all of which change every tick.
 4. Components read the snapshot for mounting and unmounting. Smooth motion between squares is done in `useFrame` by mutating the mesh transform, reading live state via `simulation.getState()`.
 
-Because pieces move in discrete hops, this keeps React renders rare: measured at **28 store publishes across 600 frames** (~21x fewer than rendering per frame). `src/state/simulation.test.ts` guards this — if that test starts failing, something is pushing per-frame updates through React.
+Because pieces move in discrete hops, this keeps React renders rare: measured at **24 store publishes across 600 frames** (25x fewer than rendering per frame). `src/state/simulation.test.ts` guards this with a bound of 60 — comfortable headroom over the real number, but tight enough to fail on a regression — and if that test starts failing, something is pushing per-frame updates through React.
 
 Adding a per-tick value to `structuralKey` would silently destroy this property. Don't.
 

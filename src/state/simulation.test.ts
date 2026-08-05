@@ -96,11 +96,15 @@ describe('React re-render pressure', () => {
     unsubscribe()
 
     // Pieces hop a few times a second, so the structural key changes on the
-    // order of tens of times across 600 frames. If this ever approaches the
-    // frame count, the store is re-rendering React every frame and the
-    // interpolation-by-mutation design has been broken somewhere.
+    // order of tens of times across 600 frames — measured at 24 for this
+    // exact scenario. `frames / 4` (150) let a 5x regression (149 publishes)
+    // pass silently, which is exactly the change class this test exists to
+    // catch: this branch added Tower stats and deck.length to structuralKey.
+    // 60 keeps comfortable headroom for legitimate changes to round/piece
+    // timing while still failing hard on that kind of regression, let alone
+    // one that approaches the frame count.
     expect(publishes).toBeGreaterThan(0)
-    expect(publishes).toBeLessThan(frames / 4)
+    expect(publishes).toBeLessThan(60)
   })
 
   it('does not publish at all while idling in the gap', () => {
