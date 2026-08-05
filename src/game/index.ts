@@ -6,11 +6,13 @@
  * state inspection rather than reaching into modules directly.
  */
 export { allSquares, isInBounds, squareKey, squaresEqual, stepToward } from './board'
+export { coversSquare } from './coverage'
 export { createInitialState } from './state'
 export { step } from './step'
 export { tick } from './tick'
 export type {
   BoardSpec,
+  CardRank,
   Command,
   GameState,
   Piece,
@@ -21,4 +23,5 @@ export type {
   Spawn,
   Square,
   Tower,
+  TowerGeometry,
 } from './types'

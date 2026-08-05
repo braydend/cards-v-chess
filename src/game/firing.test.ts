@@ -1,0 +1,206 @@
+import { describe, expect, it } from 'vitest'
+import { PIECE_TYPES } from '../data/pieceTypes'
+import { TOWER_RANKS } from '../data/towerRanks'
+import { createInitialState, step, tick } from './index'
+import type { CardRank, GameState, Square } from './types'
+
+const DT = 1000 / 60
+const PAWN_HEALTH = PIECE_TYPES.pawn.maxHealth
+
+function runFor(state: GameState, durationMs: number): GameState {
+  let current = state
+  for (let elapsed = 0; elapsed < durationMs; elapsed += DT) {
+    current = tick(current, DT)
+  }
+  return current
+}
+
+/**
+ * Whether a Piece took damage — true whether it was hurt or outright destroyed.
+ *
+ * Asserting `health < max` alone is a trap: a high-rank Tower can one-shot a
+ * Pawn, which removes it from `pieces` entirely and makes a health lookup
+ * undefined. This keeps "was it hit?" independent of the balance numbers.
+ */
+function wasHit(before: GameState, after: GameState, pieceId: string): boolean {
+  const original = before.pieces.find((piece) => piece.id === pieceId)
+  const survivor = after.pieces.find((piece) => piece.id === pieceId)
+
+  if (!original) throw new Error(`no Piece ${pieceId} in the starting state`)
+  if (!survivor) return true
+
+  return survivor.health < original.health
+}
+
+/**
+ * A live round containing one Tower and the given Pieces, with nothing left to
+ * spawn — so the round resolves purely on what the Tower does.
+ */
+function scenario(
+  cardRank: CardRank,
+  towerSquare: Square,
+  pieceSquares: readonly Square[],
+): GameState {
+  const placed = step(createInitialState(), {
+    kind: 'placeTower',
+    square: towerSquare,
+    cardRank,
+  })
+
+  return {
+    ...placed,
+    phase: 'inProgress',
+    pendingSpawns: [],
+    pieces: pieceSquares.map((square, index) => ({
+      id: `target-${index}`,
+      typeId: 'pawn' as const,
+      square,
+      prevSquare: square,
+      health: PAWN_HEALTH,
+      moveCooldownMs: 0,
+    })),
+  }
+}
+
+describe('tower firing', () => {
+  it('damages a Piece inside its coverage', () => {
+    // Rank 2 fires horizontally. Tower and Piece share board rank 6.
+    const state = scenario(2, { file: 2, rank: 6 }, [{ file: 4, rank: 6 }])
+
+    const after = runFor(state, TOWER_RANKS[2].fireIntervalMs + DT)
+
+    expect(after.pieces[0]?.health).toBe(PAWN_HEALTH - TOWER_RANKS[2].damage)
+  })
+
+  it('does not fire before its interval has elapsed', () => {
+    const state = scenario(2, { file: 2, rank: 6 }, [{ file: 4, rank: 6 }])
+
+    const after = runFor(state, TOWER_RANKS[2].fireIntervalMs - 2 * DT)
+
+    expect(after.pieces[0]?.health).toBe(PAWN_HEALTH)
+  })
+
+  it('leaves a Piece outside its coverage untouched', () => {
+    // Rank 2 is horizontal only, so a Piece off its board rank is safe.
+    const state = scenario(2, { file: 2, rank: 6 }, [{ file: 4, rank: 3 }])
+
+    const after = runFor(state, 3000)
+
+    expect(after.pieces[0]?.health).toBe(PAWN_HEALTH)
+  })
+
+  it('leaves a Piece beyond its range untouched', () => {
+    const state = scenario(2, { file: 0, rank: 6 }, [{ file: 7, rank: 6 }])
+
+    const after = runFor(state, 3000)
+
+    expect(after.pieces[0]?.health).toBe(PAWN_HEALTH)
+  })
+
+  it('destroys a Piece whose health reaches zero', () => {
+    // Rank 3 fires vertically. Pawns approach the Core along a file, so this
+    // Tower keeps the Piece covered as it advances.
+    const state = scenario(3, { file: 3, rank: 2 }, [{ file: 3, rank: 6 }])
+
+    const after = runFor(state, 2200)
+
+    expect(after.pieces).toHaveLength(0)
+  })
+
+  it('does not damage the Core when it destroys a Piece', () => {
+    const state = scenario(3, { file: 3, rank: 2 }, [{ file: 3, rank: 6 }])
+
+    const after = runFor(state, 2200)
+
+    expect(after.core.health).toBe(state.core.health)
+    expect(after.leaks).toBe(0)
+  })
+
+  it('completes the round once the last Piece is destroyed', () => {
+    const state = scenario(3, { file: 3, rank: 2 }, [{ file: 3, rank: 6 }])
+
+    const after = runFor(state, 2200)
+
+    expect(after.phase).toBe('gap')
+    expect(after.roundNumber).toBe(state.roundNumber + 1)
+  })
+})
+
+describe('tower firing: geometry is respected', () => {
+  it('a vertical Tower ignores a Piece on its board rank', () => {
+    const state = scenario(3, { file: 2, rank: 6 }, [{ file: 4, rank: 6 }])
+
+    expect(runFor(state, 2000).pieces[0]?.health).toBe(PAWN_HEALTH)
+  })
+
+  it('a cross Tower hits along both rank and file', () => {
+    const onRank = scenario(4, { file: 2, rank: 6 }, [{ file: 4, rank: 6 }])
+    const onFile = scenario(4, { file: 4, rank: 4 }, [{ file: 4, rank: 6 }])
+    const window = TOWER_RANKS[4].fireIntervalMs + DT
+
+    expect(wasHit(onRank, runFor(onRank, window), 'target-0')).toBe(true)
+    expect(wasHit(onFile, runFor(onFile, window), 'target-0')).toBe(true)
+  })
+
+  it('a cross Tower ignores a Piece on a diagonal', () => {
+    const state = scenario(4, { file: 2, rank: 4 }, [{ file: 4, rank: 6 }])
+
+    expect(runFor(state, 500).pieces[0]?.health).toBe(PAWN_HEALTH)
+  })
+
+  it('a diagonal Tower hits a Piece on its diagonal', () => {
+    const state = scenario(5, { file: 2, rank: 4 }, [{ file: 4, rank: 6 }])
+
+    const after = runFor(state, TOWER_RANKS[5].fireIntervalMs + DT)
+
+    expect(wasHit(state, after, 'target-0')).toBe(true)
+  })
+
+  it('a diagonal Tower ignores a Piece on its own file', () => {
+    const state = scenario(5, { file: 4, rank: 4 }, [{ file: 4, rank: 6 }])
+
+    expect(runFor(state, 500).pieces[0]?.health).toBe(PAWN_HEALTH)
+  })
+})
+
+describe('tower firing: target selection', () => {
+  it('shoots the Piece closest to the Core first', () => {
+    // Both sit on the Tower's file and within range; one is nearer the Core.
+    const state = scenario(3, { file: 3, rank: 7 }, [
+      { file: 3, rank: 5 },
+      { file: 3, rank: 4 },
+    ])
+
+    const after = runFor(state, TOWER_RANKS[3].fireIntervalMs + DT)
+
+    const nearer = after.pieces.find((piece) => piece.id === 'target-1')
+    const further = after.pieces.find((piece) => piece.id === 'target-0')
+
+    expect(nearer?.health).toBe(PAWN_HEALTH - TOWER_RANKS[3].damage)
+    expect(further?.health).toBe(PAWN_HEALTH)
+  })
+
+  it('fires once per interval, not once per target', () => {
+    const state = scenario(3, { file: 3, rank: 7 }, [
+      { file: 3, rank: 5 },
+      { file: 3, rank: 4 },
+    ])
+
+    const after = runFor(state, TOWER_RANKS[3].fireIntervalMs + DT)
+    const totalDamage = after.pieces.reduce(
+      (sum, piece) => sum + (PAWN_HEALTH - piece.health),
+      0,
+    )
+
+    expect(totalDamage).toBe(TOWER_RANKS[3].damage)
+  })
+})
+
+describe('tower firing: determinism', () => {
+  it('produces identical state from identical inputs', () => {
+    const a = runFor(scenario(3, { file: 3, rank: 2 }, [{ file: 3, rank: 6 }]), 1500)
+    const b = runFor(scenario(3, { file: 3, rank: 2 }, [{ file: 3, rank: 6 }]), 1500)
+
+    expect(a).toEqual(b)
+  })
+})

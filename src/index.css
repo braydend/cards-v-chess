@@ -69,6 +69,68 @@ canvas {
   color: #6f7f94;
 }
 
+.hud__ranks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-top: 0.2rem;
+  border-top: 1px solid rgb(255 255 255 / 10%);
+}
+
+.hud__label {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8fa0b5;
+}
+
+.hud__rankRow {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.hud__rank {
+  flex: 1;
+  padding: 0.4rem 0;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 0.35rem;
+  background: #232b36;
+  color: #cbd6e4;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hud__rank:hover {
+  border-color: rgb(255 255 255 / 34%);
+}
+
+.hud__rank--active {
+  color: #fff;
+  border-color: transparent;
+}
+
+.hud__rank--2.hud__rank--active {
+  background: #2e86c1;
+}
+.hud__rank--3.hud__rank--active {
+  background: #16a085;
+}
+.hud__rank--4.hud__rank--active {
+  background: #8e44ad;
+}
+.hud__rank--5.hud__rank--active {
+  background: #d4ac0d;
+}
+
+.hud__rankDetail {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #b9c6d6;
+}
+
 .hud__actions {
   display: flex;
   flex-direction: column;

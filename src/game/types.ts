@@ -45,9 +45,25 @@ export interface Piece {
   readonly moveCooldownMs: number
 }
 
+/**
+ * A Tower's firing geometry, set by the rank of the Card that built it.
+ * Towers are generic — this is NOT chess-piece movement.
+ */
+export type TowerGeometry = 'horizontal' | 'vertical' | 'cross' | 'diagonal'
+
+/**
+ * Only ranks 2–5 are designed. Ranks 6–10 and the face cards, Ace, and Jokers
+ * are deliberately absent from this union so that inventing them is a type
+ * error rather than a silent guess. See the design doc's open questions.
+ */
+export type CardRank = 2 | 3 | 4 | 5
+
 export interface Tower {
   readonly id: string
   readonly square: Square
+  readonly cardRank: CardRank
+  /** Milliseconds accumulated toward this Tower's next shot. */
+  readonly fireCooldownMs: number
 }
 
 /**
@@ -92,4 +108,4 @@ export interface GameState {
 export type Command =
   | { readonly kind: 'startRound' }
   | { readonly kind: 'setAutoStart'; readonly enabled: boolean }
-  | { readonly kind: 'placeTower'; readonly square: Square }
+  | { readonly kind: 'placeTower'; readonly square: Square; readonly cardRank: CardRank }

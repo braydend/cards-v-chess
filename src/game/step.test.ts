@@ -39,23 +39,33 @@ describe('step: setAutoStart', () => {
 
 describe('step: placeTower', () => {
   it('places a tower on an empty square', () => {
-    const state = step(createInitialState(), { kind: 'placeTower', square: { file: 2, rank: 2 } })
+    const state = step(createInitialState(), { kind: 'placeTower', square: { file: 2, rank: 2 }, cardRank: 2 })
 
     expect(state.towers).toHaveLength(1)
     expect(state.towers[0]?.square).toEqual({ file: 2, rank: 2 })
   })
 
+  it('records the Card rank the Tower was built from', () => {
+    const state = step(createInitialState(), {
+      kind: 'placeTower',
+      square: { file: 3, rank: 3 },
+      cardRank: 5,
+    })
+
+    expect(state.towers[0]?.cardRank).toBe(5)
+  })
+
   it('gives each tower a distinct id', () => {
     let state = createInitialState()
-    state = step(state, { kind: 'placeTower', square: { file: 1, rank: 1 } })
-    state = step(state, { kind: 'placeTower', square: { file: 2, rank: 1 } })
+    state = step(state, { kind: 'placeTower', square: { file: 1, rank: 1 }, cardRank: 2 })
+    state = step(state, { kind: 'placeTower', square: { file: 2, rank: 1 }, cardRank: 3 })
 
     expect(new Set(state.towers.map((tower) => tower.id)).size).toBe(2)
   })
 
   it('is allowed during a round, since building is not confined to the gap', () => {
     const running = step(createInitialState(), { kind: 'startRound' })
-    const state = step(running, { kind: 'placeTower', square: { file: 4, rank: 4 } })
+    const state = step(running, { kind: 'placeTower', square: { file: 4, rank: 4 }, cardRank: 2 })
 
     expect(state.phase).toBe('inProgress')
     expect(state.towers).toHaveLength(1)
@@ -68,12 +78,12 @@ describe('step: placeTower', () => {
   ])('refuses a square %s', (_label, square) => {
     const initial = createInitialState()
 
-    expect(step(initial, { kind: 'placeTower', square })).toBe(initial)
+    expect(step(initial, { kind: 'placeTower', square, cardRank: 2 })).toBe(initial)
   })
 
   it('refuses the Core square', () => {
     const initial = createInitialState()
-    const state = step(initial, { kind: 'placeTower', square: initial.core.square })
+    const state = step(initial, { kind: 'placeTower', square: initial.core.square, cardRank: 2 })
 
     expect(state).toBe(initial)
   })
@@ -82,8 +92,9 @@ describe('step: placeTower', () => {
     const occupied = step(createInitialState(), {
       kind: 'placeTower',
       square: { file: 5, rank: 5 },
+      cardRank: 2,
     })
-    const state = step(occupied, { kind: 'placeTower', square: { file: 5, rank: 5 } })
+    const state = step(occupied, { kind: 'placeTower', square: { file: 5, rank: 5 }, cardRank: 2 })
 
     expect(state).toBe(occupied)
     expect(state.towers).toHaveLength(1)

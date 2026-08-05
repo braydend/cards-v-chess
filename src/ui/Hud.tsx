@@ -1,6 +1,15 @@
 import { CORE_MAX_HEALTH } from '../data/board'
+import { BUILDABLE_RANKS, towerRank } from '../data/towerRanks'
 import { reset } from '../state/simulation'
 import { dispatch, useGameStore } from '../state/store'
+import { useUiStore } from '../state/uiStore'
+
+const GEOMETRY_LABELS: Record<string, string> = {
+  horizontal: 'Fires along its rank',
+  vertical: 'Fires along its file',
+  cross: 'Fires along rank and file',
+  diagonal: 'Fires along diagonals — one colour only',
+}
 
 /**
  * Minimal HUD: enough to drive the round loop and read the game's state.
@@ -12,7 +21,10 @@ import { dispatch, useGameStore } from '../state/store'
  */
 export function Hud() {
   const snapshot = useGameStore((store) => store.snapshot)
-  const { phase, roundNumber, core, leaks, autoStart, pieces } = snapshot
+  const selectedRank = useUiStore((store) => store.selectedRank)
+  const setSelectedRank = useUiStore((store) => store.setSelectedRank)
+  const { phase, roundNumber, core, leaks, autoStart, pieces, towers } = snapshot
+  const selected = towerRank(selectedRank)
 
   return (
     <div className="hud">
@@ -37,7 +49,36 @@ export function Hud() {
             <dt>Pieces</dt>
             <dd>{pieces.length}</dd>
           </div>
+          <div>
+            <dt>Towers</dt>
+            <dd>{towers.length}</dd>
+          </div>
         </dl>
+
+        <div className="hud__ranks">
+          <span className="hud__label">Build rank</span>
+          <div className="hud__rankRow">
+            {BUILDABLE_RANKS.map((rank) => (
+              <button
+                key={rank}
+                type="button"
+                className={`hud__rank hud__rank--${rank}${
+                  rank === selectedRank ? ' hud__rank--active' : ''
+                }`}
+                onClick={() => setSelectedRank(rank)}
+              >
+                {rank}
+              </button>
+            ))}
+          </div>
+          <p className="hud__rankDetail">
+            {GEOMETRY_LABELS[selected.geometry]}
+            <br />
+            <span className="hud__muted">
+              range {selected.range} · {selected.damage} dmg · {selected.fireIntervalMs}ms
+            </span>
+          </p>
+        </div>
 
         <div className="hud__actions">
           {phase === 'defeated' ? (
@@ -70,7 +111,7 @@ export function Hud() {
         <p className="hud__hint">
           {phase === 'defeated'
             ? 'The Core has fallen.'
-            : 'Click the board to place a Tower — during a round or between them.'}
+            : 'Hover the board to preview coverage, click to build — during a round or between them.'}
         </p>
       </div>
     </div>
