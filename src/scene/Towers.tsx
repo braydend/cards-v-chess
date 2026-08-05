@@ -39,6 +39,7 @@ export function Towers({ board }: { board: BoardSpec }) {
   const ghostStartedAt = useRef(new Map<string, number>())
   const meshes = useRef(new Map<string, PositionMesh>())
   const lastEntityId = useRef(0)
+  const expiryTimers = useRef(new Set<ReturnType<typeof setTimeout>>())
 
   // The diff runs from a store subscription rather than a render-driven effect.
   // Two reasons: a Tower death is an external event, so `setGhosts` belongs in a
@@ -50,22 +51,31 @@ export function Towers({ board }: { board: BoardSpec }) {
     const initialSnapshot = useGameStore.getState().snapshot
     lastEntityId.current = initialSnapshot.nextEntityId
 
+    // Captured once so the cleanup below reads the same Set this effect
+    // populated, rather than `expiryTimers.current` as it stands whenever
+    // cleanup happens to run — the ref itself is never reassigned, but this
+    // is what the lint rule for refs-in-cleanup wants regardless.
+    const timers = expiryTimers.current
+
     // Seed from whatever is already on the board. The returned list is
     // necessarily empty: nothing can have fallen out of a map that was empty a
     // moment ago, which is why no state update belongs here.
     diffTowers(animations.current, initialSnapshot)
 
-    return useGameStore.subscribe((store) => {
+    const unsubscribe = useGameStore.subscribe((store) => {
       const snapshot = store.snapshot
 
       // `reset()` rewinds `nextEntityId` to 1 — the only way it can ever go
       // backwards within a run. Catching that here clears out any ghost still
       // riding out its flare from the previous run immediately, rather than
       // leaving a previous-run ghost on screen for up to DEATH_FLARE_MS after
-      // "Play again". These ghosts are discarded before their own expiry
-      // timeout fires, so their flare-start times must be cleared here too.
+      // "Play again", and cancels their pending expiry timers so none of them
+      // later fires a filter against an already-cleared `ghosts` array.
+      // `ghostStartedAt` needs no attention here — the pruning effect below
+      // reconciles it against `ghosts` after every change, including this one.
       if (snapshot.nextEntityId < lastEntityId.current) {
-        ghostStartedAt.current.clear()
+        for (const timer of timers) clearTimeout(timer)
+        timers.clear()
         setGhosts([])
       }
       lastEntityId.current = snapshot.nextEntityId
@@ -78,20 +88,40 @@ export function Towers({ board }: { board: BoardSpec }) {
       // Each ghost expires on its own timer rather than a shared batch one. A
       // batch timer restarts on every death, so sustained fire would keep an
       // already-invisible ghost mounted — an instance slot and a per-frame call
-      // — until a DEATH_FLARE_MS quiet gap. Filtering by id is additive-safe:
-      // this can only remove the ghosts scheduled right here, never one a later
-      // death appends within the same React batch.
+      // — until a DEATH_FLARE_MS quiet gap. Filtering by object identity rather
+      // than id is deliberate: a `Ghost` record is a unique object that
+      // survives the `[...current, ...fallen]` spread untouched, so identity
+      // can never match a Tower id that a later `reset()` happens to reuse,
+      // where a string comparison theoretically could.
       for (const ghost of fallen) {
-        setTimeout(() => {
-          // The timeout is what knows a ghost's life is over, so its
-          // flare-start time is cleaned up here — see the ghost ref callback
-          // below for why that map must not be touched from there.
-          ghostStartedAt.current.delete(ghost.id)
-          setGhosts((current) => current.filter((candidate) => candidate.id !== ghost.id))
+        const timer = setTimeout(() => {
+          timers.delete(timer)
+          setGhosts((current) => current.filter((candidate) => candidate !== ghost))
         }, DEATH_FLARE_MS)
+        timers.add(timer)
       }
     })
+
+    return () => {
+      unsubscribe()
+      for (const timer of timers) clearTimeout(timer)
+      timers.clear()
+    }
   }, [])
+
+  // Prunes flare-timing entries for ghosts that have left state. This runs
+  // after commit, which is the whole point: deleting an entry while its ghost
+  // is still in the committed `ghosts` array would let the frame loop re-stamp
+  // `startedAt` and flash the ghost back to full scale for one frame — and
+  // leave that entry orphaned, since ids are never reused within a run.
+  useEffect(() => {
+    if (ghostStartedAt.current.size === 0) return
+
+    const live = new Set(ghosts.map((ghost) => ghost.id))
+    for (const id of ghostStartedAt.current.keys()) {
+      if (!live.has(id)) ghostStartedAt.current.delete(id)
+    }
+  }, [ghosts])
 
   useFrame((state) => {
     const now = state.clock.elapsedTime
@@ -202,8 +232,10 @@ export function Towers({ board }: { board: BoardSpec }) {
                 // touched here: clearing it mid-life would reset the flare's
                 // start time on the very next frame, snapping `remaining`
                 // back to 1 repeatedly instead of letting it shrink. That
-                // cleanup belongs where a ghost's life actually ends — the
-                // expiry timeout above, and the reset branch below it.
+                // cleanup is handled entirely by the pruning effect above,
+                // which reconciles `ghostStartedAt` against `ghosts` after
+                // every commit — never from a ref callback that can fire
+                // mid-life like this one.
                 ref={(mesh: PositionMesh | null) => {
                   if (mesh) meshes.current.set(ghost.meshKey, mesh)
                   else meshes.current.delete(ghost.meshKey)

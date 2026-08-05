@@ -41,8 +41,8 @@ function startRound(state: GameState): GameState {
  *
  * The intended design exists and is not implemented here: a Tower is built by
  * playing a Card for its **rank**, paid for in **Ink**. Towers already carry
- * health, since they are destructible — see `damageTaken: 0` three lines
- * below. See the card system spec.
+ * health, since they are destructible — see `damageTaken: 0` in the object
+ * literal below. See the card system spec.
  */
 function placeTower(state: GameState, square: Square, cardRank: CardRank): GameState {
   if (state.phase === 'defeated') return state

@@ -55,6 +55,29 @@ describe('diffTowers', () => {
     expect(animations.get('tower-1')?.flashPending).toBe(false)
   })
 
+  it('updates lastHealth after a diff, so a health drop only flashes once', () => {
+    const animations = new Map<string, TowerAnimation>()
+    diffTowers(animations, snapshotWith({ towers: [tower({ health: 10, maxHealth: 10 })] }))
+
+    // The drop: flashPending is set, and lastHealth must track it — an
+    // implementation that forgot `existing.lastHealth = tower.health` would
+    // still pass this far, since flashPending is set from `existing.lastHealth`
+    // before it would have been (wrongly) left at its old value.
+    diffTowers(animations, snapshotWith({ towers: [tower({ health: 7, maxHealth: 10 })] }))
+
+    // Consume the flash, as the frame loop does once it stamps flashStartedAt.
+    const record = animations.get('tower-1')
+    if (record) record.flashPending = false
+
+    // Same health as last time: this only stays flash-free if lastHealth was
+    // actually updated to 7 above. If it were still 10, 7 < 10 would set
+    // flashPending again here, and the Tower would flash on every subsequent
+    // diff forever after its first hit.
+    diffTowers(animations, snapshotWith({ towers: [tower({ health: 7, maxHealth: 10 })] }))
+
+    expect(animations.get('tower-1')?.flashPending).toBe(false)
+  })
+
   it('yields a ghost with the remembered cardRank, file, and boardRank when a Tower vanishes mid-round, and deletes its record', () => {
     const animations = new Map<string, TowerAnimation>()
     const fallen = tower({ id: 'tower-1', cardRank: 4, square: { file: 5, rank: 6 } })
