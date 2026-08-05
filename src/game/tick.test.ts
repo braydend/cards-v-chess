@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
-import { KING_SPEED_MULTIPLIER } from './auras'
+import { TOWER_RANKS } from '../data/towerRanks'
+import { BISHOP_HEAL_INTERVAL_MS, KING_SPEED_MULTIPLIER } from './auras'
 import { createInitialState, step, tick } from './index'
-import type { GameState, Handedness, Piece, PieceTypeId, Square } from './types'
+import type { GameState, Handedness, Piece, PieceTypeId, Square, Tower } from './types'
 
 /** The fixed timestep the app runs at. Tests drive time; nothing reads a clock. */
 const DT = 1000 / 60
@@ -339,6 +340,74 @@ describe('tick: the King aura', () => {
     const after = tick(state, DT)
 
     expect(after.pieces.find((piece) => piece.id === 'pawn')?.square.rank).toBe(6)
+  })
+})
+
+describe('tick: the Bishop healing aura', () => {
+  it('heals a damaged Piece in range as part of a tick, not just the standalone aura function', () => {
+    // Task 7 and 8 each shipped a new aura module whose `tick.ts` wiring stayed
+    // completely inert under the suite — revert the `applyHealing` call below
+    // and this is the test that would still catch it, since `auras.test.ts`
+    // only exercises `applyHealing` directly and never goes through `tick`.
+    const state: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      pieces: [
+        pieceAt('bishop', 'bishop', { file: 4, rank: 4 }),
+        pieceAt('king', 'king', { file: 4, rank: 4 }, { health: 1 }),
+      ],
+    }
+
+    // Long enough for the Bishop's first pulse to land, with a margin tick so
+    // floating-point summation across many small steps cannot undershoot the
+    // threshold. The King's own 1800ms move interval keeps it from hopping
+    // away within this window, and its 12 max health means the pulse's +2
+    // cannot be mistaken for a cap effect.
+    const after = runFor(state, BISHOP_HEAL_INTERVAL_MS + DT)
+
+    expect(after.pieces.find((piece) => piece.id === 'king')?.health).toBeGreaterThan(1)
+  })
+
+  it('leaves a Piece dead even when a Bishop pulse comes due on the same tick that kills it', () => {
+    // Both cooldowns are primed to cross their threshold on this exact tick.
+    // `600 - DT + DT` and `1500 - DT + DT` round-trip to exactly 600 and 1500
+    // in IEEE754 for this DT, so both the Tower's shot and the Bishop's pulse
+    // land on the very same `tick` call — the one scenario where getting the
+    // call order backwards in `tick.ts` would actually show up as a survivor.
+    const rank2 = TOWER_RANKS[2]
+    const tower: Tower = {
+      id: 'tower',
+      square: { file: 4, rank: 4 },
+      cardRank: 2,
+      fireCooldownMs: rank2.fireIntervalMs - DT,
+      health: rank2.maxHealth,
+      maxHealth: rank2.maxHealth,
+    }
+
+    const state: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      towers: [tower],
+      pieces: [
+        // Adjacent to the Tower (distance 1, within its range-1 coverage) and
+        // already hurt, so the Tower's 1 damage is exactly lethal.
+        pieceAt('target', 'pawn', { file: 4, rank: 5 }, { health: 1 }),
+        // Within the Bishop's healing radius of the target (distance 1) but
+        // outside the Tower's adjacent coverage (distance 2), so the Tower
+        // can only ever target the Pawn, never the Bishop.
+        pieceAt('bishop', 'bishop', { file: 5, rank: 6 }, { auraCooldownMs: BISHOP_HEAL_INTERVAL_MS - DT }),
+      ],
+    }
+
+    const after = tick(state, DT)
+
+    // Correct order — fire, then heal — means fireTowers has already dropped
+    // the dead Pawn from the list before applyHealing ever runs, so there is
+    // nothing left for the Bishop's same-tick pulse to top up. Swap the order
+    // and the Bishop heals the Pawn from 1 to 3 (capped at its max of 3)
+    // before the Tower's damage lands, so it would survive this tick at
+    // health 2 instead of being gone.
+    expect(after.pieces.find((piece) => piece.id === 'target')).toBeUndefined()
   })
 })
 

@@ -1,6 +1,6 @@
 import { BLOCKED_ATTACK_MULTIPLIER, pieceType } from '../data/pieceTypes'
 import { towerRank, type TowerRankDef } from '../data/towerRanks'
-import { KING_SPEED_MULTIPLIER, buffedPieceIds, slideBonusFor } from './auras'
+import { KING_SPEED_MULTIPLIER, applyHealing, buffedPieceIds, slideBonusFor } from './auras'
 import { squareKey } from './board'
 import { coversSquare } from './coverage'
 import { isStuck, nextMove } from './movement'
@@ -51,6 +51,9 @@ export function tick(state: GameState, dtMs: number): GameState {
   // Fire after movement, so Towers shoot at where Pieces actually are now.
   const fired = fireTowers(standingTowers, moved.pieces, state.core.square, dtMs)
 
+  // After firing, so a Bishop can top up survivors but never resurrect the dead.
+  const healed = applyHealing(fired.pieces, dtMs)
+
   const coreHealth = Math.max(0, state.core.health - moved.leaked)
   const core = { ...state.core, health: coreHealth }
   const leaks = state.leaks + moved.leaked
@@ -62,7 +65,7 @@ export function tick(state: GameState, dtMs: number): GameState {
       core,
       leaks,
       roundElapsedMs,
-      pieces: fired.pieces,
+      pieces: healed,
       towers: fired.towers,
       pendingSpawns,
       nextEntityId,
@@ -92,7 +95,7 @@ export function tick(state: GameState, dtMs: number): GameState {
   const standingBySquare = new Map(
     fired.towers.map((tower) => [squareKey(tower.square), tower]),
   )
-  const stillActive = fired.pieces.some(
+  const stillActive = healed.some(
     (piece) => !isStuck(piece, state.board, state.core.square, standingBySquare),
   )
 
@@ -104,7 +107,7 @@ export function tick(state: GameState, dtMs: number): GameState {
       roundElapsedMs: 0,
       core,
       leaks,
-      pieces: fired.pieces,
+      pieces: healed,
       towers: fired.towers,
       pendingSpawns: [],
       nextEntityId,
@@ -116,7 +119,7 @@ export function tick(state: GameState, dtMs: number): GameState {
     core,
     leaks,
     roundElapsedMs,
-    pieces: fired.pieces,
+    pieces: healed,
     towers: fired.towers,
     pendingSpawns,
     nextEntityId,
