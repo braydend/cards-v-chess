@@ -1,5 +1,11 @@
 # CI Pipeline Implementation Plan
 
+**Status: COMPLETED 2026-08-05. Historical record, not the current design.**
+
+> This document records how the CI pipeline was implemented on 2026-08-05 — the tasks executed, the order they were done in, and the checks proven against deliberate violations along the way. It is not updated as the pipeline evolves.
+>
+> **For current state, the authorities are `.github/workflows/ci.yml`, `vite.config.ts`, `eslint.config.js`, and the `## CI` section of [`CLAUDE.md`](../../../CLAUDE.md).**
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a GitHub Actions pipeline that gates every pull request and every push to `main` on `lint` + `typecheck` + `test` + `build`, and deploys `main` to GitHub Pages only when those checks pass.

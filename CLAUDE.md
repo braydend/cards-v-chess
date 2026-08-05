@@ -225,13 +225,14 @@ Do not duplicate it here. Do not resolve anything on it by guessing.
 
 ## Documentation structure
 
-Three roles, three homes. Putting content in the wrong one is how the docs drift:
+Four roles, four homes. Putting content in the wrong one is how the docs drift:
 
 | File | Role |
 | --- | --- |
 | `CLAUDE.md` | **How to work in this repo.** Stack, commands, architecture, discipline, vocabulary, testing. Design appears only as invariants that constrain code. |
 | `docs/design/game-design.md` | **What the game is.** Living, mutable, single source of truth. Holds the only open-questions list. |
 | `docs/superpowers/specs/*.md` | **Why decisions were made**, and what was rejected. Dated, frozen, never updated. |
+| `docs/superpowers/plans/*.md` | **How a piece of work was carried out.** Dated, completed, frozen once done — a historical record of the tasks and order, not a live description of current state. |
 
 When the design changes, edit `game-design.md`. Add a new dated spec only to record the reasoning behind a substantial decision — never to restate current state.
 
