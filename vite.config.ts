@@ -49,6 +49,14 @@ export default defineConfig(({ command, isPreview }) => ({
         // These numbers track the tree they were last measured against and
         // are expected to be re-set as the codebase grows — re-measure before
         // assuming they still reflect current coverage.
+        //
+        // This is an allowlist, not a global floor: a directory only gets a
+        // gate once it has an entry here. A brand-new measured directory (a
+        // future src/engine/, say) is included by the `include` glob above
+        // and so counts toward the overall coverage report, but has no
+        // threshold of its own and cannot fail the build no matter how
+        // untested it is. Adding a new top-level src/ directory that should
+        // be held to a standard means adding its own entry below.
         'src/game/**': { statements: 85, branches: 85, functions: 85, lines: 90 },
         'src/state/**': { statements: 90, branches: 95, functions: 85, lines: 90 },
       },
