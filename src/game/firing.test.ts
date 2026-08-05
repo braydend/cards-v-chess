@@ -169,6 +169,22 @@ describe('tower firing: target selection', () => {
     expect(further?.health).toBe(PAWN_HEALTH)
   })
 
+  it('breaks ties on the lexicographically smaller id, not numeric order', () => {
+    // 'piece-10' < 'piece-2' lexicographically but 10 > 2 numerically, so the
+    // two orders disagree here. This pins which comparison selectTargets uses,
+    // not merely that some tie-break exists.
+    const towerSquare = { file: 3, rank: 4 }
+    const state = liveRound(withTower(2, towerSquare), [
+      pawnAt('piece-10', { file: 2, rank: 4 }),
+      pawnAt('piece-2', { file: 4, rank: 4 }),
+    ])
+
+    const after = runFor(state, TOWER_RANKS[2].fireIntervalMs + DT)
+
+    expect(wasHit(state, after, 'piece-10')).toBe(true)
+    expect(wasHit(state, after, 'piece-2')).toBe(false)
+  })
+
   it('fires once per interval, not once per target', () => {
     const state = scenario(3, { file: 3, rank: 7 }, [
       { file: 3, rank: 5 },

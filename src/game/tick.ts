@@ -76,6 +76,18 @@ export function tick(state: GameState, dtMs: number): GameState {
   // Stranded Pieces are deliberately left standing rather than quietly deleted,
   // so the gap is visible. The designed answer is Pawn promotion, which is not
   // implemented. See the design doc's open questions.
+  //
+  // LOAD-BEARING INVARIANT: a Piece blocked by a Tower returns `attackTower`,
+  // not `stuck`, so it counts as active and this round cannot end while it
+  // grinds. That terminates only because Towers can be healed no more than the
+  // Deck allows — cards are consumed and nothing replenishes them, so repair is
+  // finite and the Tower always eventually falls.
+  //
+  // ADDING PACKS REMOVES THAT BOUND. Unlimited ♥ means an unbreakable Tower and
+  // a round that never ends — worst against a diagonal Tower, which cannot even
+  // shoot a Piece attacking from directly up-file. `roundTermination.test.ts`
+  // pins the bound; see "Repair versus the wall" in the design docs before
+  // changing anything here.
   const standingBySquare = new Map(
     fired.towers.map((tower) => [squareKey(tower.square), tower]),
   )
