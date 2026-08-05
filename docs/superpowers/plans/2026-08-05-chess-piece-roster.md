@@ -1983,7 +1983,11 @@ const GEOMETRY_BY_TYPE: Record<PieceTypeId, () => BufferGeometry> = {
   king: () => new CylinderGeometry(0.26, 0.3, 0.85, 8),
 }
 
-/** Half each silhouette height, so every Piece sits on the board rather than in it. */
+/**
+ * Where each silhouette's origin sits so the Piece rests on the board rather
+ * than in it — half its height, except the Pawn, which keeps the existing
+ * hand-tuned 0.35 so it looks unchanged.
+ */
 const REST_Y_BY_TYPE: Record<PieceTypeId, number> = {
   pawn: 0.35,
   knight: 0.3,
@@ -2147,6 +2151,8 @@ In **Invariants that constrain code**:
 - Add: "**Sliders and the King sweep laterally when forward is off the board, reflecting off the file edges and flipping `handedness`.** Round termination depends on this: without the flip a Piece oscillates between two files forever. Knights are exempt and strand, because a bouncing Knight would keep a round alive indefinitely."
 
 In **Current state**, replace the "What does **not** exist yet" bullet about the piece roster: the roster, promotion, healing, and the King aura now exist. Colour vulnerability is gone from the design. Cards, Ink, and the Deck are still absent.
+
+Also fix the stale test count in that section — it claims "38 tests, all passing". Run `pnpm test:run` and use the real number.
 
 - [ ] **Step 3: Verify nothing else drifted**
 
