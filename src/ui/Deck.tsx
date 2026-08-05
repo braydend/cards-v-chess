@@ -15,9 +15,9 @@ const SUIT_ACTION = {
 
 const FACE_ACTION = {
   J: 'Shield a Tower',
-  Q: 'Copy a Tower',
+  Q: 'Echo a Tower',
   K: 'Reinforce the Core',
-  A: 'Grow the board',
+  A: 'Expand the board',
 } as const
 
 function cardLabel(card: Card): string {
@@ -165,8 +165,8 @@ function targetHint(
 
   if (card.kind === 'standard' && card.rank === 'Q') {
     return echoSourceTowerId
-      ? 'Now click an empty square for the copy'
-      : `Click the Tower to copy${noTowers}`
+      ? 'Now click an empty square for the echo'
+      : `Click the Tower to echo${noTowers}`
   }
 
   return 'Click a square on the board'

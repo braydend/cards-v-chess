@@ -12,8 +12,8 @@ const COVERED = '#4fd1c5'
  * Highlights the squares the selected Card would cover from the hovered square.
  *
  * This exists to make the rank ladder judgeable. Whether a horizontal-only
- * Tower is useful or nearly useless on an 8x8 board with Pieces converging on
- * one Core square is a question you can only answer by seeing the footprint.
+ * Tower is useful or nearly useless on the board with Pieces converging on
+ * the Core is a question you can only answer by seeing the footprint.
  *
  * Only the build mode previews. Played for its suit the same Card supports an
  * existing Tower and builds nothing, so a footprint would promise a Tower the
