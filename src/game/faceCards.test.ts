@@ -87,7 +87,14 @@ describe('Queen — Echo', () => {
     const base = withQueen()
     const upgraded: GameState = {
       ...base,
-      towers: base.towers.map((tower) => ({ ...tower, damage: 99, shield: 50, maxHealth: 200 })),
+      towers: base.towers.map((tower) => ({
+        ...tower,
+        damage: 99,
+        shield: 50,
+        maxHealth: 200,
+        health: 50,
+        fireIntervalMs: 123,
+      })),
     }
 
     const after = step(upgraded, {
@@ -100,6 +107,20 @@ describe('Queen — Echo', () => {
     expect(after.towers[1]?.damage).toBe(TOWER_RANKS[5].damage)
     expect(after.towers[1]?.shield).toBe(0)
     expect(after.towers[1]?.maxHealth).toBe(TOWER_RANKS[5].maxHealth)
+    expect(after.towers[1]?.fireIntervalMs).toBe(TOWER_RANKS[5].fireIntervalMs)
+    expect(after.towers[1]?.health).toBe(TOWER_RANKS[5].maxHealth)
+  })
+
+  it('consumes the Card', () => {
+    const state = withQueen()
+    const after = step(state, {
+      kind: 'echoTower',
+      cardId: 'q',
+      sourceTowerId: firstTowerId(state),
+      square: ELSEWHERE,
+    })
+
+    expect(after.deck).toHaveLength(0)
   })
 
   it('refuses an occupied square', () => {
