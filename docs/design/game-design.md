@@ -217,7 +217,7 @@ This has large consequences that are accepted deliberately:
 
 - **A Piece can only threaten the Core if chess movement can reach it.** A pawn is confined to its file, so only the Core's own file and the two files diagonally adjacent are dangerous to it specifically. Sliders and the King reach further, because the lateral fallback below sweeps them across the whole rank once they hit the back rank.
 - **A round therefore ends when nothing on the board can still act**, not when the board is empty. Waiting for an empty board would hang the round forever.
-- **Knights strand; nothing else does.** A Knight's every hop from rank 0 goes backwards, so once it gets there it has no legal move for the rest of the run — a real chess outcome, not a bug. Every other type has a designed answer instead: Pawns promote, sliders and the King sweep sideways. See Promotion and Lateral fallback, both below.
+- **Knights strand; nothing else does.** A Knight's hops only ever go forward, so at rank 0 all four candidates would need to land off the board — and unlike a slider or the King, it has no lateral fallback to catch it. Once it reaches rank 0 it has no legal move for the rest of the run — a real chess outcome, not a bug. Every other type has a designed answer instead: Pawns promote, sliders and the King sweep sideways. See Promotion and Lateral fallback, both below.
 
 ### Pawn
 
@@ -225,7 +225,7 @@ Advances one square down its file. **Captures the Core diagonally forward**, as 
 
 ### Knight
 
-A zig-zag L-hop: it alternates `(file−1, rank−2)` and `(file+1, rank−2)`, with the starting side set at spawn so Knights weave opposite ways. It crosses two ranks per hop and rarely sits still long enough for a line-shaped Tower to land a repeat shot.
+A zig-zag L-hop: it alternates `(file−1, rank−2)` and `(file+1, rank−2)`, with the starting side set at spawn so Knights weave opposite ways. Its primary hop crosses two ranks; a one-rank fallback candidate lets it still reach rank 0 from rank 1 rather than stranding a hop early. Either way it rarely sits still long enough for a line-shaped Tower to land a repeat shot.
 
 ### Bishop
 
@@ -253,7 +253,7 @@ A Pawn reaching rank 0 becomes a Queen, at full Queen health, instead of strandi
 
 When a Piece's forward square is off the board, **sliders and the King sweep sideways along their rank instead**, reflecting off the file edges. Reflection **flips the Piece's `handedness`** rather than retrying the same side — without that flip, a Piece would bounce between two files forever and the round could never end. Flipping makes it traverse the whole rank instead, so it eventually crosses the Core's file and leaks.
 
-**Knights are the exception, and strand.** Every Knight hop from rank 0 goes backwards, so a Knight that could bounce back up the board would always have a legal move — `stillActive` would never go false and the round would hang forever. Stranding it there, rather than giving it a lateral fallback too, is what keeps rounds terminating.
+**Knights are the exception, and strand.** A Knight's hops only ever go forward, so at rank 0 every candidate would need to land off the board, and unlike a slider or the King it has no lateral fallback to catch it. Giving it one would mean a Knight could always act — `stillActive` would never go false and the round would hang forever. Stranding it there instead is what keeps rounds terminating.
 
 The fallback direction is always carried in `handedness`, never chosen because the Core happens to be on one side — that would be goal-seeking, the same thing forward-bias above already rules out for every Piece type.
 
@@ -262,7 +262,7 @@ The fallback direction is always carried in `handedness`, never chosen because t
 | Piece | Chess trait | Threat | Forces |
 | --- | --- | --- | --- |
 | **Pawn** | One step forward, numerous | **Chaff swarm** — weak, slow, many. **Promotes to a Queen on reaching the back rank** | Area damage; single-target Towers drown |
-| **Knight** | L-shaped hop — never a straight line or a diagonal | **Erratic hopper** — a zig-zag L that crosses two ranks per move and rarely lands twice under the same line, which vertical, horizontal, and diagonal Tower coverage struggle to track | Coverage wide enough to catch a hopper, not a single line |
+| **Knight** | L-shaped hop — never a straight line or a diagonal | **Erratic hopper** — a zig-zag L, usually two ranks per move (one near the back rank, so it can still reach rank 0), that rarely lands twice under the same line — which vertical, horizontal, and diagonal Tower coverage struggle to track | Coverage wide enough to catch a hopper, not a single line |
 | **Bishop** | Diagonals; thematically a cleric | **Healer** — sustains the wave until killed. Nothing else | Retargeting; kill it first |
 | **Rook** | Straight lines, long | **Armoured tank** — slow, high health | Piercing or sustained damage |
 | **Queen** | Everything, long | **Elite** — flexible, rare, dangerous | Burst and focused fire |
@@ -318,5 +318,6 @@ This is a **coverage** tower defense, not a **maze** one: defense is about which
 | **Pack weighting and prices** | How rank scarcity translates into pack contents, and what each type costs. |
 | **PRNG streams** | One stream (simplest) versus separate named streams for packs/rounds/draws, so seeds survive code changes. |
 | **Repair versus the wall** | **Reachable now — ♥ Repair exists.** Towers block and there is no pathfinding, so a repaired Tower a Piece cannot break is a permanent wall, and against a rank-5 Tower's `diagonal` blind spot the Piece cannot even shoot back. What bounds it today is that **cards are consumed and packs do not exist**: ♥ runs out, the Tower falls, and the round resumes. `src/game/roundTermination.test.ts` pins that bound, and the Joker is the escape hatch. **Adding packs removes the bound.** Candidate answers: attacked Towers lose *maximum* health permanently so repair only delays; repair capped per round; or a blocked Piece eventually breaks through regardless. Decide with play experience, not on paper. |
+| **Stranded Pieces** | Knights that reach rank 0 have no legal move for the rest of the run — every hop only ever goes forward, so all four candidates would need to land off the board, and unlike a slider or the King a Knight has no lateral fallback to catch it. Giving it one would keep a round alive forever, so the strand is deliberate (see Lateral fallback). Pawns promote instead, and sliders and the King sweep sideways instead, so Knights are the only Piece this still applies to. Whether a stranded Knight deserves an answer of its own is open. |
 | **Board geometry** | Growable, starting at a literal 8x8 — an Ace adds a rank. Square colour is no longer load-bearing, since the Knight is damageable everywhere, so the checkerboard is preserved for chess-authenticity alone. Whether that argument carries enough weight on its own is undecided. |
 | **Multiplayer scope** | Still assumed single-player versus AI, no backend, no netcode. |

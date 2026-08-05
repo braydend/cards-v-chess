@@ -135,10 +135,10 @@ describe('coversSquare: adjacent', () => {
   })
 })
 
-describe('coversSquare: colour, which the Knight depends on', () => {
-  // Diagonals preserve square colour. This is why rank 5 is the diagonal:
-  // a diagonal Tower on a light square only ever hits light squares, which is
-  // exactly the Knight's damageable window.
+describe('coversSquare: diagonal coverage preserves square colour', () => {
+  // Diagonals preserve square colour: a diagonal Tower on a light square only
+  // ever hits light squares. Pure geometry, verified for its own sake — no
+  // mechanic currently keys off it (the Knight is damageable on every square).
   const isLight = (square: { file: number; rank: number }) => (square.file + square.rank) % 2 === 0
 
   it('only ever covers squares of its own colour when diagonal', () => {

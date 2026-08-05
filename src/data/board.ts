@@ -4,10 +4,11 @@ import type { BoardSpec, Square } from '../game/types'
  * Board geometry is settled as *growable*, starting at 8x8. An Ace grows the
  * board by a rank, so the board size is not fixed for the run.
  *
- * Note when revisiting: square colour is now mechanically load-bearing (the
- * Knight is only damageable on light squares), which is an argument for
- * preserving a checkerboard as the board grows rather than an arbitrary grid.
- * See CLAUDE.md.
+ * Note when revisiting: square colour is decoration, not mechanically
+ * load-bearing — the Knight is damageable on every square. The checkerboard is
+ * preserved as the board grows for chess-authenticity alone; whether that
+ * argument carries enough weight on its own is exactly what is still open.
+ * See game-design.md, "Board geometry".
  */
 export const BOARD: BoardSpec = { files: 8, ranks: 8 }
 
