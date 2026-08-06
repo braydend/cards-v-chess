@@ -75,7 +75,7 @@ Branch protection is currently **off**, so nothing blocks a direct push to `main
 
 CI enforces three things beyond "the tests pass":
 
-- The **renderer boundary** — `src/game/` and `src/data/` importing React or Three.js fails `pnpm lint`.
+- The **renderer boundary**, in both directions. Outbound: `src/game/` and `src/data/` importing React or Three.js fails `pnpm lint`. Inbound: `src/scene/`, `src/ui/`, and `src/state/` importing a module from inside `src/game/` — rather than the public surface at `src/game/index.ts` — also fails `pnpm lint`, so the renderer cannot reach past what the engine deliberately exports. Test files are exempt from the inbound half, because `src/state/structuralKey.test.ts` legitimately needs `src/game/fixtures`, a test-only builder module with no reason to be on the public surface.
 - **Seeded determinism** — `Math.random` in those directories fails `pnpm lint`.
 - **Engine coverage** — thresholds on `src/game/` and `src/state/`. `src/scene/`, `src/ui/`, `src/data/`, the entry points `src/App.tsx` and `src/main.tsx`, and `src/state/uiStore.ts` are excluded: the renderer needs a browser and is deliberately untested, `data/` is constant tables, and `uiStore.ts` holds view-only UI state (selection, hover), not the simulation bridge the rest of `src/state/` carries. A file added to `state/` is measured unless it, like `uiStore.ts`, holds that kind of view state rather than bridging to the simulation.
 
