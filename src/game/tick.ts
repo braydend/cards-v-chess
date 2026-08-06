@@ -6,6 +6,7 @@ import { coversSquare } from './coverage'
 import { roundIncome, totalKillReward } from './ink'
 import { isStuck, nextMove } from './movement'
 import { step } from './step'
+import { amplificationFor, amplifierIdsByPiece } from './towerAuras'
 import type { BoardSpec, ExitRecord, GameState, Piece, Square, Tower } from './types'
 
 /**
@@ -229,6 +230,10 @@ function fireTowers(
   const remainingHealth = new Map(pieces.map((piece) => [piece.id, piece.health]))
   const nextTowers: Tower[] = []
 
+  // Derived once, from the Piece and Tower lists as passed in, so no Piece's
+  // damage depends on which Tower fired first.
+  const amplifiers = amplifierIdsByPiece(towers, pieces)
+
   for (const tower of towers) {
     const def = towerRank(tower.cardRank)
 
@@ -257,7 +262,11 @@ function fireTowers(
       cooldown -= tower.fireIntervalMs
 
       for (const target of targets) {
-        remainingHealth.set(target.id, (remainingHealth.get(target.id) ?? 0) - tower.damage)
+        const multiplier = amplificationFor(tower.id, target.id, amplifiers)
+        remainingHealth.set(
+          target.id,
+          (remainingHealth.get(target.id) ?? 0) - tower.damage * multiplier,
+        )
       }
     }
 
