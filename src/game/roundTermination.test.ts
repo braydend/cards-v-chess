@@ -36,8 +36,28 @@ const GRINDER_SQUARE = { file: 3, rank: 5 }
  * lands — not anything about the Card. Waiting for a fixed deficit is what keeps
  * the arithmetic below valid: each ♥ is then worth precisely this much. Healing
  * the instant health dips by 1 would buy almost nothing, which is what let a
- * no-op repair hide behind these tests before. Must divide evenly into the
- * Tower's 20 max health at 1 damage per hop.
+ * no-op repair hide behind these tests before.
+ *
+ * The real constraint is narrower than a previous version of this comment
+ * claimed: it does NOT need to divide evenly into the Tower's max health
+ * (currently rank 5's 22, not the 20 this comment used to say — 22 is what
+ * `762f0bb` rebalanced it to, and that made the old claim false). Damage
+ * arrives in whole 1-point steps, so a deficit that only needs to reach or
+ * exceed `HEAL_DEFICIT` lands on exactly `HEAL_DEFICIT` every time, full stop
+ * — no remainder to worry about, whatever the Tower's max health is. Measured
+ * by instrumenting the test below while fixing this comment: against the
+ * current 22-health Tower, both heals fired with the Tower at exactly 12
+ * health (a deficit of exactly 10), and the Tower fell at exactly the
+ * `aidedResolveMs` the test computes from
+ * `maxHealth + heartsAvailable * HEAL_DEFICIT` — accurate to well under a
+ * millisecond of simulated time.
+ *
+ * What DOES matter: `HEAL_DEFICIT` must stay safely below the Tower's max
+ * health, so the deficit can actually reach it while the Tower is still
+ * alive. 10 against 22 leaves 12 health in hand when a heal fires; if it were
+ * close to or above max health, the Tower would die before the threshold ever
+ * triggered and a heal would silently never fire — the exact no-op-repair
+ * failure mode described above, reached from the opposite direction.
  */
 const HEAL_DEFICIT = 10
 
