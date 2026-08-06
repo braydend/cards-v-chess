@@ -13,15 +13,7 @@ import { describe, expect, it } from 'vitest'
 import { BLOCKED_ATTACK_MULTIPLIER, PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { coversSquare } from './coverage'
-import {
-  firstTowerId,
-  jokerCard,
-  liveRound,
-  pawnAt,
-  standardCard,
-  withDeck,
-  withTower,
-} from './fixtures'
+import { jokerCard, liveRound, pawnAt, standardCard, withDeck, withTower } from './fixtures'
 import { step, tick } from './index'
 import type { BuildableRank, GameState } from './types'
 
@@ -40,15 +32,18 @@ const GRINDER_SQUARE = { file: 3, rank: 5 }
  *
  * The real constraint is narrower than a previous version of this comment
  * claimed: it does NOT need to divide evenly into the Tower's max health
- * (currently rank 5's 22, not the 20 this comment used to say — 22 is what
- * `762f0bb` rebalanced it to, and that made the old claim false). Damage
- * arrives in whole 1-point steps, so a deficit that only needs to reach or
- * exceed `HEAL_DEFICIT` lands on exactly `HEAL_DEFICIT` every time, full stop
- * — no remainder to worry about, whatever the Tower's max health is. Measured
- * by instrumenting the test below while fixing this comment: against the
- * current 22-health Tower, both heals fired with the Tower at exactly 12
- * health (a deficit of exactly 10), and the Tower fell at exactly the
- * `aidedResolveMs` the test computes from
+ * (currently rank 5's 22, not the 20 this comment used to say — a later rank
+ * ladder rebalance raised it, which made the old claim false; no commit hash
+ * is cited here on purpose, since this branch has already been rebased once
+ * and moved the hash that used to sit here out from under this comment).
+ *
+ * Damage arrives in whole 1-point steps, so a deficit that only needs to
+ * reach or exceed `HEAL_DEFICIT` lands on exactly `HEAL_DEFICIT` every time,
+ * full stop — no remainder to worry about, whatever the Tower's max health
+ * is. Measured by instrumenting the test below while fixing this comment:
+ * against the current 22-health Tower, both heals fired with the Tower at
+ * exactly 12 health (a deficit of exactly 10), and the Tower fell at exactly
+ * the `aidedResolveMs` the test computes from
  * `maxHealth + heartsAvailable * HEAL_DEFICIT` — accurate to well under a
  * millisecond of simulated time.
  *
@@ -236,7 +231,7 @@ describe('the rank 7 Wall', () => {
     expect(TOWER_RANKS[7].damage).toBe(0)
   })
 
-  it('still falls when fed every ♥ in the Deck, and the round still ends', () => {
+  it('still falls when fed every ♥ in the Deck, and only because repair actually landed', () => {
     // WHY THIS TEST EXISTS. "Repair versus the wall" is an OPEN design
     // question, left open on the grounds that the existing bound survives the
     // Wall: ♥ supply is fixed for a round's whole duration because buyPack is
@@ -248,33 +243,60 @@ describe('the rank 7 Wall', () => {
     // never hit anything. It is the sharpest version of the case this file
     // pins, because every other rank can eventually shorten its own grind by
     // shooting something; the Wall never can.
-    const HEARTS = 4
-    const HEART_IDS = Array.from({ length: HEARTS }, (_, index) => `h${index}`)
-
-    // Rank 7, matching the Wall: a numbered Card supports only its own rank.
-    let state = grind(HEARTS, 7)
-
-    // Grind, repairing to full whenever a ♥ is left. A ♥ restores to full
-    // regardless of the deficit, so unlike the deficit-gated tests above this
-    // just spends every heart on a fixed cadence — the point here is only that
-    // the grind eventually resolves once they run out, not the precise value
-    // each one buys.
-    for (const card of HEART_IDS) {
-      state = runFor(state, 20_000)
-      if (state.towers.length === 0) break
-      state = step(state, { kind: 'supportTower', cardId: card, towerId: firstTowerId(state) })
-    }
-
-    // No more ♥ left. Comfortably longer than the unaided kill time computed
-    // below, so a hang here — rather than a clean resolve — is the finding:
-    // it would mean the Wall broke round termination, not that the window was
-    // too short.
+    //
+    // A weaker version of this test — grind for a fixed budget already longer
+    // than the unaided kill time, then check the Wall fell — passes whether or
+    // not any ♥ ever lands, because the budget alone guarantees the fall. That
+    // proves only "the Wall eventually falls," not "repair happened and then
+    // ran out," which is the actual claim the open design question rests on.
+    // The two assertions below close that gap: an emptied Deck is direct
+    // evidence every repair landed (playing a Card consumes it), and a fall
+    // time later than the unaided kill time is evidence repair bought real
+    // time rather than the Wall merely surviving the loop regardless of it.
     const maxHealth = TOWER_RANKS[7].maxHealth
     const dpsPerHop = PIECE_TYPES.pawn.attackDamage * BLOCKED_ATTACK_MULTIPLIER
     const hopIntervalMs = PIECE_TYPES.pawn.moveIntervalMs
-    const unaidedResolveMs = (maxHealth / dpsPerHop) * hopIntervalMs
+    const heartsAvailable = 4
 
-    state = runFor(state, unaidedResolveMs * 3)
+    // Real constants, not guessed timings, mirroring the exhaustion test
+    // above: how long the grind takes unaided, versus with every ♥ landing at
+    // its full deficit value.
+    const unaidedResolveMs = (maxHealth / dpsPerHop) * hopIntervalMs
+    const aidedResolveMs =
+      ((maxHealth + heartsAvailable * HEAL_DEFICIT) / dpsPerHop) * hopIntervalMs
+
+    // Rank 7, matching the Wall: a numbered Card supports only its own rank.
+    let state = grind(heartsAvailable, 7)
+    let fellAtMs: number | undefined
+
+    for (let elapsed = 0; elapsed < aidedResolveMs + 10 * hopIntervalMs; elapsed += DT) {
+      state = tick(state, DT)
+
+      const tower = state.towers[0]
+      const heart = state.deck[0]
+      // Threshold, not exact-multiple: the deficit climbs in whole 1-point
+      // steps from 0, so it always lands on exactly HEAL_DEFICIT — see that
+      // constant's docstring for why 45 not dividing evenly by 10 is fine.
+      if (tower && heart && tower.maxHealth - tower.health >= HEAL_DEFICIT) {
+        state = step(state, { kind: 'supportTower', cardId: heart.id, towerId: tower.id })
+      }
+
+      if (fellAtMs === undefined && state.towers.length === 0) fellAtMs = elapsed
+
+      if (state.phase === 'gap') break
+    }
+
+    // Every ♥ actually landed, not merely offered.
+    expect(state.deck).toHaveLength(0)
+
+    // And landing them meant something: the Wall outlived the unaided kill
+    // time. Fail loudly rather than comparing against `undefined` if the loop
+    // above somehow ended without the Tower ever falling — that would be the
+    // "Wall broke round termination" finding the brief warned about, not a
+    // window that was merely too short (the loop's budget already comes from
+    // `aidedResolveMs`, the real total-damage arithmetic below, plus slack).
+    if (fellAtMs === undefined) throw new Error('expected the Wall to fall before the loop ended')
+    expect(fellAtMs).toBeGreaterThan(unaidedResolveMs)
 
     expect(state.towers).toHaveLength(0)
     expect(state.phase).not.toBe('inProgress')
