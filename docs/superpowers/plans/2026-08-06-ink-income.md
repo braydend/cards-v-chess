@@ -677,17 +677,21 @@ a future reordering cannot quietly start paying for a lost run."
 In `src/game/faceCards.test.ts`, add the import:
 
 ```ts
-import { clearReward, roundIncome } from './ink'
+import { clearReward, roundIncome, totalKillReward } from './ink'
 ```
 
 Then append inside the existing `describe('Joker — Clear', ...)` block:
 
 ```ts
-  // Eight Pawns rather than the two `withJoker` uses: a quarter share of two
-  // Pawns floors to nothing, which would assert the rule without ever
-  // demonstrating that it pays.
-  function fullBoard() {
-    return Array.from({ length: 8 }, (_, file) => pawnAt(`p${file}`, { file, rank: 6 }))
+  // Seven Pawns and a Queen, not the two Pawns `withJoker` uses. Two Pawns'
+  // quarter share floors to nothing, which would assert the rule without ever
+  // demonstrating that it pays. The mix matters too: it totals an amount whose
+  // quarter share is genuinely fractional, so the floor has real work to do
+  // here rather than landing on a whole number by luck.
+  function fullBoard(): Piece[] {
+    const pawns = Array.from({ length: 7 }, (_, file) => pawnAt(`p${file}`, { file, rank: 6 }))
+
+    return [...pawns, pieceAt('queen', 'q', { file: 7, rank: 6 })]
   }
 
   function withJokerAnd(pieces: readonly Piece[]): GameState {
@@ -705,9 +709,8 @@ Then append inside the existing `describe('Joker — Clear', ...)` block:
   it('pays less than shooting the same Pieces would, so stalling to Clear never pays best', () => {
     const board = fullBoard()
     const after = step(withJokerAnd(board), { kind: 'clearPieces', cardId: 'joker' })
-    const shotInstead = board.length * PIECE_TYPES.pawn.inkReward
 
-    expect(after.ink).toBeLessThan(shotInstead)
+    expect(after.ink).toBeLessThan(totalKillReward(board))
   })
 
   it('leaves the round prize whole — the quarter share is on the kills only', () => {
@@ -722,10 +725,10 @@ Then append inside the existing `describe('Joker — Clear', ...)` block:
   })
 ```
 
-Two more imports are needed. Add `PIECE_TYPES`, and widen the existing type import on line 6 to bring in `Piece`:
+Two existing imports need widening. Add `pieceAt` to the fixture import on line 4, and `Piece` to the type import on line 6:
 
 ```ts
-import { PIECE_TYPES } from '../data/pieceTypes'
+import { firstTowerId, jokerCard, liveRound, pawnAt, pieceAt, standardCard, withDeck, withTower } from './fixtures'
 ```
 
 ```ts
