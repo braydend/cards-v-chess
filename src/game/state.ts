@@ -1,5 +1,5 @@
 import { BOARD, CORE_MAX_HEALTH, CORE_SQUARE } from '../data/board'
-import { STARTING_DECK } from '../data/deck'
+import { dealPack } from './packs'
 import { streamFor } from './rng'
 import type { GameState } from './types'
 
@@ -13,7 +13,19 @@ import type { GameState } from './types'
  */
 export const DEV_SEED = 'cards-v-chess'
 
+/**
+ * The pack a run opens with.
+ *
+ * There is no authored starting Deck: the opening position is whatever this
+ * deals, and reading it is the first real decision of the run. It is free — Ink
+ * starts at zero — and an empty Deck plus ten cards cannot breach the cap, so
+ * the opening deal has no cull step.
+ */
+const OPENING_PACK = 'base'
+
 export function createInitialState(seed: string = DEV_SEED): GameState {
+  const opening = dealPack(OPENING_PACK, undefined, streamFor(seed, 'packs'), 1)
+
   return {
     board: BOARD,
     core: { square: CORE_SQUARE, health: CORE_MAX_HEALTH, maxHealth: CORE_MAX_HEALTH },
@@ -28,8 +40,8 @@ export function createInitialState(seed: string = DEV_SEED): GameState {
     pendingSpawns: [],
     nextEntityId: 1,
     seed,
-    rng: { packs: streamFor(seed, 'packs') },
-    nextCardId: 1,
-    deck: STARTING_DECK,
+    rng: { packs: opening.rng },
+    nextCardId: opening.nextCardId,
+    deck: opening.cards,
   }
 }

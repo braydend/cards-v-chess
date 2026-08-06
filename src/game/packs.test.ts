@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { DECK_CAP } from '../data/deck'
 import { PACK_TYPES, PACKS } from '../data/packs'
 import { canAfford, cullCountFor, dealPack } from './packs'
 import { streamFor, type Rng } from './rng'
+import { createInitialState } from './state'
 
 const RNG: Rng = streamFor('deal-test', 'packs')
 
@@ -181,5 +183,48 @@ describe('canAfford', () => {
     expect(canAfford(PACKS.base.price - 1, 'base')).toBe(false)
     expect(canAfford(PACKS.base.price, 'base')).toBe(true)
     expect(canAfford(PACKS.base.price + 1, 'base')).toBe(true)
+  })
+})
+
+describe('the run opening', () => {
+  it('opens with a Base pack', () => {
+    expect(createInitialState('run-a').deck).toHaveLength(PACKS.base.size)
+  })
+
+  it('is free — Ink starts at zero and the opening deal does not charge', () => {
+    expect(createInitialState('run-a').ink).toBe(0)
+  })
+
+  it('gives every opening card a unique id', () => {
+    const deck = createInitialState('run-a').deck
+
+    expect(new Set(deck.map((card) => card.id)).size).toBe(deck.length)
+  })
+
+  it('advances the card counter past the opening deal', () => {
+    expect(createInitialState('run-a').nextCardId).toBe(PACKS.base.size + 1)
+  })
+
+  // The counter Piece handedness is derived from must be untouched by the deal.
+  it('leaves the entity counter at one', () => {
+    expect(createInitialState('run-a').nextEntityId).toBe(1)
+  })
+
+  it('deals a different opening to a different seed', () => {
+    expect(createInitialState('run-a').deck).not.toEqual(createInitialState('run-b').deck)
+  })
+
+  it('deals the same opening to the same seed', () => {
+    expect(createInitialState('run-a').deck).toEqual(createInitialState('run-a').deck)
+  })
+
+  it('opens within the Deck cap', () => {
+    expect(createInitialState('run-a').deck.length).toBeLessThanOrEqual(DECK_CAP)
+  })
+
+  it('leaves the packs stream advanced, so the first purchase is not the opening deal again', () => {
+    const state = createInitialState('run-a')
+
+    expect(state.rng.packs).not.toEqual(streamFor('run-a', 'packs'))
   })
 })
