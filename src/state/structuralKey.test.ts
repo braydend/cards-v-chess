@@ -4,11 +4,11 @@ import { structuralKey } from './structuralKey'
 
 describe('structuralKey', () => {
   it("changes when a Tower's maxHealth changes, even if health does not", () => {
-    // Towers.tsx renders `tower.health / tower.maxHealth`. A ♠ raises the
-    // ceiling without touching health, so maxHealth can be the ONLY field
-    // that changed on a given tick — deck.length also changes today only
-    // because playing the ♠ consumes a Card, which is an accidental,
-    // undocumented coupling this key should not rely on.
+    // Towers.tsx renders `tower.health / tower.maxHealth` and TowerPanel
+    // prints the ceiling itself, so a maxHealth change must repaint. No play
+    // moves maxHealth alone today — a ♠ moves health with it — so this state
+    // is constructed by hand rather than driven through a command. It guards
+    // the field the renderer reads, not a transition any card produces.
     const base = withTower(5, { file: 2, rank: 2 })
     const raisedCeiling = {
       ...base,

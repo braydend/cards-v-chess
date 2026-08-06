@@ -28,11 +28,17 @@ export function applySupport(tower: Tower, suit: Suit, magnitude: number): Tower
         ),
       }
 
-    // Raises the ceiling WITHOUT healing. That is what keeps ♠ distinct from ♥:
-    // ♠ grows the ceiling, ♥ fills it. A ♠ on a damaged Tower gives headroom
-    // for a later ♥.
+    // Raises current and maximum health together, as a King does for the Core.
+    // Moving the ceiling alone left `health / maxHealth` lower than it started,
+    // and that ratio is the renderer's only signal for damage — so a ♠ darkened
+    // the Tower exactly as a hit does, and stacking two could trip the critical
+    // pulse on a Tower that had never been touched. That was issue #14.
     case 'spades':
-      return { ...tower, maxHealth: tower.maxHealth + magnitude }
+      return {
+        ...tower,
+        health: tower.health + magnitude,
+        maxHealth: tower.maxHealth + magnitude,
+      }
 
     // Divided down because raw magnitude would be enormous against a rank-2
     // Tower's damage of 1. Always at least 1, so no ♣ is ever wasted.

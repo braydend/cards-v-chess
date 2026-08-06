@@ -119,14 +119,23 @@ describe('♠ Health', () => {
     expect(play(state, 's').towers[0]?.maxHealth).toBe(TOWER_RANKS[5].maxHealth + supportMagnitude(5))
   })
 
-  it('does not heal — it raises the ceiling only, which is what keeps it distinct from ♥', () => {
+  it('heals by the same magnitude, so a damaged Tower keeps the headroom it had', () => {
     const state = withSupport('s', 5, 'spades')
     const hurt: GameState = {
       ...state,
       towers: state.towers.map((tower) => ({ ...tower, health: 4 })),
     }
 
-    expect(play(hurt, 's').towers[0]?.health).toBe(4)
+    expect(play(hurt, 's').towers[0]?.health).toBe(4 + supportMagnitude(5))
+  })
+
+  it('leaves a full-health Tower at full health — issue #14, where the Tower rendered as damaged', () => {
+    // Towers.tsx colours by `health / maxHealth`, so raising the ceiling alone
+    // darkened the Tower exactly as a hit does, and could even trip the
+    // critical pulse. Asserting the ratio, not the numbers, is what pins that.
+    const tower = firstTower(play(withSupport('s', 5, 'spades'), 's'))
+
+    expect(tower.health).toBe(tower.maxHealth)
   })
 })
 

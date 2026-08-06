@@ -52,12 +52,12 @@ Preserve the rest of the property. Ranks 2–10, King, Ace and the Jokers are al
 | --- | --- |
 | ♥ Hearts | **Repair** — restore lost health |
 | ♦ Diamonds | **Speed** — increase fire rate |
-| ♠ Spades | **Health** — increase maximum health |
+| ♠ Spades | **Health** — increase current and maximum health together |
 | ♣ Clubs | **Damage** — increase damage |
 
 Support magnitude scales with rank, as Tower power does: a 9♥ is a large repair, a 2♥ a small one. The scale is **face value for 2–10, then J 11, Q 12, K 13, A 14** — so a K♥ is a top-of-scale repair, and every face card is worth weighing for its suit as well as for its action.
 
-**♠ raises the health ceiling without healing.** That is what keeps it distinct from ♥: ♠ grows the ceiling, ♥ fills it. A ♠ on a damaged Tower buys headroom for a later ♥.
+**♠ raises current and maximum health together**, as a King does for the Core. It was previously specified as raising the ceiling *only*, which read as a bug in play: the renderer's only signal for damage is `health / maxHealth`, so moving the ceiling alone darkened the Tower exactly as a hit does, and two stacked ♠ could start the critical "about to die" pulse on a Tower that had never been touched. A Tower buffed this way is also no closer to dying than before, so the old signal was not merely ugly but wrong. Changed in response to issue #14.
 
 ### Rank ladder
 
@@ -330,5 +330,6 @@ This is a **coverage** tower defense, not a **maze** one: defense is about which
 | **Pack weighting and prices** | How rank scarcity translates into pack contents, and what each type costs. |
 | **PRNG streams** | One stream (simplest) versus separate named streams for packs/rounds/draws, so seeds survive code changes. |
 | **Repair versus the wall** | **Reachable now — ♥ Repair exists.** Towers block and there is no pathfinding, so a repaired Tower a Piece cannot break is a permanent wall, and against a rank-5 Tower's `diagonal` blind spot the Piece cannot even shoot back. What bounds it today is that **cards are consumed and packs do not exist**: ♥ runs out, the Tower falls, and the round resumes. `src/game/roundTermination.test.ts` pins that bound, and the Joker is the escape hatch. **Adding packs removes the bound.** Candidate answers: attacked Towers lose *maximum* health permanently so repair only delays; repair capped per round; or a blocked Piece eventually breaks through regardless. Decide with play experience, not on paper. |
+| **♥ versus ♠** | **Created by the issue #14 fix — ♠ now heals as well as raising the ceiling.** That makes ♠ strictly dominate ♥: identical healing at the same magnitude, plus permanent headroom, on every Tower at every rank. There is no board state where playing ♥ beats playing a ♠ of the same rank, so ♥ has no job left. Candidate answers: ♠ heals less than it raises; ♥ heals more per point of magnitude than ♠ does, making ♥ the efficient repair and ♠ the expensive one; or ♥ takes a different job entirely. Decide with play experience, not on paper. |
 | **Board geometry** | Growable, starting at a literal 8x8 — an Ace adds a rank. Square colour is no longer load-bearing, since the Knight is damageable everywhere, so the checkerboard is preserved for chess-authenticity alone. Whether that argument carries enough weight on its own is undecided. |
 | **Multiplayer scope** | Still assumed single-player versus AI, no backend, no netcode. |

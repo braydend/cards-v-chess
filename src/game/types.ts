@@ -156,9 +156,11 @@ export interface Tower {
   /**
    * Lifetime damage this Tower has absorbed. Never reduced.
    *
-   * Deliberately NOT derived as `maxHealth - health`. ♥ repair and ♠ maximum
-   * health both break that identity: a Tower repaired to full must still report
-   * what it has weathered. A Jack's shield breaks it in the other direction —
+   * Deliberately NOT derived as `maxHealth - health`. ♥ repair breaks that
+   * identity: a Tower repaired to full must still report what it has weathered.
+   * (♠ no longer breaks it — it moves health and maxHealth by the same
+   * magnitude, so their difference is unchanged. ♥ alone is reason enough.)
+   * A Jack's shield breaks it in the other direction —
    * damage a shield soaked never touched health at all, and it still counts
    * here, because absorbing a hit is still weathering it.
    *

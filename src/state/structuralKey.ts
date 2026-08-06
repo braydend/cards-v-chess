@@ -18,8 +18,10 @@ export function structuralKey(state: GameState): string {
 
   // Tower health, maxHealth, shield, damage and fire interval are included so
   // support effects are visible — maxHealth matters because Towers.tsx draws
-  // `tower.health / tower.maxHealth`, and a ♠ raises the ceiling without
-  // changing health, so maxHealth alone can be the only thing that changed.
+  // `tower.health / tower.maxHealth` and TowerPanel prints the ceiling itself.
+  // No play moves maxHealth on its own today (a ♠ moves health with it), so
+  // health would currently cover every case; maxHealth stays keyed because it
+  // is rendered, not because some play is known to move it alone.
   // `fireCooldownMs` is deliberately NOT here: that changes every tick and
   // would force a React render per frame.
   const towers = state.towers
