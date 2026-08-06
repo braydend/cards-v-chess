@@ -42,6 +42,26 @@ interface UiStore {
    */
   selectedTowerId: string | null
   setSelectedTowerId: (towerId: string | null) => void
+
+  /**
+   * Whether the pack shop is open.
+   *
+   * Purely view state: the purchase is a single atomic command, so nothing
+   * half-finished lives in `GameState` and closing the shop needs no rollback.
+   */
+  packShopOpen: boolean
+  setPackShopOpen: (open: boolean) => void
+
+  /**
+   * Cards marked for destruction in the pack shop, by id.
+   *
+   * The cull is chosen before the pack opens, and no card is destroyed until the
+   * `buyPack` command commits — so this is a pending intention, not state the
+   * simulation knows about.
+   */
+  markedForCullIds: readonly string[]
+  toggleMarkedForCull: (cardId: string) => void
+  clearMarkedForCull: () => void
 }
 
 export const useUiStore = create<UiStore>((set) => ({
@@ -55,4 +75,14 @@ export const useUiStore = create<UiStore>((set) => ({
   setEchoSourceTowerId: (echoSourceTowerId) => set({ echoSourceTowerId }),
   selectedTowerId: null,
   setSelectedTowerId: (selectedTowerId) => set({ selectedTowerId }),
+  packShopOpen: false,
+  setPackShopOpen: (packShopOpen) => set({ packShopOpen }),
+  markedForCullIds: [],
+  toggleMarkedForCull: (cardId) =>
+    set((store) => ({
+      markedForCullIds: store.markedForCullIds.includes(cardId)
+        ? store.markedForCullIds.filter((id) => id !== cardId)
+        : [...store.markedForCullIds, cardId],
+    })),
+  clearMarkedForCull: () => set({ markedForCullIds: [] }),
 }))

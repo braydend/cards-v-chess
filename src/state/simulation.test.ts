@@ -9,8 +9,9 @@ const MAX_CATCHUP_STEPS = 5
 /**
  * A Card in the live Deck that will build a Tower.
  *
- * Found in state rather than hardcoded, so re-authoring the starting Deck does
- * not break a test that is about dispatch rather than about deck contents.
+ * Found in state rather than hardcoded, so what the run opens with does not
+ * break a test that is about dispatch rather than about deck contents. The run
+ * is seeded from `TEST_SEED`, so what it finds is deterministic.
  */
 function buildableCardId(): string {
   const card = getState().deck.find(
@@ -21,8 +22,10 @@ function buildableCardId(): string {
   return card.id
 }
 
+const TEST_SEED = 'simulation-test'
+
 beforeEach(() => {
-  reset()
+  reset(TEST_SEED)
 })
 
 describe('fixed-timestep accumulator', () => {

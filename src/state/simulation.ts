@@ -17,7 +17,18 @@ const FIXED_DT_MS = 1000 / 60
  */
 const MAX_CATCHUP_STEPS = 5
 
-let current = createInitialState()
+/**
+ * A fresh run seed.
+ *
+ * `Math.random` is legal here and banned in `src/game/` — that boundary is the
+ * whole reason the engine takes a seed rather than minting one. Base 36 keeps it
+ * short enough to read aloud, for when a seed becomes shareable.
+ */
+function newSeed(): string {
+  return Math.random().toString(36).slice(2, 10)
+}
+
+let current = createInitialState(newSeed())
 let accumulatorMs = 0
 const listeners = new Set<() => void>()
 
@@ -67,8 +78,15 @@ export function advance(frameMs: number): void {
   if (stepped) emit()
 }
 
-export function reset(): void {
-  current = createInitialState()
+/**
+ * Starts a fresh run.
+ *
+ * Takes an optional seed so tests can pin the run they are exercising — without
+ * one, a fresh seed means a fresh pack, and a test asserting anything about the
+ * opening Deck would be flaky.
+ */
+export function reset(seed: string = newSeed()): void {
+  current = createInitialState(seed)
   accumulatorMs = 0
   emit()
 }

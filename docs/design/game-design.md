@@ -119,12 +119,19 @@ Each touches a different layer — a Tower's durability, the number of Towers, t
 
 **Clear leaves Towers and pending spawns alone.** Towers are permanent and only ever destroyed by Pieces, and a round still spawning continues rather than ending early. Being suitless, Clear is a Joker's only play — and it is the one card that can always break a grind.
 
-Two hazards arrive with packs, because copies are unlimited by design. Neither is reachable while the Deck is a fixed authored list:
+Two hazards arrive with packs, because copies are unlimited by design. **Both are
+now reachable** — packs are built and the Deck is no longer a fixed authored
+list:
 
 - A **King**-heavy Deck means unbounded Core health.
 - An **Ace**-heavy Deck means an arbitrarily long board — a rendering and camera-framing problem as much as a balance one.
 
-Both will want a cap then.
+**Neither is capped, deliberately.** Scarcity is the whole mitigation: Kings sit
+in the scarce tier and Aces alone in the rarest. A cap would set a number with no
+play data behind it. The Ace is the more pressing of the two, because its hazard
+is technical as well as balance — `src/scene/GameScene.tsx` casts shadows on
+three.js's default frustum, already visibly wrong at 8×8 and worse with every
+rank added.
 
 ### Cards are consumed, and there is no drawing
 
@@ -163,13 +170,13 @@ Note the loop this creates: **playing cards frees Deck space.** Culling only bit
 
 The game is **run-based**. A run is a sequence of rounds. The Deck is built up during a run and does not survive it. There is no persistent cross-session collection.
 
-**A run opens by opening a pack.** There is no fixed starter Deck — the opening position is whatever the pack deals, and reading it is the first real decision of the run.
+**A run opens by opening a pack.** There is no fixed starter Deck — the opening position is whatever the pack deals, and reading it is the first real decision of the run. The pack is a **Base** — settled when packs were built.
 
 ### Seeds
 
 A run is identified by a **seed**, making it reproducible and shareable: same seed, same pack contents, same round composition, same opening.
 
-This requires a **seeded PRNG carried in `GameState`**. `Math.random` must never appear in `src/game/` — it breaks determinism and seeds alike.
+This requires a **seeded PRNG carried in `GameState`**. `Math.random` must never appear in `src/game/` — it breaks determinism and seeds alike. Streams are **named**: one run seed hashed with a stream name derives an independent generator per purpose, so adding a second random consumer later cannot shift what an existing seed deals to packs. See `src/game/rng.ts`.
 
 ## Ink and packs
 
@@ -193,14 +200,31 @@ There are **no real-money purchases**. Ink is earned by playing. This keeps the 
 | --- | --- |
 | **Scrap** | 3 random cards — cheapest, for smooth frequent progress |
 | **Base** | 10 random cards — the baseline |
-| **Court** | 10 cards weighted toward high ranks — expensive |
+| **Court** | 10 cards weighted toward the scarce tier — expensive |
 | **Suited** | 10 cards all of one suit, player's choice — mid to expensive |
 
 **Prices are fixed per pack type. Packs do not escalate in price.** Distinct types at distinct prices give a real decision ("save for a Court, or buy two Base now?") and self-balance, because the player sets their own rate.
 
 **Suited is load-bearing.** It is the only pack that lets a player commit to a *strategy* rather than simply get better numbers.
 
-**Rarity is rank.** Low numbers common, high numbers scarce, face cards and Aces precious. No separate rarity system is needed.
+**Rarity is rank, in three tiers.** No separate rarity system is needed.
+
+| Tier | Cards |
+| --- | --- |
+| Common | 2–10, at **equal weight** — a 10 is no scarcer than a 2 |
+| Scarce | J, Q, K, Joker |
+| Rarest | A, alone |
+
+2–10 are flat because the rank ladder already separates those nine cards by
+geometry, range and damage; charging scarcity for them as well would
+double-count the same difference. The Ace is alone in the rarest tier because
+nothing else restrains board growth — see the King and Ace hazards under "The
+card actions". The Joker sits with the face cards rather than below them: it is
+the only answer to a repair-versus-the-wall stall, and making the escape hatch
+the hardest card to obtain would be a trap.
+
+**Court shifts mass into the scarce tier, and never improves Ace odds** — it is
+better odds on face cards, not a way to buy board growth.
 
 ## Time model
 
@@ -333,13 +357,11 @@ This is a **coverage** tower defense, not a **maze** one: defense is about which
 
 | Question | Notes |
 | --- | --- |
-| **Which pack opens a run** | A run starts by opening one, but the type is not fixed. Presumably Base. |
 | **Run length and loss condition** | How long a run is, what ends it, and whether difficulty scales per round or in stages. |
 | **Running out of cards** | Cards are consumed and packs are the only source, so a player can reach zero. Loss, stall, or covered by a guaranteed Ink floor? |
-| **Pack weighting and prices** | How rank scarcity translates into pack contents, and what each type costs. |
-| **Ink income values** | Kill rewards per Piece type, and the round-completion lump sum, are **placeholders**. Ink's worth is set by what it buys, so these cannot be tuned until pack prices exist — resolve the two together. The *shapes* are settled and are not open — see "Ink and packs" above for the current three income paths, and [`2026-08-06-ink-income-design.md`](../superpowers/specs/2026-08-06-ink-income-design.md) for the reasoning behind them. One more thing to weigh whenever this pass happens: `tick.ts` feeds a freshly promoted Queen into the same tick's Tower fire, so a Pawn worth 1 Ink shot on the way in is worth 8 if left to reach the back rank and die as a Queen instead — withholding fire from an approaching Pawn is a legible, currently uncosted 8x income play. |
-| **PRNG streams** | One stream (simplest) versus separate named streams for packs/rounds/draws, so seeds survive code changes. |
-| **Repair versus the wall** | **Reachable now — ♥ Repair exists.** Towers block and there is no pathfinding, so a repaired Tower a Piece cannot break is a permanent wall, and against a rank-5 Tower's `diagonal` blind spot the Piece cannot even shoot back. What bounds it today is that **cards are consumed and packs do not exist**: ♥ runs out, the Tower falls, and the round resumes. `src/game/roundTermination.test.ts` pins that bound, and the Joker is the escape hatch. **Adding packs removes the bound.** Two later changes made each ♥ worth more against the wall without touching that bound: ♥ now restores to **full** rather than by magnitude, so one card can absorb a whole Tower's worth of grinding; and ♠ raises `maxHealth`, so a ♠-fed Tower gives each subsequent ♥ a higher ceiling to fill. The wall is the same length in cards and longer in seconds. A third change tightens it in the other direction: a ♥ now reaches only a Tower of its own rank, so fewer of the ♥ in a Deck can sustain any given wall. The bound was already finite; it is now shorter in cards. Nothing here depends on it being loose. Candidate answers: attacked Towers lose *maximum* health permanently so repair only delays; repair capped per round; or a blocked Piece eventually breaks through regardless. Decide with play experience, not on paper. |
+| **Pack weighting and prices** | How rank scarcity translates into pack contents, and what each type costs. Still open. Placeholder prices and tier weights now exist in `src/data/packs.ts`, labelled as placeholders — they exist because a purchase cannot happen without them, not because they are right. Pack **sizes** are settled and are not part of this question. |
+| **Ink income values** | Kill rewards per Piece type, and the round-completion lump sum, are **placeholders**. Ink's worth is set by what it buys, so these cannot be tuned until pack prices exist — resolve the two together. The *shapes* are settled and are not open — see "Ink and packs" above for the current three income paths, and [`2026-08-06-ink-income-design.md`](../superpowers/specs/2026-08-06-ink-income-design.md) for the reasoning behind them. One more thing to weigh whenever this pass happens: `tick.ts` feeds a freshly promoted Queen into the same tick's Tower fire, so a Pawn worth 1 Ink shot on the way in is worth 8 if left to reach the back rank and die as a Queen instead — withholding fire from an approaching Pawn is a legible, currently uncosted 8x income play. Packs now price Ink, so this can finally be resolved — jointly with pack prices, as this row has always said. |
+| **Repair versus the wall** | **Reachable now — ♥ Repair exists.** Towers block and there is no pathfinding, so a repaired Tower a Piece cannot break is a permanent wall, and against a rank-5 Tower's `diagonal` blind spot the Piece cannot even shoot back. **Packs have landed, and the bound survives — because packs are bought only in the gap.** The ♥ supply is fixed for a round's whole duration, so a repaired Tower still runs out of repairs, the Tower still falls, and the round still resumes. `src/game/roundTermination.test.ts` pins both halves: a purchase is refused mid-round and accepted in the gap. What would remove the bound is allowing mid-round purchase, so **that** is the change this question now gates. Two later changes made each ♥ worth more against the wall without touching that bound: ♥ now restores to **full** rather than by magnitude, so one card can absorb a whole Tower's worth of grinding; and ♠ raises `maxHealth`, so a ♠-fed Tower gives each subsequent ♥ a higher ceiling to fill. The wall is the same length in cards and longer in seconds. A third change tightens it in the other direction: a ♥ now reaches only a Tower of its own rank, so fewer of the ♥ in a Deck can sustain any given wall. The bound was already finite; it is now shorter in cards. Nothing here depends on it being loose. Candidate answers: attacked Towers lose *maximum* health permanently so repair only delays; repair capped per round; or a blocked Piece eventually breaks through regardless. Decide with play experience, not on paper. |
 | **Capping stacked supports** | **Reachable now.** Supports stack additively with no limit, so a Tower fed every ♠ in a Deck grows without bound — and with flat values, *n* supports is exactly *n* × the flat amount, which makes the growth easy to reason about but does not bound it. The rank match narrows how many Cards can reach one Tower, which is a constraint but not a cap. Candidate answers: a hard cap per Tower, diminishing returns per stack, or a cap per round. Deliberately left open by the rank-matching work — do not resolve it by guessing. |
 | **Board geometry** | Growable, starting at a literal 8x8 — an Ace adds a rank. Square colour is no longer load-bearing, since the Knight is damageable everywhere, so the checkerboard is preserved for chess-authenticity alone. Whether that argument carries enough weight on its own is undecided. |
 | **Multiplayer scope** | Still assumed single-player versus AI, no backend, no netcode. |

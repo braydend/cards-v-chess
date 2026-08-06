@@ -39,19 +39,30 @@ export function structuralKey(state: GameState): string {
     state.leaks,
     // Ink moves on a kill, a round completion, or a Joker's Clear, and all
     // three already change this key: a kill and a Clear both shrink or empty
-    // the `pieces` string, a Clear also drops `deck.length` for the consumed
-    // Joker, and a completion changes `phase` and `roundNumber`. Keyed because
-    // the HUD prints it, not because it adds a publish. It is NOT a per-tick
-    // value; adding one of those here would force a React render every frame.
+    // the `pieces` string, a Clear also removes the consumed Joker from the
+    // Deck's id list below, and a completion changes `phase` and `roundNumber`.
+    // Keyed because the HUD prints it, not because it adds a publish. It is NOT
+    // a per-tick value; adding one of those here would force a React render
+    // every frame.
     state.ink,
     state.autoStart,
     state.pendingSpawns.length,
     // The board grows when an Ace is played, and the renderer draws from it.
     state.board.ranks,
     state.board.files,
-    // Every card play removes exactly one card, so length alone is a faithful
-    // trigger — and far cheaper than joining 30 ids on every publish.
-    state.deck.length,
+    // The Deck's card ids, NOT its length.
+    //
+    // Length was faithful while every card play removed exactly one card. Packs
+    // break that: culling at the cap destroys exactly as many cards as the pack
+    // deals, so a purchase can replace ten cards without moving the length by
+    // one — and keyed on length, the store would never publish and the new cards
+    // would never reach React. That is what culling at the cap always looks
+    // like, so it is the common case rather than an edge.
+    //
+    // Cheap enough to be uninteresting: thirty short ids, joined a couple of
+    // dozen times a second, adding no publishes. Derived from the Deck rather
+    // than tracked in a counter, so there is no bookkeeping to forget.
+    state.deck.map((card) => card.id).join(','),
     pieces,
     towers,
   ].join('#')

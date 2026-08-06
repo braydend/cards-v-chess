@@ -2,10 +2,9 @@ import { towerRank } from '../data/towerRanks'
 import { commandFor, isBuildableRank, type Card } from '../game'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
+import { CardFace } from './CardFace'
 import { GEOMETRY_LABELS } from './geometryLabels'
 import { supportModeLabel } from './supportLabel'
-
-const SUIT_GLYPH = { hearts: '♥', diamonds: '♦', spades: '♠', clubs: '♣' } as const
 
 const FACE_ACTION = {
   J: 'Shield a Tower',
@@ -13,11 +12,6 @@ const FACE_ACTION = {
   K: 'Reinforce the Core',
   A: 'Expand the board',
 } as const
-
-function cardLabel(card: Card): string {
-  if (card.kind === 'joker') return 'Joker'
-  return `${card.rank}${SUIT_GLYPH[card.suit]}`
-}
 
 /**
  * What playing this Card for its rank would do.
@@ -80,11 +74,9 @@ export function Deck() {
       <ul className="deck__cards">
         {deck.map((card) => (
           <li key={card.id}>
-            <button
-              type="button"
-              className={`deck__card${card.id === selectedCardId ? ' deck__card--active' : ''}${
-                card.kind === 'standard' ? ` deck__card--${card.suit}` : ' deck__card--joker'
-              }`}
+            <CardFace
+              card={card}
+              modifier={card.id === selectedCardId ? 'deck__card--active' : undefined}
               onClick={() => {
                 // Clear any half-finished Echo so it cannot leak into the next play.
                 setEchoSourceTowerId(null)
@@ -94,9 +86,7 @@ export function Deck() {
                 setPlayMode('build')
                 setSelectedCardId(card.id === selectedCardId ? null : card.id)
               }}
-            >
-              {cardLabel(card)}
-            </button>
+            />
           </li>
         ))}
       </ul>

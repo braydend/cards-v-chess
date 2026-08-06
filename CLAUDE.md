@@ -19,21 +19,24 @@ What exists:
 
 - The rules engine (`src/game/`) with `step` / `tick`, driven by a fixed-timestep accumulator.
 - **The card system.** The Deck, modality (rank builds / suit supports), the rank ladder 2–10, the four suit supports, and all five card actions — Jack Shield, Queen Echo, King Reinforce, Ace Expand, Joker Clear. Playing a card consumes it.
-- **Ink income.** The run currency, earned from Tower kills, round completion, and a Joker's Clear share, shown in the HUD. Kill rewards are authored per Piece type in `src/data/pieceTypes.ts`; the round lump sum and the Joker's share live in `src/data/ink.ts`. Every calculation is in `src/game/ink.ts`. **The numbers are placeholders** — Ink buys nothing yet, so nothing prices them.
+- **Ink income.** The run currency, earned from Tower kills, round completion, and a Joker's Clear share, shown in the HUD. Kill rewards are authored per Piece type in `src/data/pieceTypes.ts`; the round lump sum and the Joker's share live in `src/data/ink.ts`. Every calculation is in `src/game/ink.ts`. **The numbers are still placeholders**, but packs now price them, so the joint tuning pass is finally possible — see the design doc's open questions.
+- **Packs.** Four types — Scrap, Base, Court, Suited — bought with Ink **in the gap between rounds only**, culling to the 30-card cap first. A run opens by dealing a Base pack; there is no authored starting Deck. Runs are seeded, with named PRNG streams in `src/game/rng.ts`. Prices and rarity weights in `src/data/packs.ts` are placeholders; the sizes are not.
 - **The full Chess roster** — Pawn, Knight, Bishop, Rook, Queen, King — each with its own movement, Pawn promotion on the back rank, hunting Knights, the King's move-speed/slide aura, and the Bishop's healing aura.
 - **Tower combat.** Firing geometry per rank, Tower health, shields, damage from blocked Pieces, and destruction.
 - **Tower legibility.** A Tower darkens as it loses health, flashes on a hit, pulses at critical health, and flares as it dies; clicking one opens an inspect panel with the exact figures, including lifetime `damageTaken`.
 - The renderer (`src/scene/`), with distinct per-type rendering for each Piece, and the HUD, the Deck UI and the Tower panel (`src/ui/`).
 - **CI.** `lint`, `typecheck`, `test:coverage` with per-directory thresholds, and `build` — see "CI" below.
-- 466 tests across 28 files, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
+- 560 tests across 34 files, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
 
 What does **not** exist yet:
 
-- **Packs.** No pack opening, no cull flow, and no seeded PRNG. Ink accumulates with nothing to spend it on. The Deck is a fixed authored list in `src/data/deck.ts` — see the file's own comment before touching it.
+- **The pack-opening animation** (issue #10's stretch goal). The shop reveals a pack's contents as a grid, with no animation.
+- **A visible or enterable seed.** Runs are seeded and reproducible, but the seed is internal — `src/state/simulation.ts` mints it and nothing shows it.
+- **Caps on King and Ace accumulation.** Both hazards are now reachable and neither is capped; scarcity is the only mitigation.
 
 Towers fire and can kill Pieces outright, so a round does not resolve by leaking out — it ends when nothing on the board can still act, whether that means every Piece destroyed or through the Core. No Piece type can end a round genuinely stranded any more: every type has a designed way off `stuck`.
 
-The design still runs ahead of the code on the economy, so read `docs/design/game-design.md` for the intended design rather than inferring it from what is built. The largest unbuilt piece is packs, with the cull flow and the PRNG.
+Packs have landed, closing the gap between design and code on the economy — pricing and King/Ace caps are still open, so read `docs/design/game-design.md` for the intended design rather than inferring it from what is built. The largest unbuilt pieces now are the pack-opening animation and a visible seed.
 
 **The Ace wedge is fixed, and it was never a shadow** (issue #16). Playing an Ace used to throw a wedge across the scene and lose the new rank. The cause was drei's `Instances`, which sizes its `instanceMatrix` and `instanceColor` buffers once from `limit` in a `useState` initialiser and never resizes them; its frame loop still reads the current `limit` to set `mesh.count`. `Board.tsx` passed `limit={squares.length}`, so an Ace moved `count` to 72 against 64 allocated slots — every upload then failed with `INVALID_VALUE: bufferSubData: srcOffset + length too large`, and the eight instances that never received a matrix drew as degenerate geometry. Both suspect `Instances` are now keyed on their slot count so a board growth remounts and reallocates them; **those `key` props are load-bearing, and the files say so.** The general lesson is in "React Three Fiber discipline" below.
 
@@ -97,17 +100,20 @@ Design facts with hard implementation consequences. Breaking one of these is a b
 - **Playing a card consumes it.** There is no drawing, no shuffling, no discard pile, and no hand. The whole Deck is always visible and playable.
 - **A numbered Card supports only a Tower of its own rank; face cards support any Tower.** Suit and rank are not independent at play time. `canSupport` in `src/game/support.ts` is the single answer, and it is enforced twice on purpose: `supportTower` refuses the play, and `resolveBoardAction` declines the click so the Tower inspect panel gets it instead. `commandFor` deliberately does **not** check — it does not validate, and it only receives a `towerId`, never a Tower.
 - **A support's value never depends on a rank.** Not the Card's, not the Tower's. Every ♠ adds the same health wherever it lands; the only variation is a flat premium for a face card. Anything reintroducing rank-scaled magnitude is a regression, not a balance choice. Supports are, however, **uncapped** — bounding a stack is open work, not a settled rule.
-- **A Card's identity is its `id`, never its rank and suit.** The Deck is a multiset — cards come from random packs, so duplicates are normal, and the authored starting Deck already holds a triple. Three identical 5♦ are three distinct Cards, and playing one must leave the other two. Any lookup or removal keyed on rank+suit is a bug the moment a duplicate exists; go through `findCard` / `removeCard` in `src/game/cards.ts`.
+- **A Card's identity is its `id`, never its rank and suit.** The Deck is a multiset — cards come from random packs, so duplicates are normal. Three identical 5♦ are three distinct Cards, and playing one must leave the other two. Any lookup or removal keyed on rank+suit is a bug the moment a duplicate exists; go through `findCard` / `removeCard` in `src/game/cards.ts`.
 - **The board grows.** An Ace adds a rank, so never derive a spawn rank or a board extent from a module constant — read it from `state.board`. A static `SPAWN_RANK` in `src/data/board.ts` had to be deleted for exactly this reason. Reading the extent from state is necessary but **not sufficient**: growth also has to survive *reaching* the renderer, which is how the Ace wedge happened — `Board.tsx` read `state.board` correctly and still broke, because a buffer sized on the first render never grew with it. The fixed shadow frustum in `src/scene/GameScene.tsx` is the same assumption still unfixed, cosmetically.
 - **Towers block movement, and blocked Pieces attack them at half damage.** A Piece whose next square holds a Tower does not advance. The same rule constrains placement in the other direction: `canBuildOn` in `src/game/placement.ts` refuses a build on a square a Piece currently occupies, because a Piece standing on a Tower's square is one that walked through what should have stopped it. The renderer calls the same predicate to mark an illegal square before the click, so the marker and the refusal cannot disagree. This does not make the two exclusive in general — a Piece can still spawn onto an existing Tower's square, since `drainDueSpawns` in `src/game/tick.ts` does not consult `state.towers` (issue #22, open) — it only guarantees the player can never build the overlap into existence.
 - **Never add pathfinding.** A blocked Piece grinds; it must never route around. Routing would let the player steer Pieces by placing Towers — that is mazing, and it is rejected. Walling is allowed; herding is not.
 - **Pieces move by chess rules, not toward the Core.** `src/game/movement.ts` owns this. There is no goal-seeking: a Piece reaches the Core only if chess movement happens to take it there.
 - **A round ends when nothing can still act, not when the board is empty.** Every Piece type that could once run out of legal moves for good now has a designed way off `stuck` — Pawns promote, sliders and the King sweep sideways, and a Knight that exhausts its forward hops hunts the Core with knight moves rather than stranding on the back rank (see the hunting carve-out below) — but `stillActive` still checks every Piece, rather than assuming a designed answer always applies.
-- **A Piece blocked by a Tower counts as acting.** `nextMove` returns `attackTower`, not `stuck`, so the round cannot end while it grinds. That terminates only because repair is bounded by a finite Deck: ♥ runs out, the Tower falls, the round resumes. **Adding packs removes the bound** — see `src/game/roundTermination.test.ts`, which pins it, and "Repair versus the wall" in the design doc.
+- **A Piece blocked by a Tower counts as acting.** `nextMove` returns `attackTower`, not `stuck`, so the round cannot end while it grinds. That terminates only because repair is bounded within a round: ♥ runs out, the Tower falls, the round resumes. **Packs do not remove that bound** — buying one is refused while a round is live, so the ♥ supply stays fixed until the gap. See `src/game/roundTermination.test.ts`, which pins it, and "Repair versus the wall" in the design doc.
 - **Pieces are forward-biased and deterministic.** Direction is a pure function of Piece type, `moveCount`, and `handedness`. Never choose a line because the Core is on it — that is goal-seeking, and it makes Tower placement steer Pieces. **Narrow carve-out:** once a Knight's forward hops run out, it hunts the Core directly, guided by a knight-move distance field computed on an empty board (`src/game/knightDistance.ts`). The field never sees Towers, so Tower placement cannot change what it returns, and a hunting Knight blocked by a Tower grinds on it exactly like every other blocked Piece rather than trying another square. What the invariant actually guards against — Tower placement steering a Piece around an obstacle — still cannot happen; only the *source* of direction changes, and only for a Knight that would otherwise have nothing left to do.
 - **Sliders and the King sweep laterally when forward is off the board, reflecting off the file edges and flipping `handedness`.** Round termination depends on this: without the flip a Piece oscillates between two files forever. Knights take a different answer to the same problem — once a Knight's forward hops run out it hunts the Core with knight moves instead of sweeping sideways, per the carve-out above.
 - **No path manipulation.** No walls, no blockers, no herding. Defense is coverage, not maze geometry.
 - **Ink is never spent to play a card.** It buys packs only.
+- **Packs are bought only in the gap between rounds, and that is what keeps round termination bounded.** A ♥-repaired Tower a Piece cannot break is a permanent wall, and a round cannot end while a Piece grinds it. What bounds it is that the ♥ supply is finite *within a round* — so `buyPack` is refused while a round is live. This is the one deliberate exception to "commands are valid both between rounds and mid-round". `src/game/roundTermination.test.ts` pins it; without that test the rule is only a comment.
+- **`nextEntityId`'s parity is load-bearing.** `tick.ts` derives a spawned Piece's `handedness` from it, so consecutively spawned Pieces weave opposite ways. Never spend that counter on anything but a Piece or a Tower — Cards have `nextCardId`. Dealing a 10-card pack from `nextEntityId` would silently reverse Piece movement for a whole run.
+- **`step`'s switch is exhaustiveness-protected by its declared return type.** Adding a `Command` variant without a matching `case` is a compile error (`TS2366: Function lacks ending return statement`), not a runtime surprise — so no `assertNever` helper is needed. Do not add one, and do not weaken `step`'s return type to `GameState | undefined`, which would silently remove this.
 
 ## Architecture
 
@@ -155,6 +161,8 @@ This bridge is the part most likely to get broken by accident, so understand it 
 1. `state/simulation.ts` owns the live `GameState` **outside React**, and advances it with the fixed-timestep accumulator.
 2. `scene/GameLoop.tsx` calls `advance(delta * 1000)` from `useFrame`. It sets no state and touches no store.
 3. `state/store.ts` subscribes to the simulation and publishes a snapshot to zustand **only when `structuralKey` changes** — that key deliberately excludes `roundElapsedMs`, `moveCooldownMs`, and `prevSquare`, all of which change every tick.
+   The Deck is keyed on its **card ids, not its length** — a cull-and-open at the cap replaces cards without changing how many there are, so a length key would never publish and the new cards would never reach React.
+   The pack shop's reveal depends on this: it diffs the Deck's ids across a purchase, so keyed on length a cull-at-the-cap purchase would publish nothing and the new cards would never appear.
 4. Components read the snapshot for mounting and unmounting. Smooth motion between squares is done in `useFrame` by mutating the mesh transform, reading live state via `simulation.getState()`.
 
 Because pieces move in discrete hops, this keeps React renders rare: measured at **24 store publishes across 600 frames** (25x fewer than rendering per frame). `src/state/simulation.test.ts` guards this with a bound of 60 — comfortable headroom over the real number, but tight enough to fail on a regression — and if that test starts failing, something is pushing per-frame updates through React.
@@ -167,10 +175,10 @@ Adding a per-tick value to `structuralKey` would silently destroy this property.
 src/
   game/       pure TS rules engine — no React, no three.js
               types, state, step, tick, board helpers
-  data/       board, piece types, tower ranks, card values, the starting Deck,
+  data/       board, piece types, tower ranks, card values, packs,
               round composition — data, not code
   scene/      R3F components: Board, Core, Towers, Pieces, GameLoop
-  ui/         React DOM overlay: Hud, Deck, TowerPanel (later: PackOpen, the cull screen)
+  ui/         React DOM overlay: Hud, Deck, TowerPanel, PackShop
   state/      simulation (owns live state) + zustand bridge to React
 ```
 
@@ -190,6 +198,7 @@ These are the failure modes that cause every R3F performance horror story:
 - **A growing `limit` on drei's `Instances` needs a `key` to match it.** `Instances` allocates its instance buffers once, from `limit`, in a `useState` initialiser — a later `limit` change moves `mesh.count` but never resizes those buffers, so the draw silently overruns them and the surplus instances render as garbage. Any `limit` derived from something that grows (the board, above all) must be paired with a `key` on the same value, so growth remounts and reallocates. This cost real debugging time once; see the Ace wedge under "Current state". Padding `limit` to a generous constant is **not** the fix here — the board's growth is uncapped, and a constant board extent breaks the invariant above.
 - **Toggle `visible`** rather than conditionally mounting, where mounting would recompile materials.
 - Load assets with `useLoader` / `useGLTF` so they are cached scene-wide.
+- **Resetting state when a prop flips wants render-phase adjustment, not an effect.** `setState` inside `useEffect` trips `react-hooks/set-state-in-effect`. Compare the current value against a tracked previous one and set during render, updating the tracker in the same guarded block so the guard flips and the render converges — the pattern React documents for adjusting state when a prop changes. `src/ui/PackShop.tsx` does this to clear a stale selection when the shop reopens.
 
 ## Domain vocabulary
 
@@ -238,6 +247,7 @@ Do not introduce synonyms for these. Drifting between "wave" and "round", or "to
 - Keep `data/` definitions out of assertions where possible — a balance tweak should not break unrelated tests.
 - **There is no jsdom and no component tests, so a decision left inside a `.tsx` file cannot be tested at all.** Pull any non-trivial branching out into a pure module beside it and test that: `src/game/commandFor.ts` decides which Command a Card produces, `src/scene/boardClick.ts` decides what a board click does. The `.tsx` handler should be plumbing — read the stores, call the pure function, apply the result.
 - Use `pnpm test:run` in automation; `pnpm test` is watch mode.
+- **Vitest runs through esbuild, which strips types without checking them.** A test failing at runtime tells you nothing about what `tsc` thinks, and a passing test suite is not a passing typecheck. Verify any type-level claim with `pnpm typecheck`. This has already caused one wrong conclusion about the codebase's safety properties.
 
 ## Open design decisions
 

@@ -2,6 +2,7 @@ import { reset } from '../state/simulation'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { Deck } from './Deck'
+import { PackShop } from './PackShop'
 import { TowerPanel } from './TowerPanel'
 
 /**
@@ -30,6 +31,8 @@ export function Hud() {
     useUiStore.getState().setSelectedCardId(null)
     useUiStore.getState().setEchoSourceTowerId(null)
     useUiStore.getState().setSelectedTowerId(null)
+    useUiStore.getState().setPackShopOpen(false)
+    useUiStore.getState().clearMarkedForCull()
   }
 
   return (
@@ -83,6 +86,15 @@ export function Hud() {
             </button>
           )}
 
+          <button
+            type="button"
+            className="hud__button"
+            disabled={phase !== 'gap'}
+            onClick={() => useUiStore.getState().setPackShopOpen(true)}
+          >
+            Buy a pack
+          </button>
+
           <label className="hud__toggle">
             <input
               type="checkbox"
@@ -99,6 +111,7 @@ export function Hud() {
       </div>
 
       <TowerPanel />
+      <PackShop />
     </div>
   )
 }
