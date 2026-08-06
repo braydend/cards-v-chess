@@ -16,7 +16,7 @@ import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { squareKey, stagingRank } from './board'
-import { firstTower, pawnAt, pieceAt, standardCard, withDeck, withTower } from './fixtures'
+import { firstTower, pawnAt, pieceAt, standardCard, towersAt, withDeck, withTower } from './fixtures'
 import {
   allSquares,
   canBuildOn,
@@ -26,7 +26,7 @@ import {
   step,
   tick,
 } from './index'
-import type { GameState, PieceTypeId, Square, Tower } from './types'
+import type { GameState, PieceTypeId } from './types'
 
 /** The fixed timestep the app runs at. Tests drive time; nothing reads a clock. */
 const DT = 1000 / 60
@@ -156,31 +156,6 @@ describe('the rank-5 precondition the walled tests rely on', () => {
 })
 
 const PIECE_TYPE_IDS = Object.keys(PIECE_TYPES) as PieceTypeId[]
-
-/**
- * A Tower on every one of these squares. Only `id` is read by the movement
- * code under test, but the whole shape is built so the map is a real
- * `Map<string, Tower>` rather than a cast.
- */
-function towersAt(...squares: Square[]): Map<string, Tower> {
-  return new Map(
-    squares.map((square, index) => [
-      squareKey(square),
-      {
-        id: `tower-${index}`,
-        square,
-        cardRank: 2 as const,
-        fireCooldownMs: 0,
-        health: 8,
-        maxHealth: 8,
-        damage: 1,
-        fireIntervalMs: 600,
-        shield: 0,
-        damageTaken: 0,
-      },
-    ]),
-  )
-}
 
 describe('entering the board from the Staging rank', () => {
   /**
