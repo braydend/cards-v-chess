@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
-import { BOARD } from '../data/board'
+import { BOARD, CORE_SQUARE } from '../data/board'
 import { createInitialState, tick } from './index'
 import type { GameState, Piece, PieceTypeId } from './types'
 
@@ -22,6 +22,7 @@ function pieceOn(id: string, typeId: PieceTypeId, file: number, rank: number): P
     handedness: 1,
     auraCooldownMs: 0,
     buffed: false,
+    hunting: false,
   }
 }
 
@@ -62,12 +63,36 @@ describe('round termination', () => {
     expect(settled.phase).not.toBe('inProgress')
   })
 
-  it('strands a Knight on the back rank rather than letting it bounce forever', () => {
+  it('a Knight on the back rank hunts the Core rather than stranding there', () => {
+    // Stranding is what this same scenario used to assert: a Knight on rank 0
+    // had no legal move ever again and was left standing. It hunts instead
+    // now, so the Piece is removed by leaking rather than left on the board —
+    // `leaks` is the only durable record of that, since a leaked Piece
+    // disappears from `pieces`.
     const settled = settle(roundWith([pieceOn('n', 'knight', 5, 0)]))
 
     expect(settled.phase).toBe('gap')
-    // Left standing, not deleted — the gap stays visible.
-    expect(settled.pieces.map((piece) => piece.typeId)).toEqual(['knight'])
+    expect(settled.pieces).toHaveLength(0)
+    expect(settled.leaks).toBe(1)
+  })
+
+  it.each(
+    Array.from({ length: BOARD.files }, (_, file) => file).filter(
+      (file) => file !== CORE_SQUARE.file,
+    ),
+  )('a Knight starting on back-rank file %i hunts all the way to the Core', (file) => {
+    // Every file but the Core's own — a Piece can never actually start on the
+    // Core's square in real play, since the Core sits there and nothing
+    // spawns on rank 0. Covering every other file is what makes this a
+    // property of the whole back rank rather than one lucky square: the
+    // knight-distance field in knightDistance.ts is finite everywhere else on
+    // an 8x8 board, so every one of these settles by leaking, never by
+    // hanging or re-stranding.
+    const settled = settle(roundWith([pieceOn('n', 'knight', file, 0)]))
+
+    expect(settled.phase).toBe('gap')
+    expect(settled.pieces).toHaveLength(0)
+    expect(settled.leaks).toBe(1)
   })
 
   it('a whole mixed board settles', () => {

@@ -15,6 +15,7 @@ function piece(id: string, typeId: PieceTypeId, square: Square, handedness: Hand
     handedness,
     auraCooldownMs: 0,
     buffed: false,
+    hunting: false,
   }
 }
 

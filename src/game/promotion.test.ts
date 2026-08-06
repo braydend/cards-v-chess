@@ -18,6 +18,7 @@ function pawnOn(file: number, rank: number): Piece {
     handedness: 1,
     auraCooldownMs: 0,
     buffed: false,
+    hunting: false,
   }
 }
 

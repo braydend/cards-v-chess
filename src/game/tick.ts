@@ -61,6 +61,9 @@ export function tick(state: GameState, dtMs: number): GameState {
     handedness: (nextEntityId + index) % 2 === 0 ? 1 : -1,
     auraCooldownMs: 0,
     buffed: false,
+    // A promoted Queen never hunts — that field only ever means anything for
+    // a Knight, and this Piece is not one any more.
+    hunting: false,
   }))
   const entityIdAfterPromotion = nextEntityId + moved.promoted.length
 
@@ -99,17 +102,20 @@ export function tick(state: GameState, dtMs: number): GameState {
     }
   }
 
-  // A round ends when nothing on the board can still act — not when the board is
-  // empty. Chess movement leaves some Pieces genuinely stranded: a Knight's
-  // hops only ever go forward, so on the back rank every candidate would land
-  // off the board, and unlike a slider or the King it has no lateral fallback
-  // to catch it — so it has no legal move for the rest of the run. Waiting for
-  // an empty board would hang the round forever. A Pawn never reaches this
-  // state — it promotes into a Queen instead, which keeps `stillActive` true
-  // until that Queen also runs out of legal moves or leaks.
+  // A round ends when nothing on the board can still act — not when the board
+  // is empty. That distinction still matters even though no Piece type
+  // deliberately strands any more: a Piece blocked by a Tower it cannot break
+  // grinds there forever rather than vanishing, so `stillActive` has to ask
+  // "can anything still act", never "is the board empty" — waiting for an
+  // empty board would hang the round in that case regardless.
   //
-  // Stranded Pieces are deliberately left standing rather than quietly deleted,
-  // so the gap is visible.
+  // Every Piece type that could once run out of legal moves for good now has
+  // a designed way off `stuck`: a Pawn promotes into a Queen, sliders and the
+  // King sweep sideways, and a Knight that exhausts its forward hops hunts
+  // the Core with knight moves instead of stranding on the back rank — see
+  // `knightMove` in movement.ts. `stillActive` still checks every Piece for
+  // `stuck` rather than assuming that, though: a designed answer is not a
+  // proof, and the check is what actually guards the invariant.
   //
   // LOAD-BEARING INVARIANT: a Piece blocked by a Tower returns `attackTower`,
   // not `stuck`, so it counts as active and this round cannot end while it
@@ -274,6 +280,7 @@ function drainDueSpawns(
       handedness: nextEntityId % 2 === 0 ? 1 : -1,
       auraCooldownMs: 0,
       buffed: false,
+      hunting: false,
     })
     nextEntityId += 1
   }
@@ -318,6 +325,7 @@ function movePieces(
     let prevSquare = piece.prevSquare
     let moveCount = piece.moveCount
     let handedness = piece.handedness
+    let hunting = piece.hunting
     let reachedCore = false
     let isPromoted = false
 
@@ -326,11 +334,13 @@ function movePieces(
     while (cooldown >= moveIntervalMs) {
       cooldown -= moveIntervalMs
 
-      // moveCount and handedness carry the Piece's own motion state forward
-      // hop by hop, which is what makes the Knight's zig-zag and the Queen's
-      // rook/bishop alternation actually advance instead of repeating.
+      // moveCount, handedness, and hunting carry the Piece's own motion state
+      // forward hop by hop, which is what makes the Knight's zig-zag, the
+      // Queen's rook/bishop alternation, and a hunting Knight's permanent
+      // switch away from zig-zagging actually stick rather than repeating or
+      // reverting.
       const outcome = nextMove(
-        { typeId: piece.typeId, from: square, moveCount, handedness, slideBonus },
+        { typeId: piece.typeId, from: square, moveCount, handedness, slideBonus, hunting },
         board,
         coreSquare,
         towerBySquare,
@@ -358,8 +368,11 @@ function movePieces(
       }
 
       if (outcome.kind === 'stuck') {
-        // No legal move now and none later. Drop the cooldown so the Piece is
-        // not burning simulation work every tick for the rest of the run.
+        // No legal move this hop. For every Piece type on the current board
+        // this is also permanent — Pawns promote, sliders and the King sweep
+        // sideways, and a Knight that runs out of forward hops hunts instead
+        // of stranding — so drop the cooldown rather than let a genuinely
+        // immobile Piece burn simulation work every tick for nothing.
         prevSquare = square
         cooldown = 0
         break
@@ -372,6 +385,7 @@ function movePieces(
       // that would be routing around, which the design forbids.
       moveCount += 1
       handedness = outcome.handedness ?? handedness
+      hunting = outcome.hunting ?? hunting
     }
 
     if (reachedCore) {
@@ -387,6 +401,7 @@ function movePieces(
       moveCooldownMs: cooldown,
       moveCount,
       handedness,
+      hunting,
       buffed: isBuffed,
     })
   }

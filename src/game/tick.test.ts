@@ -43,6 +43,7 @@ function rookOnBackRank(file: number, handedness: Handedness): GameState {
         handedness,
         auraCooldownMs: 0,
         buffed: false,
+        hunting: false,
       },
     ],
   }
@@ -70,6 +71,7 @@ function pieceAt(
     handedness: 1,
     auraCooldownMs: 0,
     buffed: false,
+    hunting: false,
     ...overrides,
   }
 }
@@ -197,24 +199,26 @@ describe('tick: round completion', () => {
     expect(state.roundElapsedMs).toBe(0)
   })
 
-  it('completes once nothing can act, not once the board is empty', () => {
-    // Pawn promotion (Task 10) means a Pawn never actually reaches this state
-    // any more — it turns into a Queen instead, which keeps sweeping and
-    // eventually leaks. The Knight is the one Piece type still genuinely
-    // stranded on the back rank, so it is placed directly rather than spawned:
+  it('completes the round once a hunting Knight leaks, not merely when the board looks stalled', () => {
+    // A Knight on the back rank used to have no legal move ever again, and
+    // this test proved the round still completed with that Piece left
+    // standing. It hunts to the Core instead now, so the same starting
+    // position demonstrates the same underlying rule — completion tracks
+    // "can anything still act", not the board's contents — through a
+    // different route: the Piece disappears by leaking rather than by being
+    // left behind stuck. Placed directly rather than spawned, since
     // `startedRound()` always drives round 1, which schedules Pawns
-    // exclusively, and a Pawn-only round no longer leaves anything standing to
-    // demonstrate this.
-    const stranded: GameState = {
+    // exclusively.
+    const huntingKnight: GameState = {
       ...createInitialState(),
       phase: 'inProgress',
       pieces: [pieceAt('knight', 'knight', { file: 5, rank: 0 })],
     }
-    const state = runFor(stranded, 60_000)
+    const state = runFor(huntingKnight, 60_000)
 
     expect(state.phase).toBe('gap')
-    expect(state.pieces).toHaveLength(1)
-    expect(state.pieces[0]?.square).toEqual({ file: 5, rank: 0 })
+    expect(state.pieces).toHaveLength(0)
+    expect(state.leaks).toBe(1)
   })
 
   it('scales the next round up', () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BOARD, CORE_SQUARE } from '../data/board'
-import { squareKey } from './board'
+import { allSquares, squareKey, squaresEqual } from './board'
+import { knightDistanceField } from './knightDistance'
 import { nextMove } from './movement'
 import type { MoveRequest } from './movement'
 import type { PieceTypeId, Square, Tower } from './types'
@@ -40,6 +41,7 @@ function move(
     moveCount: 0,
     handedness: 1,
     slideBonus: 0,
+    hunting: false,
     ...overrides,
   }
   return nextMove(request, BOARD, CORE_SQUARE, towers)
@@ -302,8 +304,16 @@ describe('knight movement', () => {
     })
   })
 
-  it('strands on the back rank, where every forward hop leaves the board', () => {
-    expect(move('knight', { file: 5, rank: 0 })).toEqual({ kind: 'stuck' })
+  it('hunts the Core instead of stranding where every forward hop leaves the board', () => {
+    // Regression target: before hunting, this exact square is where a Knight
+    // stranded forever. If the OR-condition in knightMove that triggers
+    // hunting ever regresses back to only checking `piece.hunting`, this
+    // reverts to `stuck` and fails.
+    expect(move('knight', { file: 5, rank: 0 })).toEqual({
+      kind: 'move',
+      to: { file: 4, rank: 2 },
+      hunting: true,
+    })
   })
 
   it('takes its first legal hop even when another would land on the Core', () => {
@@ -319,6 +329,94 @@ describe('knight movement', () => {
   it('does capture the Core from the same square with the other handedness', () => {
     expect(move('knight', { file: 5, rank: 1 }, NO_TOWERS, { handedness: -1 })).toEqual({
       kind: 'reachCore',
+    })
+  })
+})
+
+describe('knight hunting', () => {
+  it('the latch keeps hunting even where a forward hop exists, and it differs from the zig-zag', () => {
+    // moveCount: 1 picks the zig-zag's "other" side, which is in bounds from
+    // (4,6) — proven by the first assertion, so this is a real forward hop,
+    // not a vacuous one. If the OR-condition in knightMove ever collapsed to
+    // "no forward hop" alone and dropped the "piece.hunting already true"
+    // half, a hunting Knight standing on a square like this one would revert
+    // to that same zig-zag hop instead of continuing to hunt — exactly the
+    // reversion the latch in types.ts exists to prevent.
+    const from = { file: 4, rank: 6 }
+    const zigZag = move('knight', from, NO_TOWERS, { moveCount: 1 })
+    expect(zigZag).toEqual({ kind: 'move', to: { file: 3, rank: 4 } })
+
+    const hunting = move('knight', from, NO_TOWERS, { moveCount: 1, hunting: true })
+    expect(hunting).toEqual({ kind: 'move', to: { file: 5, rank: 4 }, hunting: true })
+  })
+
+  it('strictly decreases distance to the Core on every hunting hop, for every square on the board', () => {
+    // Exhaustive rather than a hand-picked square: this is exactly the
+    // property the design's convergence argument depends on. If any square
+    // existed where huntCore failed to find a distance-minus-one neighbour,
+    // or picked one at the same or greater distance, this would be the test
+    // to catch it — a single missed square would break the "arrives within
+    // its own distance, in hops" guarantee that rules out cycles.
+    const field = knightDistanceField(BOARD, CORE_SQUARE)
+
+    for (const square of allSquares(BOARD)) {
+      if (squaresEqual(square, CORE_SQUARE)) continue
+      const ownDistance = field.get(squareKey(square))
+      expect(ownDistance).toBeDefined()
+
+      const outcome = move('knight', square, NO_TOWERS, { hunting: true })
+
+      if (ownDistance === 1) {
+        expect(outcome).toEqual({ kind: 'reachCore' })
+        continue
+      }
+
+      expect(outcome.kind).toBe('move')
+      if (outcome.kind === 'move') {
+        expect(field.get(squareKey(outcome.to))).toBe((ownDistance ?? 0) - 1)
+      }
+    }
+  })
+
+  it('is Tower-blind: no Tower placement changes which square a hunting Knight chooses', () => {
+    // moveCount: 1 so the zig-zag a non-hunting Knight would take from here —
+    // (3,4) — is a different square from the hunting target below. Without
+    // that, a version of `huntCore` that was never actually wired in could
+    // still pass by coincidence, because the default zig-zag from this square
+    // happens to land on the same square hunting does.
+    const from = { file: 4, rank: 6 }
+    const overrides = { moveCount: 1, hunting: true }
+    const chosen = { kind: 'move' as const, to: { file: 5, rank: 4 }, hunting: true }
+
+    expect(move('knight', from, NO_TOWERS, overrides)).toEqual(chosen)
+
+    // A Tower nowhere near any candidate square: catches a distance field
+    // that secretly consulted Towers when building distances for the whole
+    // board, not just this one hop's candidates.
+    const farTower = towersAt({ file: 0, rank: 7 })
+    expect(move('knight', from, farTower, overrides)).toEqual(chosen)
+
+    // (4,6) has two candidates tied at the same distance — (5,4) and (3,4).
+    // A Tower on the untaken tie, (3,4), catches a fixed-order scan that
+    // quietly prefers whichever tied candidate happens to be open, rather
+    // than always committing to the same one first.
+    const towerOnTiedAlternative = towersAt({ file: 3, rank: 4 })
+    expect(move('knight', from, towerOnTiedAlternative, overrides)).toEqual(chosen)
+  })
+
+  it('grinds on a Tower blocking its chosen square rather than picking the other tied candidate', () => {
+    // Same tie as the Tower-blindness test above, but the Tower now sits on
+    // the square that WOULD be chosen, and moveCount: 1 rules out the same
+    // zig-zag coincidence. The open, equally-valid (3,4) proves this is not
+    // "no candidate was available" — a routing implementation would take it,
+    // and only the no-pathfinding rule stops that.
+    const from = { file: 4, rank: 6 }
+    const chosen = { file: 5, rank: 4 }
+    const towers = towersAt(chosen)
+
+    expect(move('knight', from, towers, { moveCount: 1, hunting: true })).toEqual({
+      kind: 'attackTower',
+      towerId: 'tower-0',
     })
   })
 })

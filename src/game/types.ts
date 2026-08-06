@@ -68,6 +68,23 @@ export interface Piece {
   readonly auraCooldownMs: number
   /** Whether a King aura reached this Piece on the last tick. Renderer-facing. */
   readonly buffed: boolean
+  /**
+   * Whether this Knight has started hunting the Core with knight moves aimed
+   * at a distance field, instead of its forward zig-zag. See `knightMove` in
+   * movement.ts.
+   *
+   * Latches true and never reverts. A hunting Knight's first hop necessarily
+   * goes backwards — every knight move off rank 0 does — and landing further
+   * up the board it would have a legal forward hop again. Without the latch
+   * it would revert to zig-zagging, march back down to rank 0, strand there,
+   * start hunting backwards again, and repeat forever; the round would never
+   * end. The latch is what breaks that cycle.
+   *
+   * Always false for every other Piece type, and for a Pawn promoted into a
+   * Queen — a Queen's movement never reads this field — kept false rather
+   * than omitted so every Piece has the same shape.
+   */
+  readonly hunting: boolean
 }
 
 /**

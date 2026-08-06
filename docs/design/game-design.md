@@ -217,7 +217,7 @@ This has large consequences that are accepted deliberately:
 
 - **A Piece can only threaten the Core if chess movement can reach it.** A pawn is confined to its file, so only the Core's own file and the two files diagonally adjacent are dangerous to it specifically. Sliders and the King reach further, because the lateral fallback below sweeps them across the whole rank once they hit the back rank.
 - **A round therefore ends when nothing on the board can still act**, not when the board is empty. Waiting for an empty board would hang the round forever.
-- **Knights strand; nothing else does.** A Knight's hops only ever go forward, so at rank 0 all four candidates would need to land off the board — and unlike a slider or the King, it has no lateral fallback to catch it. Once it reaches rank 0 it has no legal move for the rest of the run — a real chess outcome, not a bug. Every other type has a designed answer instead: Pawns promote, sliders and the King sweep sideways. See Promotion and Lateral fallback, both below.
+- **Knights hunt; nothing else does.** A Knight's hops only ever go forward, so at rank 0 all four zig-zag candidates would need to land off the board. Every other type has a designed answer already — Pawns promote, sliders and the King sweep sideways — and a Knight gets one of its own: rather than stranding there, it starts hunting the Core directly, using knight moves guided by a distance field instead of the forward zig-zag. See Promotion and Hunting, both below.
 
 ### Pawn
 
@@ -225,7 +225,7 @@ Advances one square down its file. **Captures the Core diagonally forward**, as 
 
 ### Knight
 
-A zig-zag L-hop: it alternates `(file−1, rank−2)` and `(file+1, rank−2)`, with the starting side set at spawn so Knights weave opposite ways. Its primary hop crosses two ranks; a one-rank fallback candidate lets it still reach rank 0 from rank 1 rather than stranding a hop early. Either way it rarely sits still long enough for a line-shaped Tower to land a repeat shot.
+A zig-zag L-hop: it alternates `(file−1, rank−2)` and `(file+1, rank−2)`, with the starting side set at spawn so Knights weave opposite ways. Its primary hop crosses two ranks; a one-rank fallback candidate lets it still reach rank 0 from rank 1 rather than stranding a hop early. Either way it rarely sits still long enough for a line-shaped Tower to land a repeat shot. Once its forward hops run out, it starts hunting the Core instead of stopping — see Hunting, below.
 
 ### Bishop
 
@@ -253,9 +253,21 @@ A Pawn reaching rank 0 becomes a Queen, at full Queen health, instead of strandi
 
 When a Piece's forward square is off the board, **sliders and the King sweep sideways along their rank instead**, reflecting off the file edges. Reflection **flips the Piece's `handedness`** rather than retrying the same side — without that flip, a Piece would bounce between two files forever and the round could never end. Flipping makes it traverse the whole rank instead, so it eventually crosses the Core's file and leaks.
 
-**Knights are the exception, and strand.** A Knight's hops only ever go forward, so at rank 0 every candidate would need to land off the board, and unlike a slider or the King it has no lateral fallback to catch it. Giving it one would mean a Knight could always act — `stillActive` would never go false and the round would hang forever. Stranding it there instead is what keeps rounds terminating.
+**Knights take a different fallback: hunting, not sweeping.** A Knight's hops only ever go forward, so at rank 0 every zig-zag candidate would need to land off the board, and unlike a slider or the King it has no lateral sweep of its own. See Hunting, below, for what it does instead — the reasoning is the same shape (a Piece that would otherwise have nothing left to do needs a designed way to keep threatening), but the mechanism differs because a Knight shuffling sideways one square is not a knight move.
 
-The fallback direction is always carried in `handedness`, never chosen because the Core happens to be on one side — that would be goal-seeking, the same thing forward-bias above already rules out for every Piece type.
+The fallback direction is always carried in `handedness`, never chosen because the Core happens to be on one side — that would be goal-seeking, the same thing forward-bias above already rules out for every Piece type. Hunting is the one deliberate exception to that rule; see Hunting for why it does not reopen the mazing risk the rule exists to close.
+
+### Hunting
+
+Once a Knight runs out of forward hops, it **hunts the Core** using knight moves the rest of the way, rather than stranding on rank 0 forever. This is the one Piece behaviour allowed to aim at the Core directly — a narrow, explicit exception to "never choose direction because the Core lies that way," stated under Movement is chess movement, above.
+
+**The state latches.** `hunting: boolean` on the Piece is set true the moment a Knight either is already hunting or has run out of forward hops, and it never clears. Without the latch the feature does not terminate: a hunting Knight's first hop necessarily goes *backwards* — every knight move off rank 0 does — and landing further up the board it would have a legal forward hop again. An unlatched flag would let it revert to zig-zagging, march back down to rank 0, strand, start hunting backwards again, and repeat forever.
+
+**Direction comes from a knight-distance field.** A breadth-first search over knight moves across the board's squares gives every square its distance to the Core, computed once per board and Core square and memoised (`src/game/knightDistance.ts`). A hunting Knight takes the first knight-move candidate — in a fixed offset order, for determinism — whose distance is exactly one less than its own square's. A BFS field guarantees a `d − 1` neighbour at every square with `d > 0`, so a hunting Knight reaches the Core within its own distance, in hops — at most six on an 8x8 board — and the strict decrease on every hop makes a cycle structurally impossible, not merely absent from testing.
+
+**The field never sees Towers.** It is computed on an empty board, which is what keeps the exception narrow: Tower placement cannot change which square a hunting Knight is aiming for. A Tower on the chosen square is attacked exactly as any other blocked Piece attacks one — the Knight grinds rather than trying a different candidate. The player can wall a hunting Knight; the player still cannot herd one.
+
+See [`docs/superpowers/specs/2026-08-06-hunting-knights-design.md`](../superpowers/specs/2026-08-06-hunting-knights-design.md) for the full reasoning, including the rejected alternatives (promoting stranded Knights, giving them the lateral sweep, and deleting stranded Pieces at round end).
 
 ## The Chess roster
 
@@ -318,6 +330,5 @@ This is a **coverage** tower defense, not a **maze** one: defense is about which
 | **Pack weighting and prices** | How rank scarcity translates into pack contents, and what each type costs. |
 | **PRNG streams** | One stream (simplest) versus separate named streams for packs/rounds/draws, so seeds survive code changes. |
 | **Repair versus the wall** | **Reachable now — ♥ Repair exists.** Towers block and there is no pathfinding, so a repaired Tower a Piece cannot break is a permanent wall, and against a rank-5 Tower's `diagonal` blind spot the Piece cannot even shoot back. What bounds it today is that **cards are consumed and packs do not exist**: ♥ runs out, the Tower falls, and the round resumes. `src/game/roundTermination.test.ts` pins that bound, and the Joker is the escape hatch. **Adding packs removes the bound.** Candidate answers: attacked Towers lose *maximum* health permanently so repair only delays; repair capped per round; or a blocked Piece eventually breaks through regardless. Decide with play experience, not on paper. |
-| **Stranded Pieces** | Knights that reach rank 0 have no legal move for the rest of the run — every hop only ever goes forward, so all four candidates would need to land off the board, and unlike a slider or the King a Knight has no lateral fallback to catch it. Giving it one would keep a round alive forever, so the strand is deliberate (see Lateral fallback). Pawns promote instead, and sliders and the King sweep sideways instead, so Knights are the only Piece this still applies to. Whether a stranded Knight deserves an answer of its own is open. |
 | **Board geometry** | Growable, starting at a literal 8x8 — an Ace adds a rank. Square colour is no longer load-bearing, since the Knight is damageable everywhere, so the checkerboard is preserved for chess-authenticity alone. Whether that argument carries enough weight on its own is undecided. |
 | **Multiplayer scope** | Still assumed single-player versus AI, no backend, no netcode. |

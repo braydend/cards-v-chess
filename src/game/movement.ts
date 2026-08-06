@@ -1,4 +1,5 @@
 import { isInBounds, squareKey, squaresEqual } from './board'
+import { KNIGHT_OFFSETS, knightDistanceField } from './knightDistance'
 import type { BoardSpec, Handedness, Piece, PieceTypeId, Square, Tower } from './types'
 
 /**
@@ -6,11 +7,26 @@ import type { BoardSpec, Handedness, Piece, PieceTypeId, Square, Tower } from '.
  *
  * `stuck` means the Piece has no legal move. That is a real chess outcome —
  * and it is why round completion cannot simply wait for the board to empty.
+ * Every Piece type now has a designed way off `stuck`, though: Pawns
+ * promote, sliders and the King sweep sideways, and a Knight that runs out
+ * of forward hops hunts the Core instead — see `knightMove`, below. `stuck`
+ * stays part of the type for a board shape or Piece that genuinely has none.
  * `promote` means a Pawn has reached the back rank: chess promotes it there,
  * rather than stranding it the way `stuck` would.
+ *
+ * `move.hunting`, like `move.handedness`, is a Knight-only detail riding on
+ * the shared outcome shape: present exactly when a Knight has just started
+ * hunting or continues to, so `tick.ts`'s `movePieces` can latch it onto the
+ * Piece permanently. See `hunting` on `Piece` in types.ts for why the latch
+ * has to be permanent.
  */
 export type MoveOutcome =
-  | { readonly kind: 'move'; readonly to: Square; readonly handedness?: Handedness }
+  | {
+      readonly kind: 'move'
+      readonly to: Square
+      readonly handedness?: Handedness
+      readonly hunting?: boolean
+    }
   | { readonly kind: 'attackTower'; readonly towerId: string }
   | { readonly kind: 'reachCore' }
   | { readonly kind: 'stuck' }
@@ -25,6 +41,13 @@ export interface MoveRequest {
   readonly handedness: Handedness
   /** Extra squares per hop, from a King aura. Sliders only. */
   readonly slideBonus: number
+  /**
+   * Whether this Knight has already latched into hunting the Core. Every
+   * other Piece type ignores this field — it exists on the shared request
+   * only so `nextMove` stays one function per Piece type rather than
+   * growing a Knight-only parameter list.
+   */
+  readonly hunting: boolean
 }
 
 /**
@@ -153,52 +176,111 @@ function travel(
  * The Knight is a hopper, not a slider, so it ignores slide bonuses and never
  * uses `travel`.
  *
- * Candidates are tried in order: the zig-zag hop, its mirror (for file edges),
- * then the two one-forward hops so a Knight on rank 1 can still reach rank 0
- * rather than stranding a hop early. The Knight commits to the first in-bounds
- * candidate, never scanning ahead for one that lands on the Core — that would
- * be goal-seeking, the same invariant that keeps a Pawn from angling toward
- * the Core off its own file. So whether a one-forward hop happens to capture
- * the Core depends on the Knight's file and handedness: from (1,1) the
- * default handedness reaches it, and from (5,1) the *other* handedness does,
- * because file 3 is not centred between files 0 and 7 and the wrong-side
- * candidate is what falls off the board first at one edge but not the other.
+ * While it still has a forward hop, candidates are tried in order: the
+ * zig-zag hop, its mirror (for file edges), then the two one-forward hops so
+ * a Knight on rank 1 can still reach rank 0 rather than stranding a hop
+ * early. The Knight commits to the first in-bounds candidate, never scanning
+ * ahead for one that lands on the Core — that would be goal-seeking, the
+ * same invariant that keeps a Pawn from angling toward the Core off its own
+ * file. So whether a one-forward hop happens to capture the Core depends on
+ * the Knight's file and handedness: from (1,1) the default handedness
+ * reaches it, and from (5,1) the *other* handedness does, because file 3 is
+ * not centred between files 0 and 7 and the wrong-side candidate is what
+ * falls off the board first at one edge but not the other.
  *
  * A Tower on the chosen landing square is attacked rather than hopped over or
  * routed around — the no-pathfinding invariant applies to the Knight too.
  *
- * A Knight's hops only ever go forward, so from rank 0 every candidate would
- * land off the board — and unlike a slider or the King, it has no lateral
- * fallback to catch it. That is deliberate: a Knight that could still act
- * would keep `stillActive` true forever and the round would never end.
+ * Once every forward candidate above would leave the board — always true at
+ * rank 0 — or the Knight is already hunting, direction comes from
+ * `huntCore` instead: see `hunting` on `Piece` in types.ts for why that
+ * switch is one-way, and `huntCore`'s own comment for the field it follows.
  */
 function knightMove(
   from: Square,
   moveCount: number,
   handedness: Handedness,
+  hunting: boolean,
   board: BoardSpec,
   coreSquare: Square,
   towerBySquare: ReadonlyMap<string, Tower>,
 ): MoveOutcome {
-  const zig = moveCount % 2 === 0 ? handedness : -handedness
+  if (!hunting) {
+    const zig = moveCount % 2 === 0 ? handedness : -handedness
 
-  const candidates: Square[] = [
-    { file: from.file + zig, rank: from.rank - 2 },
-    { file: from.file - zig, rank: from.rank - 2 },
-    { file: from.file + handedness * 2, rank: from.rank - 1 },
-    { file: from.file - handedness * 2, rank: from.rank - 1 },
-  ]
+    const candidates: Square[] = [
+      { file: from.file + zig, rank: from.rank - 2 },
+      { file: from.file - zig, rank: from.rank - 2 },
+      { file: from.file + handedness * 2, rank: from.rank - 1 },
+      { file: from.file - handedness * 2, rank: from.rank - 1 },
+    ]
 
-  for (const to of candidates) {
+    for (const to of candidates) {
+      if (!isInBounds(board, to)) continue
+      if (squaresEqual(to, coreSquare)) return { kind: 'reachCore' }
+
+      const blocker = towerBySquare.get(squareKey(to))
+      if (blocker) return { kind: 'attackTower', towerId: blocker.id }
+
+      return { kind: 'move', to }
+    }
+  }
+
+  return huntCore(from, board, coreSquare, towerBySquare)
+}
+
+/**
+ * Once a Knight is hunting, direction comes from a knight-move distance
+ * field rather than the zig-zag order above: the first offset, in
+ * `KNIGHT_OFFSETS`'s fixed order, whose destination is exactly one hop
+ * closer to the Core than `from` is.
+ *
+ * That "exactly one closer" rule is the whole convergence argument, not a
+ * style choice. A breadth-first field guarantees every square at distance
+ * `d > 0` has a neighbour at `d − 1` — that is what BFS layering means — so
+ * this loop can never fall through to the final `stuck` on a board where
+ * every square is knight-connected to the Core, which an 8x8 board is (pinned
+ * exhaustively in movement.test.ts's "strictly decreases" test). Because the
+ * distance strictly decreases on every hop, a repeating cycle is impossible
+ * by construction — the Knight arrives within its own starting distance, in
+ * hops, at most six here.
+ *
+ * The field itself never sees Towers — see `knightDistance.ts` — and this
+ * function only ever consults `towerBySquare` for the ONE candidate it has
+ * already committed to. A Tower there is attacked, exactly like every other
+ * blocked Piece; this never falls through to try the next-best offset, which
+ * is what keeps a hunting Knight walled rather than herded.
+ */
+function huntCore(
+  from: Square,
+  board: BoardSpec,
+  coreSquare: Square,
+  towerBySquare: ReadonlyMap<string, Tower>,
+): MoveOutcome {
+  const field = knightDistanceField(board, coreSquare)
+  const ownDistance = field.get(squareKey(from))
+
+  // Undefined only if `from` is not knight-connected to the Core at all — not
+  // possible on the current 8x8 board, but a future board shape or Core
+  // placement should fail safe as a genuinely immobile Piece rather than
+  // throw.
+  if (ownDistance === undefined) return { kind: 'stuck' }
+
+  for (const offset of KNIGHT_OFFSETS) {
+    const to: Square = { file: from.file + offset.file, rank: from.rank + offset.rank }
     if (!isInBounds(board, to)) continue
+    if (field.get(squareKey(to)) !== ownDistance - 1) continue
+
     if (squaresEqual(to, coreSquare)) return { kind: 'reachCore' }
 
     const blocker = towerBySquare.get(squareKey(to))
     if (blocker) return { kind: 'attackTower', towerId: blocker.id }
 
-    return { kind: 'move', to }
+    return { kind: 'move', to, hunting: true }
   }
 
+  // Unreachable given the BFS guarantee above, kept only so the function is
+  // total rather than assuming its own invariant.
   return { kind: 'stuck' }
 }
 
@@ -245,6 +327,7 @@ export function nextMove(
         request.from,
         request.moveCount,
         request.handedness,
+        request.hunting,
         board,
         coreSquare,
         towerBySquare,
@@ -323,6 +406,7 @@ export function isStuck(
     moveCount: piece.moveCount,
     handedness: piece.handedness,
     slideBonus: 0,
+    hunting: piece.hunting,
   }
   return nextMove(request, board, coreSquare, towerBySquare).kind === 'stuck'
 }
