@@ -7,7 +7,7 @@
  */
 import { ACE_BOARD_RANKS, JACK_SHIELD, KING_CORE_HEALTH, supportMagnitude } from '../data/cards'
 import { towerRank } from '../data/towerRanks'
-import { isInBounds, squaresEqual } from './board'
+import { canBuildOn } from './placement'
 import { findCard, isBuildableRank, removeCard } from './cards'
 import { applySupport } from './support'
 import type { BuildableRank, GameState, Square, Tower } from './types'
@@ -34,14 +34,6 @@ function newTower(id: string, square: Square, cardRank: BuildableRank): Tower {
     shield: 0,
     damageTaken: 0,
   }
-}
-
-/** Whether a square is free to build on. */
-function canBuildOn(state: GameState, square: Square): boolean {
-  if (!isInBounds(state.board, square)) return false
-  if (squaresEqual(square, state.core.square)) return false
-
-  return !state.towers.some((tower) => squaresEqual(tower.square, square))
 }
 
 /**

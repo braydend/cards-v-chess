@@ -159,6 +159,17 @@ describe('Queen — Echo', () => {
       step(state, { kind: 'echoTower', cardId: 'five', sourceTowerId: firstTowerId(state), square: ELSEWHERE }),
     ).toBe(state)
   })
+
+  it('refuses a square a Piece is standing on', () => {
+    // Echo goes through the same placement rule as a rank build, so this is
+    // the second half of the same fix, not a separate one.
+    const state = liveRound(withQueen(), [pawnAt('p', ELSEWHERE)])
+
+    expect(
+      step(state, { kind: 'echoTower', cardId: 'q', sourceTowerId: firstTowerId(state), square: ELSEWHERE }),
+    ).toBe(state)
+    expect(state.towers).toHaveLength(1)
+  })
 })
 
 describe('King — Reinforce', () => {
