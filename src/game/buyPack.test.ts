@@ -157,7 +157,7 @@ describe('buyPack: a purchase that forces a cull', () => {
     const before = ready(filler(28), 999)
     const after = step(before, { kind: 'buyPack', pack: 'scrap', cullCardIds: ['f0'] })
 
-    expect(after.deck.length).toBeLessThanOrEqual(DECK_CAP)
+    expect(after.deck.length).toBe(DECK_CAP)
   })
 
   // The Deck is a multiset. Culling must remove the instance named, not every

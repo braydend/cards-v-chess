@@ -114,9 +114,13 @@ export function PackShop() {
   }, [open, close])
 
   function choose(next: PackType) {
+    // Re-clicking the pack already chosen must not clear the marks — a player
+    // ten cards into a cull selection would lose all of it with no undo. Only a
+    // genuine change of pack invalidates the marks, because a different pack
+    // size demands a different number destroyed.
+    if (next === pack) return
+
     setPack(next)
-    // A pack switch changes how many cards must go, so a stale selection sized
-    // for the previous pack would silently be wrong.
     clearMarked()
     if (!PACKS[next].suited) setSuit(null)
   }
@@ -147,7 +151,12 @@ export function PackShop() {
   const button = commitState({ deckSize: deck.length, ink, phase, pack, suit, markedIds: marked })
 
   return (
-    <div className="modal" role="dialog" aria-modal="true" aria-label="Buy a pack">
+    <div
+      className="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label={revealed ? 'Pack opened' : 'Buy a pack'}
+    >
       <button type="button" className="modal__scrim" aria-label="Close" onClick={close} />
 
       <div className="modal__panel" ref={panelRef} tabIndex={-1}>

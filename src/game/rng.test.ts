@@ -102,4 +102,10 @@ describe('nextWeighted', () => {
 
     expect(picked).toBe('only')
   })
+
+  it('throws when no entry can be picked', () => {
+    expect(() =>
+      nextWeighted(streamFor('run-a', 'packs'), [['nothing', 0]] as const),
+    ).toThrow('nextWeighted: no entry with a positive weight')
+  })
 })

@@ -71,6 +71,10 @@ describe('the Deck', () => {
     // The trigger: same length, entirely different contents.
     expect(after.deck).toHaveLength(before.deck.length)
     expect(after.deck.map((card) => card.id)).not.toEqual(before.deck.map((card) => card.id))
+    // Holding ink equal leaves the Deck as the only term that can move, so this
+    // is a genuine end-to-end pin rather than a restatement of the fixture —
+    // keyed on length again, both keys would come out identical.
+    expect(structuralKey({ ...after, ink: before.ink })).not.toBe(structuralKey(before))
   })
 
   it('still changes when a card is played and nothing replaces it', () => {
