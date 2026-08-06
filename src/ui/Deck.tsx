@@ -1,18 +1,11 @@
-import { supportMagnitude } from '../data/cards'
 import { towerRank } from '../data/towerRanks'
 import { commandFor, isBuildableRank, type Card } from '../game'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { GEOMETRY_LABELS } from './geometryLabels'
+import { supportModeLabel } from './supportLabel'
 
 const SUIT_GLYPH = { hearts: '♥', diamonds: '♦', spades: '♠', clubs: '♣' } as const
-
-const SUIT_ACTION = {
-  hearts: 'Repair',
-  diamonds: 'Speed',
-  spades: 'Health',
-  clubs: 'Damage',
-} as const
 
 const FACE_ACTION = {
   J: 'Shield a Tower',
@@ -125,7 +118,7 @@ export function Deck() {
                 className={`deck__mode${playMode === 'support' ? ' deck__mode--active' : ''}`}
                 onClick={() => setPlayMode('support')}
               >
-                {SUIT_ACTION[selected.suit]} {supportMagnitude(selected.rank)}
+                {supportModeLabel(selected.suit, selected.rank)}
               </button>
             ) : null}
           </div>

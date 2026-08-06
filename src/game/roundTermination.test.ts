@@ -96,11 +96,13 @@ describe('the wall is bounded by card scarcity', () => {
 
       const tower = state.towers[0]
       const heart = state.deck[0]
-      // Heal only once the deficit is at least a full heal's worth, so every ♥
-      // lands at full value instead of topping off a near-full Tower and
-      // wasting most of its magnitude. A heal that fires the instant health
-      // dips by 1 buys almost nothing, which is what let a no-op repair hide
-      // behind this test before.
+      // ♥ restores to FULL, so what a heal is worth is the deficit when it
+      // lands, not the Card's magnitude. Waiting for a deficit of exactly
+      // `healMagnitude` is what keeps the arithmetic above valid: damage
+      // arrives in 0.5 steps, so the deficit is exactly `healMagnitude` at the
+      // moment this fires and each ♥ is worth precisely that much. Healing the
+      // instant health dips by 1 would buy almost nothing, which is what let a
+      // no-op repair hide behind this test before.
       if (tower && heart && tower.maxHealth - tower.health >= healMagnitude) {
         state = step(state, { kind: 'supportTower', cardId: heart.id, towerId: tower.id })
       }

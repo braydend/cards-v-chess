@@ -19,15 +19,16 @@ function play(state: GameState, cardId: string): GameState {
   return step(state, { kind: 'supportTower', cardId, towerId: firstTowerId(state) })
 }
 
-describe('♥ Repair', () => {
-  it('restores lost health', () => {
-    const state = withSupport('h', 5, 'hearts')
-    const hurt: GameState = {
-      ...state,
-      towers: state.towers.map((tower) => ({ ...tower, health: 4 })),
-    }
+const hurtTo = (health: number) => (state: GameState): GameState => ({
+  ...state,
+  towers: state.towers.map((tower) => ({ ...tower, health })),
+})
 
-    expect(play(hurt, 'h').towers[0]?.health).toBe(4 + supportMagnitude(5))
+describe('♥ Repair', () => {
+  it('restores a damaged Tower to full', () => {
+    const state = hurtTo(4)(withSupport('h', 5, 'hearts'))
+
+    expect(play(state, 'h').towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth)
   })
 
   it('never heals past maxHealth', () => {
@@ -36,18 +37,32 @@ describe('♥ Repair', () => {
     expect(play(state, 'h').towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth)
   })
 
-  it('heals more from a higher rank', () => {
-    const low = withSupport('h', 2, 'hearts')
-    const high = withSupport('h', 'K', 'hearts')
-    const hurt = (state: GameState): GameState => ({
-      ...state,
-      towers: state.towers.map((tower) => ({ ...tower, health: 1 })),
-    })
+  it('restores the same amount whatever the rank — a 2♥ repairs as fully as a K♥', () => {
+    // ♥ is the one support that does NOT scale with rank. That is deliberate:
+    // it is what stops ♠ (heal + ceiling, rank-scaled) from strictly
+    // dominating ♥, and it makes a low ♥ the efficient repair while a high one
+    // is better spent building.
+    const healed = (rank: 2 | 'K') =>
+      firstTower(play(hurtTo(1)(withSupport('h', rank, 'hearts')), 'h')).health
 
-    const healedLow = firstTower(play(hurt(low), 'h')).health
-    const healedHigh = firstTower(play(hurt(high), 'h')).health
+    expect(healed(2)).toBe(TOWER_RANKS[5].maxHealth)
+    expect(healed('K')).toBe(healed(2))
+  })
 
-    expect(healedHigh).toBeGreaterThan(healedLow)
+  it('fills a ceiling a ♠ has raised, which is what keeps the two suits distinct', () => {
+    const built = withTower(5, SQUARE)
+    const withCards = withDeck(
+      [standardCard('s', 'A', 'spades'), standardCard('h', 2, 'hearts')],
+      built,
+    )
+    const towerId = firstTowerId(withCards)
+
+    const raised = step(withCards, { kind: 'supportTower', cardId: 's', towerId })
+    const damaged = hurtTo(3)(raised)
+    const repaired = firstTower(step(damaged, { kind: 'supportTower', cardId: 'h', towerId }))
+
+    expect(repaired.health).toBe(TOWER_RANKS[5].maxHealth + supportMagnitude('A'))
+    expect(repaired.health).toBe(repaired.maxHealth)
   })
 })
 

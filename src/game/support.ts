@@ -8,14 +8,20 @@ import type { Suit, Tower } from './types'
 /**
  * Applies one suit's support action to a Tower.
  *
- * Supports stack additively with no cap. Magnitude scales with the Card's rank,
- * so a 9♥ is a large repair and a 2♥ a small one.
+ * Supports stack additively with no cap. Magnitude scales with the Card's rank
+ * for ♦ ♠ ♣ — so a 9♠ is a large buff and a 2♠ a small one — but ♥ is a full
+ * restore and ignores it entirely. See the ♥ case for why.
  */
 export function applySupport(tower: Tower, suit: Suit, magnitude: number): Tower {
   switch (suit) {
-    // Restores lost health, never past the ceiling.
+    // A FULL restore, deliberately ignoring magnitude. Rank-scaled repair made
+    // ♥ strictly worse than ♠, which heals by the same magnitude AND raises the
+    // ceiling. Healing to full instead gives each suit a job no other suit
+    // does: ♥ is the emergency restore, ♠ the incremental growth. It also makes
+    // rank matter in the other direction — a low ♥ repairs exactly as well as a
+    // high one, so the high card is better spent building.
     case 'hearts':
-      return { ...tower, health: Math.min(tower.maxHealth, tower.health + magnitude) }
+      return { ...tower, health: tower.maxHealth }
 
     // Floored, and not for balance: `fireTowers` loops
     // `while (cooldown >= fireIntervalMs)`, so zero would never terminate.
