@@ -1,7 +1,7 @@
 import { BLOCKED_ATTACK_MULTIPLIER, pieceType } from '../data/pieceTypes'
 import { towerRank, type TowerRankDef } from '../data/towerRanks'
 import { KING_SPEED_MULTIPLIER, applyHealing, buffedPieceIds, slideBonusFor } from './auras'
-import { squareKey, stagingRank } from './board'
+import { isInBounds, squareKey, stagingRank } from './board'
 import { coversSquare } from './coverage'
 import { roundIncome, totalKillReward } from './ink'
 import { isStuck, nextMove } from './movement'
@@ -78,6 +78,7 @@ export function tick(state: GameState, dtMs: number): GameState {
   const fired = fireTowers(
     standingTowers,
     [...moved.pieces, ...promotedQueens],
+    state.board,
     state.core.square,
     dtMs,
   )
@@ -181,10 +182,27 @@ export function tick(state: GameState, dtMs: number): GameState {
  *
  * A Tower fires at most one shot per elapsed interval, hitting up to its rank's
  * `targetsPerShot` Pieces. Nothing blocks line of fire and nothing pierces.
+ *
+ * Damage cannot reach the Staging rank. It is off `board` entirely, and a
+ * Piece standing there is still assembling — chess movement is what admits it
+ * to the fight, not a Tower's shot reaching backward to meet it first.
+ * `selectTargets` enforces this by skipping any Piece outside the board's
+ * bounds before it ever asks whether a Tower's geometry covers the square —
+ * so a Tower whose range would otherwise reach the Staging rank (a vertical
+ * Tower on the far rank, say) still cannot touch a Piece waiting there. This
+ * is the ONE place in the engine that threads `board` into targeting for
+ * exactly this reason; nowhere else needs it, because nothing else deals
+ * damage to a Piece (a blocked Piece damages the Tower it grinds, not the
+ * other way round). A Joker's Clear (`clearPieces` in cardPlays.ts) is
+ * deliberately NOT subject to this check — Clear is a board wipe, not damage,
+ * and it is the designed safety valve for the repair-versus-the-wall stall
+ * (see `roundTermination.test.ts`), which has to reach every Piece, staged or
+ * not, to keep doing its job.
  */
 function fireTowers(
   towers: readonly Tower[],
   pieces: readonly Piece[],
+  board: BoardSpec,
   coreSquare: Square,
   dtMs: number,
 ): { towers: Tower[]; pieces: Piece[]; destroyed: Piece[] } {
@@ -200,7 +218,7 @@ function fireTowers(
     let cooldown = tower.fireCooldownMs + dtMs
 
     while (cooldown >= tower.fireIntervalMs) {
-      const targets = selectTargets(tower, def, pieces, remainingHealth, coreSquare)
+      const targets = selectTargets(tower, def, pieces, remainingHealth, board, coreSquare)
 
       if (targets.length === 0) {
         // Hold at "ready" rather than banking shots. Without this, a Tower idle
@@ -249,12 +267,16 @@ function selectTargets(
   def: TowerRankDef,
   pieces: readonly Piece[],
   remainingHealth: Map<string, number>,
+  board: BoardSpec,
   coreSquare: Square,
 ): Piece[] {
   const candidates: { piece: Piece; distance: number }[] = []
 
   for (const piece of pieces) {
     if ((remainingHealth.get(piece.id) ?? piece.health) <= 0) continue
+    // Off `board` entirely means the Staging rank — see fireTowers's doc
+    // comment for why damage cannot reach a Piece waiting there.
+    if (!isInBounds(board, piece.square)) continue
     if (!coversSquare(def.geometry, def.range, tower.square, piece.square)) continue
 
     candidates.push({

@@ -34,6 +34,7 @@ import {
   createInitialState,
   isInBounds,
   isStuck,
+  nextMove,
   step,
   tick,
 } from './index'
@@ -278,9 +279,17 @@ describe('an Ace played while Pieces wait', () => {
 describe('round termination with Pieces still on the Staging rank', () => {
   it('ends the round once the wall they are grinding falls', () => {
     const base = createInitialState()
-    // Rank 5 is the diagonal, which cannot cover the square directly up-file —
-    // so this Tower never shoots its attacker and the grind is a pure countdown
-    // on the Tower's health. Nothing else is on the board to shoot it either.
+    // Rank 5 is the diagonal — kept for continuity with the walled tests
+    // above, not because its geometry matters here any more. It used to: under
+    // the old "ordinary Piece" rule, a diagonal's inability to cover the
+    // square directly up-file was what stopped this Tower from also shooting
+    // its attacker, which is what made the grind a pure countdown on the
+    // Tower's health rather than a race between the grind and the Tower's own
+    // fire. That reasoning is now obsolete — no Tower's geometry can reach the
+    // Staging rank at all, so the grind is a pure countdown regardless of
+    // which rank builds the wall. The test below is the load-bearing version
+    // of that claim: a Tower whose geometry WOULD reach the Staging square, if
+    // reach were still the deciding factor.
     const built = withTower(5, { file: 3, rank: base.board.ranks - 1 }, base)
     const state: GameState = {
       ...built,
@@ -297,27 +306,137 @@ describe('round termination with Pieces still on the Staging rank', () => {
     expect(after.towers).toEqual([])
     expect(after.pieces).toEqual([])
   })
+
+  // The load-bearing case, now that damage cannot reach the Staging rank:
+  // Tower fire can no longer break this stall from the Piece's side, ever —
+  // not even when the Tower's geometry genuinely covers the Staging square.
+  // Round termination therefore rests ENTIRELY on the grind being a strict
+  // countdown on the Tower's health, the same bound roundTermination.test.ts
+  // pins for an on-board Tower, exercised here for a Piece that never leaves
+  // the Staging rank until the wall finally gives out.
+  it("ends the round even when the Tower's geometry reaches the Staging rank, because the grind alone is enough", () => {
+    const base = createInitialState()
+    const towerSquare: Square = { file: 3, rank: base.board.ranks - 1 }
+
+    // Rank 3 is vertical with range 4 (towerRanks.ts): unlike the rank-5 Tower
+    // above, this one's geometry genuinely covers the Staging square directly
+    // up-file (pinned in the immunity test below). Under the old "ordinary
+    // Piece" rule that would have let the Tower finish the grinding Pawn off
+    // outright; under the current rule it cannot touch it at all, so the only
+    // way this round can ever end is the Pawn's own grind wearing the Tower
+    // down.
+    const built = withTower(3, towerSquare, base)
+    const state: GameState = {
+      ...built,
+      phase: 'inProgress',
+      pendingSpawns: [{ atMs: 0, typeId: 'pawn', file: 3 }],
+    }
+
+    // Generous, as above: 1 damage per 900ms hop into 12 health, then the walk
+    // to the Core once the wall falls.
+    const after = runFor(state, 60_000)
+
+    // Reaches the gap on the grind alone — the Tower can never repay the
+    // damage it takes, so there is nothing left for it to be a race against.
+    expect(after.phase).toBe('gap')
+    expect(after.towers).toEqual([])
+    expect(after.pieces).toEqual([])
+  })
 })
 
 /**
- * "A Piece on the Staging rank is otherwise ordinary" is a deliberate design
- * decision, not an oversight — the rejected alternative was making the
- * Staging rank a safe zone excluded from Tower fire, Clear, and auras. Each
- * test below pins one of those three so that carve-out cannot be added back
- * silently, with nothing failing to say so.
+ * A Piece that has entered the true board can never be pushed back onto the
+ * Staging rank. This is not a new mechanic — it already falls out of how
+ * movement is built: `rookStep`, `bishopStep`, and `lateralStep` (movement.ts)
+ * only ever decrease or hold a Piece's rank, the Knight's zig-zag candidates
+ * are `rank - 2` or `rank - 1`, and `huntCore` is the one place with
+ * rank-increasing offsets, but it bounds-checks every candidate before
+ * committing to one. Nothing here adds a new rule; this test turns that
+ * accident of construction into an enforced invariant, checked exhaustively
+ * rather than trusted from reading the code.
+ *
+ * Deliberately no runtime guard in movement.ts or tick.ts for this — that
+ * would be defensive code for a state nothing can produce. This test is the
+ * stronger guarantee: it fails at BUILD time, over every combination the
+ * movement code can actually be asked to resolve, rather than waiting to
+ * catch a violation that reaches a live run.
  */
-describe('a Piece on the Staging rank is an ordinary Piece', () => {
-  it('is fired on by a Tower whose geometry reaches the Staging rank', () => {
+describe('the Staging rank is one-way', () => {
+  it('never produces a move outcome whose destination is out of bounds, for every square, Piece type, handedness, moveCount, hunting state, and slide bonus', () => {
+    const { board, core } = createInitialState()
+    const offenders: string[] = []
+
+    for (const square of allSquares(board)) {
+      for (const typeId of PIECE_TYPE_IDS) {
+        for (const handedness of [1, -1] as const) {
+          for (const moveCount of [0, 1]) {
+            for (const hunting of [false, true]) {
+              for (const slideBonus of [0, 1]) {
+                const outcome = nextMove(
+                  { typeId, from: square, moveCount, handedness, slideBonus, hunting },
+                  board,
+                  core.square,
+                  new Map(),
+                )
+
+                if (outcome.kind === 'move' && !isInBounds(board, outcome.to)) {
+                  offenders.push(
+                    `${typeId} from ${squareKey(square)} (handedness ${handedness}, ` +
+                      `moveCount ${moveCount}, hunting ${hunting}, slideBonus ${slideBonus}) ` +
+                      `-> ${squareKey(outcome.to)}`,
+                  )
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Collected rather than asserted inline, so a failure names every
+    // offending combination at once instead of dying on the first.
+    expect(offenders).toEqual([])
+  })
+})
+
+/**
+ * The Staging rank is SAFE FROM DAMAGE, with exactly one exception: a Joker's
+ * Clear.
+ *
+ * Framed as one rule, not two carve-outs, because that is what it is — damage
+ * cannot reach the Staging rank, and Clear is not damage. It is a board wipe,
+ * and the designed safety valve for the repair-versus-the-wall stall (see
+ * `roundTermination.test.ts` and "Repair versus the wall" in the design doc):
+ * a Piece camped forever behind an unbreakable Tower's blind spot would
+ * otherwise be exactly as permanent a wall as one on the true board, and
+ * Clear has to reach it regardless of where it is standing.
+ *
+ * This reverses the decision the branch shipped with. Issue #22's initial
+ * landing made a Piece on the Staging rank an ordinary Piece — reachable by
+ * Tower fire, Clear, and auras alike — and pinned that with tests nearly
+ * identical to these but with the opposite assertions, reasoning that the
+ * rejected alternative was a safe zone excluded from fire. The repo owner
+ * reversed that on review of PR #34: a Piece still assembling on the Staging
+ * rank should not be killable by Tower fire before it has even entered the
+ * fight. Auras were never in question either way — a King's buff and a
+ * Bishop's heal are not damage, so the test below keeps them reaching the
+ * Staging rank on purpose, not as an oversight left behind by the reversal.
+ */
+describe("the Staging rank is safe from damage, except a Joker's Clear", () => {
+  it('is immune to a Tower whose geometry reaches the Staging rank', () => {
     const base = createInitialState()
     const towerSquare: Square = { file: 3, rank: base.board.ranks - 1 }
     const stagingSquare: Square = { file: 3, rank: stagingRank(base.board) }
 
     // Rank 3 is vertical with range 4 (src/data/towerRanks.ts), so a Tower on
     // the far rank covers the Staging square directly up-file at file
-    // distance 0 — unlike the diagonal rank 5 the walled tests deliberately
-    // use, which cannot reach it. Asserted directly so a balance tweak's
-    // failure here names its own cause rather than surfacing as an
-    // inexplicable failure below.
+    // distance 0 — unlike the diagonal rank 5 the walled tests elsewhere in
+    // this file deliberately use, which cannot reach it. This precondition is
+    // MORE important now than it was for the old ordinary-Piece rule, not
+    // less: it proves this Tower's geometry genuinely reaches the Staging
+    // square, so the Pawn surviving below is the immunity rule doing the
+    // work, rather than the geometry merely falling short the way it
+    // deliberately does for the walled tests.
     expect(coversSquare(TOWER_RANKS[3].geometry, TOWER_RANKS[3].range, towerSquare, stagingSquare)).toBe(
       true,
     )
@@ -329,32 +448,38 @@ describe('a Piece on the Staging rank is an ordinary Piece', () => {
       pendingSpawns: [{ atMs: 0, typeId: 'pawn', file: 3 }],
     }
 
-    const squaresSeen = new Set<string>()
-
-    // Deliberate design decision, not an oversight: a Piece standing on the
-    // Staging rank sits in Tower fire's line exactly like any other Piece —
-    // the rejected alternative was making the Staging rank a safe zone Tower
-    // fire could not reach. Without a test pinning it, that carve-out could
-    // be reintroduced later with nothing failing.
-    //
-    // Generous: Pawn maxHealth 3 (pieceTypes.ts), rank 3 deals 1 damage every
-    // 600ms fire interval, so three shots land comfortably inside 5 seconds.
-    for (let elapsed = 0; elapsed < 5_000 && state.phase === 'inProgress'; elapsed += DT) {
+    // Long enough that a vulnerable Pawn (maxHealth 3, pieceTypes.ts) would
+    // have died to rank 3's fire (1 damage every 600ms fire interval,
+    // towerRanks.ts) several times over — 8 seconds is 13 shots, over four
+    // kills' worth — while short of the roughly 10.8 seconds the Pawn's own
+    // blocked-attack grind (half of 2 damage every 900ms move interval) needs
+    // to fell the Tower's 12 health. That margin matters: it keeps the Tower
+    // standing and the Pawn still blocked — actively grinding, not merely
+    // present — for the assertions below.
+    for (let elapsed = 0; elapsed < 8_000; elapsed += DT) {
       state = tick(state, DT)
-      for (const piece of state.pieces) squaresSeen.add(squareKey(piece.square))
     }
 
-    // The Pawn's only forward square holds the Tower, so it is blocked and
-    // grinds from the Staging rank rather than ever advancing — it is
-    // destroyed exactly where it stood, never on the board. Those two facts
-    // together are the proof fire is what killed it: the only other routes
-    // that remove a Piece are a leak and a promotion, and neither is
-    // reachable from a square that never left the Staging rank — a leak
-    // needs the Core's square, a promotion needs rank 0.
-    expect([...squaresSeen]).toEqual([squareKey(stagingSquare)])
-    expect(state.pieces).toEqual([])
+    const pawn = state.pieces[0]
+
+    // Alive, at full health, and never left the Staging square — Tower fire
+    // never touched it.
+    expect(pawn).toBeDefined()
+    expect(pawn?.square).toEqual(stagingSquare)
+    expect(pawn?.health).toBe(PIECE_TYPES.pawn.maxHealth)
+    // The Tower has taken damage regardless, from the Pawn's own blocked
+    // attacks — so this cannot pass because nothing happened at all. The
+    // Piece is genuinely grinding against the Tower every hop; it simply
+    // cannot be hurt by it in return.
+    expect(firstTower(state).health).toBeLessThan(firstTower(state).maxHealth)
   })
 
+  // Now pins the "except a Joker's Clear" half of the rule above — MORE
+  // load-bearing than when a Piece on the Staging rank was ordinary, since
+  // Clear was unremarkable there before: everything died the same way
+  // regardless of what reached it. Now Clear is the ONE thing on this list
+  // still able to touch a Piece on the Staging rank, so this test is what
+  // stops that exception from being silently dropped too.
   it("a Joker's Clear destroys a Piece on the Staging rank", () => {
     const base = withDeck([jokerCard('joker-1')], createInitialState())
     const rank = stagingRank(base.board)
@@ -376,6 +501,11 @@ describe('a Piece on the Staging rank is an ordinary Piece', () => {
     expect(cleared.ink).toBe(1)
   })
 
+  // Auras are not damage, so they were never part of this rule either way — a
+  // King's buff speeds a waiting Piece's entry to the board, which is a
+  // genuine effect worth keeping, and a Bishop's heal is now a harmless no-op
+  // since nothing can hurt a Piece here to begin with. Kept passing so the
+  // immunity rule above never grows a second carve-out to exclude auras too.
   it("a King's aura reaches a Piece on the Staging rank", () => {
     const base = createInitialState()
     // `buffedPieceIds` (auras.ts) reads Chebyshev distance 1 as adjacent; this
