@@ -100,7 +100,7 @@ These **act instead of building**, under one governing principle:
 | Card | Action | Needs a Tower? |
 | --- | --- | --- |
 | **Jack — Shield** | Give a Tower a shield of **10** — flat, additive, absorbed before health, never regenerating | Yes |
-| **Queen — Echo** | Build a copy of an existing Tower's **rank** on an empty square | Yes |
+| **Queen — Echo** | Build a copy of an existing Tower's **rank** on a square holding neither a Tower nor a Piece | Yes |
 | **King — Reinforce** | Raise Core current **and** maximum health by **1** | No |
 | **Ace — Expand** | Grow the board by one rank, lengthening the run to the Core | No |
 | **Joker — Clear** | Destroy every Piece standing on the board | No |
@@ -313,6 +313,8 @@ Half damage is what makes the mechanic work: Pieces are poor demolitionists, so 
 Every Piece therefore contributes anti-Tower pressure, so repair reliably has a job.
 
 **A Tower's own geometry decides whether it can defend itself.** A vertical, cross, adjacent, or star Tower covers the square a Piece attacks it from, so it shoots back. A **diagonal** Tower does not — a Piece attacking from directly along its file sits in a blind spot, and rank 5 is the only diagonal on the ladder. That asymmetry is emergent from real geometry, not assigned. Repair has since arrived, which makes it the live case: see "Repair versus the wall" in the open questions.
+
+**A Tower cannot be built on a square a Piece occupies.** Blocking only means something if the two never share a square, and a build is the one route onto the board the movement rule does not already guard. This closes it from the placement side only — a Piece can still spawn onto a square a Tower already occupies, which is the same overlap from the opposite direction and is tracked separately (issue #22, open).
 
 ### No walls, no mazing
 
