@@ -49,9 +49,19 @@ export function structuralKey(state: GameState): string {
     // The board grows when an Ace is played, and the renderer draws from it.
     state.board.ranks,
     state.board.files,
-    // Every card play removes exactly one card, so length alone is a faithful
-    // trigger — and far cheaper than joining 30 ids on every publish.
-    state.deck.length,
+    // The Deck's card ids, NOT its length.
+    //
+    // Length was faithful while every card play removed exactly one card. Packs
+    // break that: culling at the cap destroys exactly as many cards as the pack
+    // deals, so a purchase can replace ten cards without moving the length by
+    // one — and keyed on length, the store would never publish and the new cards
+    // would never reach React. That is what culling at the cap always looks
+    // like, so it is the common case rather than an edge.
+    //
+    // Cheap enough to be uninteresting: thirty short ids, joined a couple of
+    // dozen times a second, adding no publishes. Derived from the Deck rather
+    // than tracked in a counter, so there is no bookkeeping to forget.
+    state.deck.map((card) => card.id).join(','),
     pieces,
     towers,
   ].join('#')
