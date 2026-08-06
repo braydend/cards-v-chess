@@ -40,8 +40,14 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
 
   if (covered.length === 0) return null
 
+  // `key` is keyed on the slot count for the same reason as the board's
+  // `Instances` — see the comment in Board.tsx. Unreachable today (this unmounts
+  // whenever nothing is covered, and selecting the Ace in the Deck empties
+  // `covered`, so it always remounts at the new size anyway) but it is the
+  // identical defect, and relying on that unmount is relying on a
+  // Deck-interaction detail rather than on anything this component controls.
   return (
-    <Instances limit={board.files * board.ranks}>
+    <Instances key={board.files * board.ranks} limit={board.files * board.ranks}>
       <boxGeometry args={[SQUARE_SIZE * 0.9, 0.02, SQUARE_SIZE * 0.9]} />
       <meshBasicMaterial color={COVERED} transparent opacity={0.42} depthWrite={false} />
       {covered.map((square) => (

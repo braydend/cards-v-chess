@@ -22,7 +22,27 @@ export function Board({ board }: { board: BoardSpec }) {
 
   return (
     <>
-      <Instances limit={squares.length} receiveShadow>
+      {/*
+       * `key` is load-bearing, not decoration — do not remove it.
+       *
+       * drei's `Instances` allocates its instanceMatrix and instanceColor
+       * buffers once, in a `useState` initialiser sized from `limit`. A later
+       * `limit` change is read by its frame loop (which sets `mesh.count`) but
+       * never resizes those buffers. So an Ace taking the board from 8x8 to 8x9
+       * left 64 slots backing a draw of 72: three.js asked WebGL to upload
+       * 72*16 floats into a 64*16 array, every upload failed with
+       * `INVALID_VALUE: bufferSubData: srcOffset + length too large`, and the
+       * eight unwritten instances drew as garbage geometry — the wedge across
+       * the scene that was long misattributed to the shadow frustum.
+       *
+       * Keying on the square count remounts `Instances` so the buffers are
+       * reallocated at the new size. A remount per Ace is cheap; it happens
+       * once per board growth, never per frame. A fixed generous `limit` was
+       * the alternative and is rejected: board growth is uncapped, so that just
+       * moves the same failure further out — and CLAUDE.md forbids deriving a
+       * board extent from a constant.
+       */}
+      <Instances key={squares.length} limit={squares.length} receiveShadow>
         <boxGeometry args={[SQUARE_SIZE * 0.96, 0.12, SQUARE_SIZE * 0.96]} />
         <meshStandardMaterial flatShading />
         {squares.map((square) => (
