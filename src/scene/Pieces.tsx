@@ -1,9 +1,6 @@
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import {
-  BoxGeometry,
-  ConeGeometry,
-  CylinderGeometry,
   MeshStandardMaterial,
   RingGeometry,
   type BufferGeometry,
@@ -16,32 +13,7 @@ import { getState } from '../state/simulation'
 import { useGameStore } from '../state/store'
 import { fileToWorldX, rankToWorldZ } from './coords'
 import { PIECE_COLOURS } from './pieceColours'
-
-const GEOMETRY_BY_TYPE: Record<PieceTypeId, () => BufferGeometry> = {
-  pawn: () => new ConeGeometry(0.28, 0.55, 6),
-  knight: () => new BoxGeometry(0.4, 0.6, 0.3),
-  bishop: () => new ConeGeometry(0.2, 0.8, 6),
-  rook: () => new CylinderGeometry(0.32, 0.32, 0.45, 6),
-  queen: () => new ConeGeometry(0.3, 0.9, 8),
-  king: () => new CylinderGeometry(0.26, 0.3, 0.85, 8),
-}
-
-/**
- * Where each silhouette's origin sits so the Piece rests on the board rather
- * than in it — half its height, rounded to the nearest hundredth. The Pawn is
- * the exception: it keeps the existing hand-tuned 0.35 (not a half-height
- * value at all) so it looks unchanged from before this task.
- */
-const REST_Y_BY_TYPE: Record<PieceTypeId, number> = {
-  pawn: 0.35,
-  knight: 0.3,
-  bishop: 0.4,
-  rook: 0.23,
-  queen: 0.45,
-  king: 0.43,
-}
-
-const PIECE_TYPE_IDS = Object.keys(GEOMETRY_BY_TYPE) as PieceTypeId[]
+import { GEOMETRY_BY_TYPE, PIECE_TYPE_IDS, REST_Y_BY_TYPE } from './pieceGeometry'
 
 /**
  * How long the visual hop takes. Deliberately much shorter than a piece's move
