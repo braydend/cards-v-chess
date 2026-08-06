@@ -19,20 +19,21 @@ What exists:
 
 - The rules engine (`src/game/`) with `step` / `tick`, driven by a fixed-timestep accumulator.
 - **The card system.** The Deck, modality (rank builds / suit supports), the rank ladder 2–10, the four suit supports, and all five card actions — Jack Shield, Queen Echo, King Reinforce, Ace Expand, Joker Clear. Playing a card consumes it.
+- **Ink income.** The run currency, earned from Tower kills and round completion, shown in the HUD. Kill rewards are authored per Piece type in `src/data/pieceTypes.ts`; the round lump sum and the Joker's share live in `src/data/ink.ts`. Every calculation is in `src/game/ink.ts`. **The numbers are placeholders** — Ink buys nothing yet, so nothing prices them.
 - **The full Chess roster** — Pawn, Knight, Bishop, Rook, Queen, King — each with its own movement, Pawn promotion on the back rank, hunting Knights, the King's move-speed/slide aura, and the Bishop's healing aura.
 - **Tower combat.** Firing geometry per rank, Tower health, shields, damage from blocked Pieces, and destruction.
 - **Tower legibility.** A Tower darkens as it loses health, flashes on a hit, pulses at critical health, and flares as it dies; clicking one opens an inspect panel with the exact figures, including lifetime `damageTaken`.
 - The renderer (`src/scene/`), with distinct per-type rendering for each Piece, and the HUD, the Deck UI and the Tower panel (`src/ui/`).
 - **CI.** `lint`, `typecheck`, `test:coverage` with per-directory thresholds, and `build` — see "CI" below.
-- 396 tests across 26 files, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
+- 414 tests across 27 files, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
 
 What does **not** exist yet:
 
-- **Ink and packs.** No currency, no pack opening, no cull flow, and no seeded PRNG. The Deck is a fixed authored list in `src/data/deck.ts` — see the file's own comment before touching it.
+- **Packs.** No pack opening, no cull flow, and no seeded PRNG. Ink accumulates with nothing to spend it on. The Deck is a fixed authored list in `src/data/deck.ts` — see the file's own comment before touching it.
 
 Towers fire and can kill Pieces outright, so a round does not resolve by leaking out — it ends when nothing on the board can still act, whether that means every Piece destroyed or through the Core. No Piece type can end a round genuinely stranded any more: every type has a designed way off `stuck`.
 
-The design still runs ahead of the code on the economy, so read `docs/design/game-design.md` for the intended design rather than inferring it from what is built. The largest unbuilt piece is Ink and packs, with the cull flow and the PRNG.
+The design still runs ahead of the code on the economy, so read `docs/design/game-design.md` for the intended design rather than inferring it from what is built. The largest unbuilt piece is packs, with the cull flow and the PRNG.
 
 **The Ace wedge is fixed, and it was never a shadow** (issue #16). Playing an Ace used to throw a wedge across the scene and lose the new rank. The cause was drei's `Instances`, which sizes its `instanceMatrix` and `instanceColor` buffers once from `limit` in a `useState` initialiser and never resizes them; its frame loop still reads the current `limit` to set `mesh.count`. `Board.tsx` passed `limit={squares.length}`, so an Ace moved `count` to 72 against 64 allocated slots — every upload then failed with `INVALID_VALUE: bufferSubData: srcOffset + length too large`, and the eight instances that never received a matrix drew as degenerate geometry. Both suspect `Instances` are now keyed on their slot count so a board growth remounts and reallocates them; **those `key` props are load-bearing, and the files say so.** The general lesson is in "React Three Fiber discipline" below.
 
