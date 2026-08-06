@@ -13,9 +13,17 @@ import { describe, expect, it } from 'vitest'
 import { BLOCKED_ATTACK_MULTIPLIER, PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { coversSquare } from './coverage'
-import { jokerCard, liveRound, pawnAt, standardCard, withDeck, withTower } from './fixtures'
+import {
+  firstTowerId,
+  jokerCard,
+  liveRound,
+  pawnAt,
+  standardCard,
+  withDeck,
+  withTower,
+} from './fixtures'
 import { step, tick } from './index'
-import type { GameState } from './types'
+import type { BuildableRank, GameState } from './types'
 
 const DT = 1000 / 60
 const TOWER_SQUARE = { file: 3, rank: 4 }
@@ -41,11 +49,17 @@ function runFor(state: GameState, durationMs: number): GameState {
   return current
 }
 
-/** A rank-5 diagonal Tower with a Pawn grinding it from directly up-file. */
-function grind(hearts: number): GameState {
-  // Rank 5, matching the Tower: a numbered Card supports only its own rank.
-  const deck = Array.from({ length: hearts }, (_, i) => standardCard(`h${i}`, 5, 'hearts'))
-  const built = withDeck(deck, withTower(5, TOWER_SQUARE))
+/**
+ * A Tower of `rank` at `TOWER_SQUARE`, with a Pawn grinding it from directly
+ * up-file at `GRINDER_SQUARE`. Defaults to rank 5, the diagonal blind spot the
+ * rest of this file exercises; the rank 7 Wall below reuses the same shape
+ * rather than duplicating it, since blocking depends on the squares, not the
+ * rank.
+ */
+function grind(hearts: number, rank: BuildableRank = 5): GameState {
+  // Matching the Tower: a numbered Card supports only its own rank.
+  const deck = Array.from({ length: hearts }, (_, i) => standardCard(`h${i}`, rank, 'hearts'))
+  const built = withDeck(deck, withTower(rank, TOWER_SQUARE))
 
   return liveRound(built, [pawnAt('grinder', GRINDER_SQUARE)])
 }
@@ -190,5 +204,59 @@ describe('packs cannot lengthen the wall', () => {
     const between: GameState = { ...grind(0), phase: 'gap', ink: 10_000 }
 
     expect(step(between, { kind: 'buyPack', pack: 'base', cullCardIds: [] })).not.toBe(between)
+  })
+})
+
+describe('the rank 7 Wall', () => {
+  it('has no gun, so it can never shoot back at what grinds it', () => {
+    // The premise of everything below. A Wall is the diagonal blind spot
+    // generalised: rank 5 cannot shoot a Piece directly up-file, and rank 7
+    // cannot shoot anything at all.
+    expect(TOWER_RANKS[7].geometry).toBe('none')
+    expect(TOWER_RANKS[7].damage).toBe(0)
+  })
+
+  it('still falls when fed every ♥ in the Deck, and the round still ends', () => {
+    // WHY THIS TEST EXISTS. "Repair versus the wall" is an OPEN design
+    // question, left open on the grounds that the existing bound survives the
+    // Wall: ♥ supply is fixed for a round's whole duration because buyPack is
+    // refused while a round is live, so repair runs out, the Wall falls, and
+    // the round resumes. That is reasoning, not evidence, until this runs.
+    //
+    // Unlike the diagonal blind spot above, this is not about the Wall being
+    // unable to hit ITS attacker specifically — geometry 'none' means it can
+    // never hit anything. It is the sharpest version of the case this file
+    // pins, because every other rank can eventually shorten its own grind by
+    // shooting something; the Wall never can.
+    const HEARTS = 4
+    const HEART_IDS = Array.from({ length: HEARTS }, (_, index) => `h${index}`)
+
+    // Rank 7, matching the Wall: a numbered Card supports only its own rank.
+    let state = grind(HEARTS, 7)
+
+    // Grind, repairing to full whenever a ♥ is left. A ♥ restores to full
+    // regardless of the deficit, so unlike the deficit-gated tests above this
+    // just spends every heart on a fixed cadence — the point here is only that
+    // the grind eventually resolves once they run out, not the precise value
+    // each one buys.
+    for (const card of HEART_IDS) {
+      state = runFor(state, 20_000)
+      if (state.towers.length === 0) break
+      state = step(state, { kind: 'supportTower', cardId: card, towerId: firstTowerId(state) })
+    }
+
+    // No more ♥ left. Comfortably longer than the unaided kill time computed
+    // below, so a hang here — rather than a clean resolve — is the finding:
+    // it would mean the Wall broke round termination, not that the window was
+    // too short.
+    const maxHealth = TOWER_RANKS[7].maxHealth
+    const dpsPerHop = PIECE_TYPES.pawn.attackDamage * BLOCKED_ATTACK_MULTIPLIER
+    const hopIntervalMs = PIECE_TYPES.pawn.moveIntervalMs
+    const unaidedResolveMs = (maxHealth / dpsPerHop) * hopIntervalMs
+
+    state = runFor(state, unaidedResolveMs * 3)
+
+    expect(state.towers).toHaveLength(0)
+    expect(state.phase).not.toBe('inProgress')
   })
 })
