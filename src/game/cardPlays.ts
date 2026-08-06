@@ -7,8 +7,8 @@
  */
 import { ACE_BOARD_RANKS, JACK_SHIELD, KING_CORE_HEALTH, supportMagnitude } from '../data/cards'
 import { towerRank } from '../data/towerRanks'
-import { canBuildOn } from './placement'
 import { findCard, isBuildableRank, removeCard } from './cards'
+import { canBuildOn } from './placement'
 import { applySupport } from './support'
 import type { BuildableRank, GameState, Square, Tower } from './types'
 
