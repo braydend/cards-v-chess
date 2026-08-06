@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
-import { liveRound, pawnAt, pieceAt, withTower } from './fixtures'
+import { firstTower, liveRound, pawnAt, pieceAt, withTower } from './fixtures'
 import { tick } from './index'
 import type { BuildableRank, GameState, Square } from './types'
 
@@ -116,6 +116,29 @@ describe('tower firing', () => {
 
     expect(after.phase).toBe('gap')
     expect(after.roundNumber).toBe(state.roundNumber + 1)
+  })
+})
+
+describe('the Wall (rank 7)', () => {
+  it('never fires, and never moves fireCooldownMs off its built value of 0', () => {
+    // Rank 7's geometry is 'none', which covers no square at any range -- but
+    // that alone would only make selectTargets return nothing every time,
+    // which is a DIFFERENT thing from never entering the cooldown loop at
+    // all. Without the guard in fireTowers, a Tower that never finds a
+    // target still runs the loop once cooldown crosses fireIntervalMs, and
+    // gets clamped to "ready" (fireCooldownMs === fireIntervalMs) rather than
+    // banking the shot -- so fireCooldownMs would move off 0 the moment 1000ms
+    // passed, guard or no guard. This pins both halves of the guard's claim:
+    // nothing takes damage, AND fireCooldownMs never leaves 0.
+    const state = liveRound(withTower(7, { file: 3, rank: 3 }), [
+      pawnAt('target-0', { file: 3, rank: 4 }),
+    ])
+
+    const after = runFor(state, TOWER_RANKS[7].fireIntervalMs + DT)
+    const survivor = after.pieces.find((piece) => piece.id === 'target-0')
+
+    expect(survivor?.health).toBe(PAWN_HEALTH)
+    expect(firstTower(after).fireCooldownMs).toBe(0)
   })
 })
 
@@ -264,12 +287,16 @@ describe('targets per shot', () => {
   it('rank 10 hits everything it covers', () => {
     // A band spans the full file width, so these are spread across the board
     // on purpose — that is the property being tested. Rank 5 is outside the
-    // +/-1 band from board rank 3 and must NOT be hit.
+    // +/-1 band from board rank 3 and must NOT be hit — a fifth Piece sits
+    // there so that claim is actually exercised, not just asserted in a
+    // comment: without it, mutating `band` to cover the whole board left
+    // this test green.
     const state = scenario(10, { file: 3, rank: 3 }, [
       { file: 0, rank: 4 },
       { file: 3, rank: 4 },
       { file: 7, rank: 2 },
       { file: 6, rank: 3 },
+      { file: 3, rank: 5 },
     ])
 
     const after = runFor(state, TOWER_RANKS[10].fireIntervalMs + DT)

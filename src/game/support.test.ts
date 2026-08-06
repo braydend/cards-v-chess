@@ -153,9 +153,9 @@ describe('♦ Speed', () => {
     expect(firstTower(boosted).fireIntervalMs).toBeLessThan(TOWER_RANKS[3].fireIntervalMs / 2)
 
     // One Pawn, not two: rank 3 now deals 2 damage, under a Pawn's 3 health,
-    // so no firing rank can one-shot a Pawn any more (rank 5 dropped to 2
-    // damage as well) -- the "each one-shot" premise this test used to rely
-    // on no longer holds anywhere. Two hits of 2 on the SAME Pawn (4 total
+    // so it can no longer one-shot a Pawn (rank 5 dropped to 2 damage as
+    // well) -- the "each one-shot" premise this test used to rely on no
+    // longer holds for either rank. Two hits of 2 on the SAME Pawn (4 total
     // against 3 health) destroys it just as legibly as two one-shots did, and
     // proves the same thing: two shots landed inside the window. Rank 3 is
     // `vertical`, so the Piece has to sit on the Tower's own file --
