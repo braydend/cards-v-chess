@@ -38,7 +38,7 @@ interface UiStore {
    *
    * Independent of `selectedCardId`: inspecting is what a board click does when
    * no Card is selected, and a Card whose play targets a Tower takes precedence
-   * over it. See `resolveTowerClick` in `src/scene/boardClick.ts`.
+   * over it. See `resolveBoardAction` in `src/scene/boardClick.ts`.
    */
   selectedTowerId: string | null
   setSelectedTowerId: (towerId: string | null) => void
