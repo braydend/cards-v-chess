@@ -4,3 +4,4 @@ dist-ssr
 coverage
 *.local
 .DS_Store
+.superpowers
