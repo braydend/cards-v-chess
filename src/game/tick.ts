@@ -6,7 +6,12 @@ import { coversSquare } from './coverage'
 import { roundIncome, totalKillReward } from './ink'
 import { isStuck, nextMove } from './movement'
 import { step } from './step'
-import { amplificationFor, amplifierIdsByPiece } from './towerAuras'
+import {
+  FREEZE_MULTIPLIER,
+  amplificationFor,
+  amplifierIdsByPiece,
+  frozenPieceIds,
+} from './towerAuras'
 import type { BoardSpec, ExitRecord, GameState, Piece, Square, Tower } from './types'
 
 /**
@@ -72,8 +77,20 @@ export function tick(state: GameState, dtMs: number): GameState {
   // Tower map is: so no Piece's outcome depends on processing order.
   const allPieces = [...state.pieces, ...spawned]
   const buffed = buffedPieceIds(allPieces)
+  // Derived from tick-start Tower and Piece positions for the same reason
+  // `buffed` and `towerBySquare` are: so no Piece's outcome depends on the
+  // order Pieces are processed in.
+  const frozen = frozenPieceIds(state.towers, allPieces)
 
-  const moved = movePieces(allPieces, state.board, state.core.square, towerBySquare, dtMs, buffed)
+  const moved = movePieces(
+    allPieces,
+    state.board,
+    state.core.square,
+    towerBySquare,
+    dtMs,
+    buffed,
+    frozen,
+  )
 
   // Minted after movePieces has decided which Pawns reached the back rank, and
   // numbered starting after drainDueSpawns's own ids, so a Pawn and a spawn in
@@ -385,6 +402,7 @@ function movePieces(
   towerBySquare: ReadonlyMap<string, Tower>,
   dtMs: number,
   buffed: ReadonlySet<string>,
+  frozen: ReadonlySet<string>,
 ): {
   pieces: Piece[]
   leaked: number
@@ -401,7 +419,12 @@ function movePieces(
   for (const piece of pieces) {
     const { moveIntervalMs: baseInterval, attackDamage } = pieceType(piece.typeId)
     const isBuffed = buffed.has(piece.id)
-    const moveIntervalMs = isBuffed ? baseInterval * KING_SPEED_MULTIPLIER : baseInterval
+    const buffedInterval = isBuffed ? baseInterval * KING_SPEED_MULTIPLIER : baseInterval
+    // A King's buff and a Freezer's slow COMPOSE rather than override: 0.7 x
+    // 1.5 = 1.05, so a King almost exactly cancels a freeze. That is the
+    // intended reading — the King is the Chess faction's answer to the
+    // Freezer, not immune to it.
+    const moveIntervalMs = frozen.has(piece.id) ? buffedInterval * FREEZE_MULTIPLIER : buffedInterval
     const slideBonus = slideBonusFor(piece, buffed)
 
     let cooldown = piece.moveCooldownMs + dtMs

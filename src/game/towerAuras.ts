@@ -81,3 +81,43 @@ export function amplificationFor(
 
   return 1
 }
+
+/**
+ * Move-interval multiplier for a Piece inside a Freezer's coverage. Higher is
+ * slower — the mirror image of `KING_SPEED_MULTIPLIER`, which is below 1.
+ */
+export const FREEZE_MULTIPLIER = 1.5
+
+/**
+ * Every Piece currently standing inside a Freezer's coverage.
+ *
+ * Membership, not a count: two Freezers slow exactly as much as one, matching
+ * the King aura. Ids are not needed here the way they are for the Amplifier,
+ * because a Freezer has nothing to exclude itself from — it slows Pieces, and
+ * a Tower is not a Piece.
+ *
+ * NOTE THIS SLOWS GRINDING AS WELL AS WALKING. A blocked Piece attacks a Tower
+ * on the same move cadence it would have walked on (see `movePieces`), so a
+ * Freezer covering a Wall makes each ♥ buy more seconds of stall. That does
+ * NOT loosen the round-termination bound — the ♥ supply is still fixed
+ * mid-round, because `buyPack` is refused while a round is live — so rounds
+ * get slower, never endless. Accepted deliberately; see "Repair versus the
+ * wall" in the design doc.
+ */
+export function frozenPieceIds(
+  towers: readonly Tower[],
+  pieces: readonly Piece[],
+): ReadonlySet<string> {
+  const frozen = new Set<string>()
+
+  for (const tower of towers) {
+    const def = towerRank(tower.cardRank)
+    if (def.aura !== 'freeze') continue
+
+    for (const piece of pieces) {
+      if (coversSquare(def.geometry, def.range, tower.square, piece.square)) frozen.add(piece.id)
+    }
+  }
+
+  return frozen
+}
