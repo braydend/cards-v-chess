@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { ACE_BOARD_RANKS, JACK_SHIELD, KING_CORE_HEALTH } from '../data/cards'
 import { TOWER_RANKS } from '../data/towerRanks'
-import { firstTowerId, jokerCard, liveRound, pawnAt, standardCard, withDeck, withTower } from './fixtures'
+import { firstTowerId, jokerCard, liveRound, pawnAt, pieceAt, standardCard, withDeck, withTower } from './fixtures'
 import { step, tick } from './index'
-import type { GameState } from './types'
+import { clearReward, roundIncome, totalKillReward } from './ink'
+import type { GameState, Piece } from './types'
 
 const SQUARE = { file: 2, rank: 2 }
 const ELSEWHERE = { file: 5, rank: 5 }
@@ -276,10 +277,7 @@ describe('Ace — Expand', () => {
 
 describe('Joker — Clear', () => {
   function withJoker(): GameState {
-    const built = withTower(5, SQUARE)
-    const seeded = withDeck([jokerCard('joker')], built)
-
-    return liveRound(seeded, [pawnAt('a', { file: 1, rank: 6 }), pawnAt('b', { file: 6, rank: 3 })])
+    return withJokerAnd([pawnAt('a', { file: 1, rank: 6 }), pawnAt('b', { file: 6, rank: 3 })])
   }
 
   it('destroys every Piece on the board', () => {
@@ -328,5 +326,46 @@ describe('Joker — Clear', () => {
     const after = tick(cleared, 1000 / 60)
 
     expect(after.phase).toBe('gap')
+  })
+
+  // Seven Pawns and a Queen, not the two Pawns `withJoker` uses. Two Pawns'
+  // quarter share floors to nothing, which would assert the rule without ever
+  // demonstrating that it pays. The mix matters too: it totals an amount whose
+  // quarter share is genuinely fractional, so the floor has real work to do
+  // here rather than landing on a whole number by luck.
+  function fullBoard(): Piece[] {
+    const pawns = Array.from({ length: 7 }, (_, file) => pawnAt(`p${file}`, { file, rank: 6 }))
+
+    return [...pawns, pieceAt('queen', 'q', { file: 7, rank: 6 })]
+  }
+
+  function withJokerAnd(pieces: readonly Piece[]): GameState {
+    return liveRound(withDeck([jokerCard('joker')], withTower(5, SQUARE)), pieces)
+  }
+
+  it('pays a quarter share of the kill rewards for what it cleared', () => {
+    const board = fullBoard()
+    const after = step(withJokerAnd(board), { kind: 'clearPieces', cardId: 'joker' })
+
+    expect(after.ink).toBe(clearReward(board))
+    expect(after.ink).toBeGreaterThan(0)
+  })
+
+  it('pays less than shooting the same Pieces would, so stalling to Clear never pays best', () => {
+    const board = fullBoard()
+    const after = step(withJokerAnd(board), { kind: 'clearPieces', cardId: 'joker' })
+
+    expect(after.ink).toBeLessThan(totalKillReward(board))
+  })
+
+  it('leaves the round prize whole — the quarter share is on the kills only', () => {
+    const board = fullBoard()
+    const cleared = step(withJokerAnd(board), { kind: 'clearPieces', cardId: 'joker' })
+    // Clearing empties the board with nothing left to spawn, so the very next
+    // tick completes the round. The lump sum is paid in full.
+    const ended = tick(cleared, 1000 / 60)
+
+    expect(ended.phase).toBe('gap')
+    expect(ended.ink).toBe(clearReward(board) + roundIncome(1))
   })
 })

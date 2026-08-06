@@ -36,6 +36,19 @@ export interface PieceTypeDef {
    * and gain +1 from a King aura; everything else has a fixed hop.
    */
   readonly slides: boolean
+  /**
+   * Ink paid when a Tower destroys this Piece.
+   *
+   * Threat and scarcity, not durability — a Rook has the most health on the
+   * roster and is still a wall rather than an event, so it pays less than a
+   * Queen. Authored rather than derived from `maxHealth` for exactly that
+   * reason, and so that retuning a Piece's durability does not silently
+   * retune the economy.
+   *
+   * PLACEHOLDER balance. Ink's worth is set by what it buys, and packs do not
+   * exist yet — see "Ink income values" in the design doc's open questions.
+   */
+  readonly inkReward: number
 }
 
 /**
@@ -210,6 +223,19 @@ export interface GameState {
   readonly towers: readonly Tower[]
   /** Count of pieces that have reached the Core. */
   readonly leaks: number
+  /**
+   * The run currency.
+   *
+   * Earned three ways: destroying a Piece with Tower fire, completing a round,
+   * and a quarter share when a Joker's Clear destroys the board. NEVER from
+   * elapsed time — the gap between rounds is untimed, so time-based income
+   * would be unbounded and the player would simply wait for it. It is spent on
+   * packs alone, and never to play a Card.
+   *
+   * An integer. Every calculation that could produce a fraction floors in
+   * `src/game/ink.ts`.
+   */
+  readonly ink: number
   readonly pendingSpawns: readonly Spawn[]
   /** Monotonic counter so entity ids are deterministic, never random. */
   readonly nextEntityId: number

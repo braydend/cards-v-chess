@@ -8,7 +8,17 @@
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { createInitialState } from './state'
 import { step } from './step'
-import type { BuildableRank, Card, CardRank, GameState, Piece, Square, Suit, Tower } from './types'
+import type {
+  BuildableRank,
+  Card,
+  CardRank,
+  GameState,
+  Piece,
+  PieceTypeId,
+  Square,
+  Suit,
+  Tower,
+} from './types'
 
 export function standardCard(id: string, rank: CardRank, suit: Suit = 'hearts'): Card {
   return { id, kind: 'standard', rank, suit }
@@ -48,13 +58,17 @@ export function withTower(
   return built
 }
 
-export function pawnAt(id: string, square: Square): Piece {
+/**
+ * A Piece of any type, placed directly — the spawn pipeline is bypassed, so a
+ * test can arrange a Piece the current round would never produce.
+ */
+export function pieceAt(typeId: PieceTypeId, id: string, square: Square): Piece {
   return {
     id,
-    typeId: 'pawn',
+    typeId,
     square,
     prevSquare: square,
-    health: PIECE_TYPES.pawn.maxHealth,
+    health: PIECE_TYPES[typeId].maxHealth,
     moveCooldownMs: 0,
     moveCount: 0,
     handedness: 1,
@@ -62,6 +76,10 @@ export function pawnAt(id: string, square: Square): Piece {
     buffed: false,
     hunting: false,
   }
+}
+
+export function pawnAt(id: string, square: Square): Piece {
+  return pieceAt('pawn', id, square)
 }
 
 /** A live round with these Pieces and nothing left to spawn. */
