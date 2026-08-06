@@ -88,7 +88,10 @@ export function supportTower(state: GameState, cardId: string, towerId: string):
 
   // The only thing that varies between two plays of the same suit. `canSupport`
   // has already guaranteed a numbered Card matches the Tower, so a face card is
-  // exactly the case that reached a Tower it does not share a rank with.
+  // exactly the case that reached a Tower it does not share a rank with. This
+  // re-derives that same numbered/face distinction, so if `canSupport`'s
+  // exemption is ever narrowed (say to J and Q only), this line must narrow
+  // with it or the untouched ranks would still pay the premium.
   const multiplier = isBuildableRank(card.rank) ? 1 : FACE_SUPPORT_PREMIUM
 
   return {

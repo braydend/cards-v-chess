@@ -65,8 +65,11 @@ describe('towerColour', () => {
   })
 
   it('is undimmed by default, so nothing changes when no support Card is picked', () => {
-    const result = towerColour(scratch, 4, 1, 0, 0)
+    // `scratch` is mutated in place, so the first result must be captured as a
+    // string before the second call overwrites it.
+    const withoutArg = towerColour(scratch, 4, 1, 0, 0).getHexString()
+    const withExplicitFalse = towerColour(scratch, 4, 1, 0, 0, false).getHexString()
 
-    expect(result.getHexString()).toBe(new Color(RANK_COLOURS[4]).getHexString())
+    expect(withoutArg).toBe(withExplicitFalse)
   })
 })

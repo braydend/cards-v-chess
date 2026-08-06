@@ -29,7 +29,7 @@ const GRINDER_SQUARE = { file: 3, rank: 5 }
  * the arithmetic below valid: each ♥ is then worth precisely this much. Healing
  * the instant health dips by 1 would buy almost nothing, which is what let a
  * no-op repair hide behind these tests before. Must divide evenly into the
- * Tower's 20 max health at 0.5 damage per hop.
+ * Tower's 20 max health at 1 damage per hop.
  */
 const HEAL_DEFICIT = 10
 
@@ -110,10 +110,10 @@ describe('the wall is bounded by card scarcity', () => {
       // ♥ restores to FULL, so what a heal is worth is the deficit when it
       // lands, not the Card's magnitude. Waiting for a deficit of exactly
       // `HEAL_DEFICIT` is what keeps the arithmetic above valid: damage
-      // arrives in 0.5 steps, so the deficit is exactly `HEAL_DEFICIT` at the
-      // moment this fires and each ♥ is worth precisely that much. Healing the
-      // instant health dips by 1 would buy almost nothing, which is what let a
-      // no-op repair hide behind this test before.
+      // arrives in whole steps of 1, so the deficit is exactly `HEAL_DEFICIT`
+      // at the moment this fires and each ♥ is worth precisely that much.
+      // Healing the instant health dips by 1 would buy almost nothing, which
+      // is what let a no-op repair hide behind this test before.
       if (tower && heart && tower.maxHealth - tower.health >= HEAL_DEFICIT) {
         state = step(state, { kind: 'supportTower', cardId: heart.id, towerId: tower.id })
       }

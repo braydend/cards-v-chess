@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   CLUB_DAMAGE,
+  DIAMOND_SPEED_MS,
   FACE_SUPPORT_PREMIUM,
   MIN_FIRE_INTERVAL_MS,
   SPADE_HEALTH,
@@ -90,6 +91,22 @@ describe('♦ Speed', () => {
     const state = withSupport('d', 5, 'diamonds')
 
     expect(play(state, 'd').towers[0]?.fireIntervalMs).toBeLessThan(TOWER_RANKS[5].fireIntervalMs)
+  })
+
+  it('shortens the interval by exactly the flat value', () => {
+    const state = withSupport('d', 5, 'diamonds')
+
+    expect(firstTower(play(state, 'd')).fireIntervalMs).toBe(
+      TOWER_RANKS[5].fireIntervalMs - DIAMOND_SPEED_MS,
+    )
+  })
+
+  it('pays a face card the premium, on any Tower', () => {
+    const state = withSupport('d', 'A', 'diamonds')
+
+    expect(firstTower(play(state, 'd')).fireIntervalMs).toBe(
+      TOWER_RANKS[5].fireIntervalMs - DIAMOND_SPEED_MS * FACE_SUPPORT_PREMIUM,
+    )
   })
 
   it('never drops below the floor, however many are stacked', () => {
