@@ -104,7 +104,7 @@ These **act instead of building**, under one governing principle:
 | Card | Action | Needs a Tower? |
 | --- | --- | --- |
 | **Jack — Shield** | Give a Tower a shield of **10** — flat, additive, absorbed before health, never regenerating | Yes |
-| **Queen — Echo** | Build a copy of an existing Tower's **rank** on an empty square | Yes |
+| **Queen — Echo** | Build a copy of an existing Tower's **rank** on a square holding neither a Tower nor a Piece | Yes |
 | **King — Reinforce** | Raise Core current **and** maximum health by **1** | No |
 | **Ace — Expand** | Grow the board by one rank, lengthening the run to the Core | No |
 | **Joker — Clear** | Destroy every Piece standing on the board | No |
@@ -175,10 +175,11 @@ This requires a **seeded PRNG carried in `GameState`**. `Math.random` must never
 
 **Ink** is the run currency. It buys **packs**. It is never spent to play a card.
 
-Earned two ways:
+Earned three ways:
 
-- **Round income** — a lump sum when a round completes.
-- **Kill rewards** — each destroyed Piece pays out, scaled by type. A Pawn trickles; a Queen pays properly.
+- **Round income** — a lump sum when a round completes, **scaling with the round number**. Rounds grow, so a flat payout would shrink in real terms exactly as the pressure rises. A lost run pays nothing: the Core falling ends the round without completing it.
+- **Kill rewards** — each destroyed Piece pays out, scaled by type. A Pawn trickles; a Queen pays properly. **Only a kill pays.** A Piece that leaks was not killed — it already cost Core health — and a Pawn that promotes was not destroyed but transformed, so the Queen it becomes pays when the Queen dies.
+- **Clear share** — a Joker's Clear pays a quarter share of the kill rewards for the Pieces it destroys, while the round-completion lump sum stays whole. Keeps the safety valve paying something without ever out-earning shooting the board down.
 
 Unspent Ink carries between rounds.
 
@@ -318,6 +319,8 @@ Every Piece therefore contributes anti-Tower pressure, so repair reliably has a 
 
 **A Tower's own geometry decides whether it can defend itself.** A vertical, cross, adjacent, or star Tower covers the square a Piece attacks it from, so it shoots back. A **diagonal** Tower does not — a Piece attacking from directly along its file sits in a blind spot, and rank 5 is the only diagonal on the ladder. That asymmetry is emergent from real geometry, not assigned. Repair has since arrived, which makes it the live case: see "Repair versus the wall" in the open questions.
 
+**A Tower cannot be built on a square a Piece occupies.** Blocking only means something if the two never share a square, and a build is the one route onto the board the movement rule does not already guard. This closes it from the placement side only — a Piece can still spawn onto a square a Tower already occupies, which is the same overlap from the opposite direction and is tracked separately (issue #22, open).
+
 ### No walls, no mazing
 
 **There are no wall or blocker cards, and the player never reshapes the path.** Pieces move by their own rules toward the Core and cannot be herded.
@@ -334,6 +337,7 @@ This is a **coverage** tower defense, not a **maze** one: defense is about which
 | **Run length and loss condition** | How long a run is, what ends it, and whether difficulty scales per round or in stages. |
 | **Running out of cards** | Cards are consumed and packs are the only source, so a player can reach zero. Loss, stall, or covered by a guaranteed Ink floor? |
 | **Pack weighting and prices** | How rank scarcity translates into pack contents, and what each type costs. |
+| **Ink income values** | Kill rewards per Piece type, and the round-completion lump sum, are **placeholders**. Ink's worth is set by what it buys, so these cannot be tuned until pack prices exist — resolve the two together. The *shapes* are settled and are not open — see "Ink and packs" above for the current three income paths, and [`2026-08-06-ink-income-design.md`](../superpowers/specs/2026-08-06-ink-income-design.md) for the reasoning behind them. One more thing to weigh whenever this pass happens: `tick.ts` feeds a freshly promoted Queen into the same tick's Tower fire, so a Pawn worth 1 Ink shot on the way in is worth 8 if left to reach the back rank and die as a Queen instead — withholding fire from an approaching Pawn is a legible, currently uncosted 8x income play. |
 | **PRNG streams** | One stream (simplest) versus separate named streams for packs/rounds/draws, so seeds survive code changes. |
 | **Repair versus the wall** | **Reachable now — ♥ Repair exists.** Towers block and there is no pathfinding, so a repaired Tower a Piece cannot break is a permanent wall, and against a rank-5 Tower's `diagonal` blind spot the Piece cannot even shoot back. What bounds it today is that **cards are consumed and packs do not exist**: ♥ runs out, the Tower falls, and the round resumes. `src/game/roundTermination.test.ts` pins that bound, and the Joker is the escape hatch. **Adding packs removes the bound.** Two later changes made each ♥ worth more against the wall without touching that bound: ♥ now restores to **full** rather than by magnitude, so one card can absorb a whole Tower's worth of grinding; and ♠ raises `maxHealth`, so a ♠-fed Tower gives each subsequent ♥ a higher ceiling to fill. The wall is the same length in cards and longer in seconds. A third change tightens it in the other direction: a ♥ now reaches only a Tower of its own rank, so fewer of the ♥ in a Deck can sustain any given wall. The bound was already finite; it is now shorter in cards. Nothing here depends on it being loose. Candidate answers: attacked Towers lose *maximum* health permanently so repair only delays; repair capped per round; or a blocked Piece eventually breaks through regardless. Decide with play experience, not on paper. |
 | **Capping stacked supports** | **Reachable now.** Supports stack additively with no limit, so a Tower fed every ♠ in a Deck grows without bound — and with flat values, *n* supports is exactly *n* × the flat amount, which makes the growth easy to reason about but does not bound it. The rank match narrows how many Cards can reach one Tower, which is a constraint but not a cap. Candidate answers: a hard cap per Tower, diminishing returns per stack, or a cap per round. Deliberately left open by the rank-matching work — do not resolve it by guessing. |

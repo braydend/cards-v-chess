@@ -7,8 +7,9 @@
  */
 import { ACE_BOARD_RANKS, FACE_SUPPORT_PREMIUM, JACK_SHIELD, KING_CORE_HEALTH } from '../data/cards'
 import { towerRank } from '../data/towerRanks'
-import { isInBounds, squaresEqual } from './board'
 import { findCard, isBuildableRank, removeCard } from './cards'
+import { clearReward } from './ink'
+import { canBuildOn } from './placement'
 import { applySupport, canSupport } from './support'
 import type { BuildableRank, GameState, Square, Tower } from './types'
 
@@ -34,14 +35,6 @@ function newTower(id: string, square: Square, cardRank: BuildableRank): Tower {
     shield: 0,
     damageTaken: 0,
   }
-}
-
-/** Whether a square is free to build on. */
-function canBuildOn(state: GameState, square: Square): boolean {
-  if (!isInBounds(state.board, square)) return false
-  if (squaresEqual(square, state.core.square)) return false
-
-  return !state.towers.some((tower) => squaresEqual(tower.square, square))
 }
 
 /**
@@ -218,8 +211,10 @@ export function expandBoard(state: GameState, cardId: string): GameState {
  * It is also the one card that can always break a grind, which makes it the
  * safety valve for the repair-versus-the-wall stall. See the spec.
  *
- * NOTE for when Ink lands: clearing twenty Pawns must not pay twenty kill
- * rewards, or this becomes an income exploit.
+ * It pays a QUARTER share of the kill rewards for what it destroyed, not the
+ * full amount. Paying full would make holding a Joker while the board fills
+ * the best way to earn, turning the safety valve into an income exploit. The
+ * share floors on the total rather than per Piece — see `clearReward`.
  */
 export function clearPieces(state: GameState, cardId: string): GameState {
   if (state.phase === 'defeated') return state
@@ -229,6 +224,7 @@ export function clearPieces(state: GameState, cardId: string): GameState {
 
   return {
     ...state,
+    ink: state.ink + clearReward(state.pieces),
     pieces: [],
     deck: removeCard(state.deck, cardId),
   }

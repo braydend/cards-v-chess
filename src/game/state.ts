@@ -13,6 +13,7 @@ export function createInitialState(): GameState {
     pieces: [],
     towers: [],
     leaks: 0,
+    ink: 0,
     pendingSpawns: [],
     nextEntityId: 1,
     deck: STARTING_DECK,

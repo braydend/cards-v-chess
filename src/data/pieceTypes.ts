@@ -12,12 +12,12 @@ import type { PieceTypeDef, PieceTypeId } from '../game/types'
  * the low buildable ranks would make much of the pool useless against Rooks.
  */
 export const PIECE_TYPES: Record<PieceTypeId, PieceTypeDef> = {
-  pawn: { id: 'pawn', label: 'Pawn', moveIntervalMs: 900, maxHealth: 3, attackDamage: 2, slides: false },
-  knight: { id: 'knight', label: 'Knight', moveIntervalMs: 1100, maxHealth: 4, attackDamage: 2, slides: false },
-  bishop: { id: 'bishop', label: 'Bishop', moveIntervalMs: 1000, maxHealth: 5, attackDamage: 1, slides: true },
-  rook: { id: 'rook', label: 'Rook', moveIntervalMs: 1600, maxHealth: 14, attackDamage: 4, slides: true },
-  queen: { id: 'queen', label: 'Queen', moveIntervalMs: 1000, maxHealth: 9, attackDamage: 5, slides: true },
-  king: { id: 'king', label: 'King', moveIntervalMs: 1800, maxHealth: 12, attackDamage: 3, slides: false },
+  pawn: { id: 'pawn', label: 'Pawn', moveIntervalMs: 900, maxHealth: 3, attackDamage: 2, slides: false, inkReward: 1 },
+  knight: { id: 'knight', label: 'Knight', moveIntervalMs: 1100, maxHealth: 4, attackDamage: 2, slides: false, inkReward: 2 },
+  bishop: { id: 'bishop', label: 'Bishop', moveIntervalMs: 1000, maxHealth: 5, attackDamage: 1, slides: true, inkReward: 3 },
+  rook: { id: 'rook', label: 'Rook', moveIntervalMs: 1600, maxHealth: 14, attackDamage: 4, slides: true, inkReward: 5 },
+  queen: { id: 'queen', label: 'Queen', moveIntervalMs: 1000, maxHealth: 9, attackDamage: 5, slides: true, inkReward: 8 },
+  king: { id: 'king', label: 'King', moveIntervalMs: 1800, maxHealth: 12, attackDamage: 3, slides: false, inkReward: 10 },
 }
 
 /**

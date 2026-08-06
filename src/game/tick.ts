@@ -3,6 +3,7 @@ import { towerRank, type TowerRankDef } from '../data/towerRanks'
 import { KING_SPEED_MULTIPLIER, applyHealing, buffedPieceIds, slideBonusFor } from './auras'
 import { squareKey } from './board'
 import { coversSquare } from './coverage'
+import { roundIncome, totalKillReward } from './ink'
 import { isStuck, nextMove } from './movement'
 import { step } from './step'
 import type { BoardSpec, GameState, Piece, Square, Tower } from './types'
@@ -88,12 +89,21 @@ export function tick(state: GameState, dtMs: number): GameState {
   const core = { ...state.core, health: coreHealth }
   const leaks = state.leaks + moved.leaked
 
+  // Within this function, Tower fire is the ONLY thing that pays a kill
+  // reward — a Joker's Clear pays its own quarter share in cardPlays.ts. A
+  // leak and a promotion each remove a Piece without passing through
+  // fireTowers, so neither can pay by accident here: the player did not kill
+  // a leaker, and a promoted Pawn was not destroyed — it became a Queen,
+  // which pays when the Queen dies.
+  const ink = state.ink + totalKillReward(fired.destroyed)
+
   if (coreHealth === 0) {
     return {
       ...state,
       phase: 'defeated',
       core,
       leaks,
+      ink,
       roundElapsedMs,
       pieces: healed,
       towers: fired.towers,
@@ -143,6 +153,9 @@ export function tick(state: GameState, dtMs: number): GameState {
       roundElapsedMs: 0,
       core,
       leaks,
+      // `state.roundNumber`, NOT the incremented value on the next line: this
+      // pays for the round just played, not the one about to start.
+      ink: ink + roundIncome(state.roundNumber),
       pieces: healed,
       towers: fired.towers,
       pendingSpawns: [],
@@ -154,6 +167,7 @@ export function tick(state: GameState, dtMs: number): GameState {
     ...state,
     core,
     leaks,
+    ink,
     roundElapsedMs,
     pieces: healed,
     towers: fired.towers,
@@ -173,8 +187,8 @@ function fireTowers(
   pieces: readonly Piece[],
   coreSquare: Square,
   dtMs: number,
-): { towers: Tower[]; pieces: Piece[] } {
-  if (towers.length === 0) return { towers: [...towers], pieces: [...pieces] }
+): { towers: Tower[]; pieces: Piece[]; destroyed: Piece[] } {
+  if (towers.length === 0) return { towers: [...towers], pieces: [...pieces], destroyed: [] }
 
   // Damage accumulates here so that several Towers can share a target within a
   // single tick without one of them shooting a Piece that is already dead.
@@ -206,11 +220,20 @@ function fireTowers(
     nextTowers.push({ ...tower, fireCooldownMs: cooldown })
   }
 
-  const survivors = pieces
-    .map((piece) => ({ ...piece, health: remainingHealth.get(piece.id) ?? piece.health }))
-    .filter((piece) => piece.health > 0)
+  // Partitioned in a single pass rather than filtered twice. The dead are the
+  // Ink payout, and deriving them with a second, opposite filter would let the
+  // two lists disagree the moment either predicate changed.
+  const survivors: Piece[] = []
+  const destroyed: Piece[] = []
 
-  return { towers: nextTowers, pieces: survivors }
+  for (const piece of pieces) {
+    const health = remainingHealth.get(piece.id) ?? piece.health
+
+    if (health > 0) survivors.push({ ...piece, health })
+    else destroyed.push(piece)
+  }
+
+  return { towers: nextTowers, pieces: survivors, destroyed }
 }
 
 /**

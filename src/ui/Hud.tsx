@@ -14,7 +14,7 @@ import { TowerPanel } from './TowerPanel'
  */
 export function Hud() {
   const snapshot = useGameStore((store) => store.snapshot)
-  const { phase, roundNumber, core, leaks, autoStart, pieces, towers } = snapshot
+  const { phase, roundNumber, core, leaks, autoStart, pieces, towers, ink } = snapshot
 
   // `simulation.reset` only owns GameState, not view state, and it must stay
   // that way — it lives outside React on purpose and never depends on other
@@ -39,6 +39,10 @@ export function Hud() {
           <div>
             <dt>Round</dt>
             <dd>{roundNumber}</dd>
+          </div>
+          <div>
+            <dt>Ink</dt>
+            <dd>{ink}</dd>
           </div>
           <div>
             <dt>Core</dt>
