@@ -86,8 +86,13 @@ export const FirePulses = memo(function FirePulses({ board }: { board: BoardSpec
     pulses.current.push(...detectShots(lastCooldownMs.current, liveState.towers, now))
 
     // Toggle `visible` rather than unmount, so no material ever recompiles.
-    // Stale colours behind a hidden group do not matter: the frame that makes
-    // it visible again is a frame that accumulates first.
+    // Stale colours behind a hidden group do not cost more than one frame:
+    // child layout effects run before a parent's, so drei's `Instances`
+    // frame callback is registered before this one and runs first every
+    // frame, including the frame a new pulse arrives. That frame draws with
+    // last pulse's final (near-zero, by construction) colours for ~16ms
+    // before this callback overwrites them — visually negligible, and not
+    // worth reordering the component to avoid.
     if (group.current) group.current.visible = pulses.current.length > 0
     if (pulses.current.length === 0) return
 

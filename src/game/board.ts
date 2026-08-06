@@ -15,7 +15,7 @@ export function isInBounds(board: BoardSpec, square: Square): boolean {
   )
 }
 
-/** Every square on the board, in file-major order. */
+/** Every square on the board, in rank-major order (rank outer, file inner). */
 export function allSquares(board: BoardSpec): Square[] {
   const squares: Square[] = []
   for (let rank = 0; rank < board.ranks; rank += 1) {

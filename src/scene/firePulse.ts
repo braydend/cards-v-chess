@@ -25,13 +25,21 @@ export interface FirePulse {
  * place — seeding Towers it has not seen, updating the rest, and pruning ones
  * that have left state.
  *
- * A DECREASE IN `fireCooldownMs` IS AN EXACT SHOT SIGNAL. On exit from
- * `fireTowers` the stored value is either below `fireIntervalMs` (it fired,
- * subtracting one whole interval) or exactly `fireIntervalMs` (nothing in
- * range, clamped to "ready" rather than banking shots). The stored value can
- * never exceed the interval, so that clamp can only hold or raise it, and ♦
- * Speed only ever lowers the interval. So a decrease means a shot, and a shot
- * always produces one.
+ * A DECREASE IN `fireCooldownMs` IS ALMOST ALWAYS AN EXACT SHOT SIGNAL. On
+ * exit from `fireTowers` the stored value is either below `fireIntervalMs`
+ * (it fired, subtracting one whole interval) or exactly `fireIntervalMs`
+ * (nothing in range, clamped to "ready" rather than banking shots) — so
+ * ordinarily that clamp can only hold or raise the stored value, and a
+ * decrease means a shot.
+ *
+ * ♦ Speed breaks that on its own. `applySupport` in `src/game/support.ts`
+ * lowers a Tower's `fireIntervalMs` directly and never touches
+ * `fireCooldownMs`. A Tower idling at the OLD clamp is left holding a
+ * cooldown *above* its NEW interval, and the very next tick — even with
+ * nothing in range — clamps that value DOWN to the new interval. That is a
+ * decrease with no shot behind it: exactly the phantom pulse the guard below
+ * exists to skip. See `firePulse.test.ts`'s ♦-support regression test, which
+ * fails without it.
  *
  * It also cannot under-count. A frame advances at most
  * `FIXED_DT_MS * MAX_CATCHUP_STEPS` = 83.3ms of simulation, so at the 100ms
@@ -40,9 +48,15 @@ export interface FirePulse {
  * One pulse per observed decrease is right.
  *
  * The known gap is a false NEGATIVE: a Tower that fires and then loses every
- * target within the same frame's ticks has its decrease erased by the clamp.
- * That needs two or more ticks per frame, so it cannot happen above roughly
- * 30fps, and it is accepted — see the spec.
+ * target within the same frame's later ticks has its decrease erased by the
+ * clamp. It is unreachable today, not merely rare at some frame rate: after a
+ * shot the stored cooldown is at most one `FIXED_DT_MS` (16.67ms), so climbing
+ * back up to the interval before the frame ends would need
+ * `MAX_CATCHUP_STEPS * FIXED_DT_MS >= fireIntervalMs`, i.e. 83.3ms >= the
+ * 100ms `MIN_FIRE_INTERVAL_MS` floor — false. The real invariant is
+ * `MIN_FIRE_INTERVAL_MS > FIXED_DT_MS * MAX_CATCHUP_STEPS`; lowering that
+ * floor or raising `MAX_CATCHUP_STEPS` would open the gap for real, and
+ * nothing today would flag it. See the spec.
  *
  * Returns a fresh array, and a `FirePulse` is allocated per shot. Both are
  * deliberate: a shot must allocate a record regardless, so zero allocation is
@@ -62,6 +76,14 @@ export function detectShots(
 
     if (previous === undefined) continue
     if (tower.fireCooldownMs >= previous) continue
+
+    // ♦ Speed lowers `fireIntervalMs` without touching `fireCooldownMs`, so a
+    // Tower idling at the clamp sits at its OLD interval, above its new one.
+    // The next tick clamps DOWN to the new interval — a decrease with no shot
+    // behind it. Safe to skip: a tick that actually fired always drains the
+    // cooldown strictly below the interval, so landing at or above it after a
+    // decrease can only be the clamp.
+    if (previous > tower.fireIntervalMs && tower.fireCooldownMs >= tower.fireIntervalMs) continue
 
     pulses.push({
       file: tower.square.file,

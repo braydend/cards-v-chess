@@ -110,11 +110,25 @@ No engine change. `Towers`' sibling reads `getState().towers` in `useFrame` and
 compares each Tower's `fireCooldownMs` to the previous frame's. **A decrease is a
 shot.**
 
-That is exact, not approximate. On exit from `fireTowers`, a Tower's stored
+That is exact for almost every case. On exit from `fireTowers`, a Tower's stored
 cooldown is either below `fireIntervalMs` (it fired, subtracting one whole
-interval) or exactly `fireIntervalMs` (no target, clamped to "ready"). Since the
-stored value can never *exceed* the interval, that clamp can only hold or raise
-it. ♦ Speed only ever lowers the interval, so it cannot fake a decrease either.
+interval) or exactly `fireIntervalMs` (no target, clamped to "ready"). Ordinarily
+the stored value never *exceeds* the interval, so that clamp can only hold or
+raise it.
+
+**♦ Speed is the one case that defeats this on its own.** `applySupport` in
+`src/game/support.ts` lowers `fireIntervalMs` directly and never touches
+`fireCooldownMs`. A Tower idling at the OLD clamp is left holding a cooldown
+*above* its NEW interval, and the very next tick — even with nothing in range —
+clamps that value DOWN to the new interval. That is a decrease with no shot
+behind it, reproduced by the reviewer through the real engine: a rank 2 Tower, a
+Pawn out of range, a 10♦ played on the Tower. Stored cooldown/interval went
+600/600 → (♦) → 600/500 → next tick 500/500 — a decrease `detectShots` would
+otherwise report as a shot. The renderer guards this explicitly: it skips a
+decrease when the *previous* reading already exceeded the *current* interval and
+the *new* reading has only caught back up to it, which a genuinely firing tick
+can never produce (a shot always drains the cooldown strictly below the
+interval).
 
 The count cannot be short. `FIXED_DT_MS` is 1000/60 and `MAX_CATCHUP_STEPS` is 5,
 so a frame advances at most 83.3ms of simulation; at the 100ms floor a Tower
@@ -129,18 +143,37 @@ If a Tower fires in one tick and then loses every target in a later tick of the
 `fireIntervalMs` — at or above where the frame started — and the decrease is
 erased. That pulse is missed.
 
-This is the killing-blow shot: the one that clears the last Piece in range. It
-requires two or more ticks in a single frame, so it cannot happen above roughly
-30fps. It is also, pointedly, the same failure mode `Towers.tsx` documents for
-engine events — "anything the engine wrote per-tick and cleared per-tick would be
-lost exactly when the frame rate drops."
+This is the killing-blow shot: the one that clears the last Piece in range. It is
+**unreachable today**, and the bound is not "frame rate" — 2-tick frames happen
+at nominal 60fps too, from accumulator drift or one long frame (a GC pause, any
+hitch), so "below roughly 30fps" was the wrong invariant regardless of whether it
+were true. The real reason it cannot happen: after a shot, the stored cooldown is
+at most one `FIXED_DT_MS` (16.67ms), so climbing back up to `fireIntervalMs`
+before the frame ends needs `MAX_CATCHUP_STEPS * FIXED_DT_MS >= fireIntervalMs`,
+i.e. `83.3ms >= 100ms` — false, confirmed by the reviewer with an exhaustive
+sweep across every interval, start value, frame length and target pattern. The
+actual invariant that makes this safe is `MIN_FIRE_INTERVAL_MS > FIXED_DT_MS *
+MAX_CATCHUP_STEPS`. It is also, pointedly, the same failure mode `Towers.tsx`
+documents for engine events — "anything the engine wrote per-tick and cleared
+per-tick would be lost exactly when the frame rate drops" — just not one that
+this codebase's actual numbers let happen.
 
-It is accepted rather than fixed. The only clean fix is the engine event rejected
-below, and the cost is one missing ring, below 30fps, on one specific shot. The
-same class of gap loses the first shot of a Tower built between frames, because a
-first-seen Tower is seeded rather than fired — with no previous cooldown there is
-nothing to compare, and the renderer cannot honestly claim a shot it never
-observed.
+It is accepted rather than fixed, on the strength of that invariant holding
+today — not because the gap is provably impossible in general. Lowering
+`MIN_FIRE_INTERVAL_MS` below roughly 84ms, or raising `MAX_CATCHUP_STEPS`, would
+open it for real, and nothing today would flag that; a future change to either
+constant should re-check this section. The only clean fix if it ever opens is the
+engine event rejected below.
+
+The same class of gap does **not** lose the first shot of a Tower built between
+frames, despite an earlier draft of this document claiming otherwise. A new
+Tower starts at `fireCooldownMs: 0` (`src/game/cardPlays.ts`) and needs at least
+`fireIntervalMs` — at minimum 100ms — of simulation to fire, which is more than
+one frame's 83.3ms worth of catch-up. Seeding a first-seen Tower without
+reporting a shot is still correct — there is genuinely no previous cooldown to
+compare, so the renderer cannot honestly claim a shot it never observed — the
+justification is just that seeding never actually costs a real shot, not that it
+would be acceptable if it did.
 
 ### 5. One instance per square, colour-summed
 

@@ -1,7 +1,15 @@
 import { Color } from 'three'
 import { describe, expect, it } from 'vitest'
-import { tick, type BoardSpec, type BuildableRank, type Tower } from '../game'
-import { liveRound, pawnAt, withTower } from '../game/fixtures'
+import { towerRank } from '../data/towerRanks'
+import { allSquares, step, tick, type BoardSpec, type BuildableRank, type Tower } from '../game'
+import {
+  firstTowerId,
+  liveRound,
+  pawnAt,
+  standardCard,
+  withDeck,
+  withTower,
+} from '../game/fixtures'
 import {
   accumulatePulses,
   detectShots,
@@ -14,6 +22,18 @@ import { RANK_COLOURS } from './rankColours'
 
 /** The fixed timestep `src/state/simulation.ts` drives the engine with. */
 const FIXED_DT_MS = 1000 / 60
+
+/**
+ * Steps enough to clear rank 2's `fireIntervalMs` (600ms placeholder) once,
+ * with a little headroom, but short of a second interval and short of the
+ * Pawn's first hop (900ms placeholder). Derived from `towerRank(2)` rather
+ * than a bare literal, because the engine-driven tests below need the budget
+ * to stay strictly between "one interval's worth of ticks" and "two", and
+ * strictly under the Pawn's first-hop tick count — retuning either
+ * PLACEHOLDER value in `src/data/` must not silently change how many pulses
+ * these tests see.
+ */
+const STEPS_PAST_ONE_INTERVAL = Math.ceil(towerRank(2).fireIntervalMs / FIXED_DT_MS) + 4
 
 /** A Tower with the fields `detectShots` reads, overridable one at a time. */
 function tower(overrides: Partial<Tower> = {}): Tower {
@@ -110,13 +130,14 @@ describe('detectShots', () => {
     const last = new Map<string, number>()
     const pulses: FirePulse[] = []
 
-    // 40 steps is 667ms. `cardPlays.ts` builds a Tower at `fireCooldownMs: 0`,
-    // so the first shot lands around step 36 and a second could not arrive
-    // before step 72 — hence exactly one. It is also short of the Pawn's first
-    // 900ms hop, so the Pawn stays covered throughout. `detectShots` runs every
-    // step because that is what the frame loop does; sampling once at the end
-    // would read a cooldown that has already wrapped.
-    for (let i = 0; i < 40; i += 1) {
+    // `STEPS_PAST_ONE_INTERVAL` clears one interval with headroom.
+    // `cardPlays.ts` builds a Tower at `fireCooldownMs: 0`, so the first shot
+    // lands partway through and a second cannot arrive before a full second
+    // interval elapses — hence exactly one. It is also short of the Pawn's
+    // first 900ms hop, so the Pawn stays covered throughout. `detectShots`
+    // runs every step because that is what the frame loop does; sampling
+    // once at the end would read a cooldown that has already wrapped.
+    for (let i = 0; i < STEPS_PAST_ONE_INTERVAL; i += 1) {
       state = tick(state, FIXED_DT_MS)
       pulses.push(...detectShots(last, state.towers, i / 60))
     }
@@ -135,7 +156,44 @@ describe('detectShots', () => {
     const last = new Map<string, number>()
     const pulses: FirePulse[] = []
 
-    for (let i = 0; i < 40; i += 1) {
+    for (let i = 0; i < STEPS_PAST_ONE_INTERVAL; i += 1) {
+      state = tick(state, FIXED_DT_MS)
+      pulses.push(...detectShots(last, state.towers, i / 60))
+    }
+
+    expect(pulses).toEqual([])
+  })
+
+  it('reports nothing when ♦ Speed lowers the interval while a Tower idles at the clamp', () => {
+    // Reproduces the Finding 1 bug from the whole-branch review: a Tower
+    // idling at "ready" holds `fireCooldownMs` at its OLD `fireIntervalMs`.
+    // `applySupport` in `src/game/support.ts` spreads the Tower when ♦ lowers
+    // `fireIntervalMs`, so it never touches `fireCooldownMs` — the very next
+    // tick then clamps DOWN to the new interval, a decrease with no shot
+    // behind it. Same Tower/Pawn arrangement as the "out of range" test
+    // above, so the Pawn never becomes a real target at any point.
+    let state = liveRound(withTower(2, { file: 3, rank: 3 }), [
+      pawnAt('piece-1', { file: 7, rank: 7 }),
+    ])
+
+    const last = new Map<string, number>()
+
+    // Run the Tower up to its idle clamp first, exactly as the "out of
+    // range" test does, discarding what `detectShots` reports here — the
+    // clamp itself is not a shot and is already covered by that test.
+    for (let i = 0; i < STEPS_PAST_ONE_INTERVAL; i += 1) {
+      state = tick(state, FIXED_DT_MS)
+      detectShots(last, state.towers, i / 60)
+    }
+
+    // A 10♦, played through the engine's command surface per CLAUDE.md, not
+    // by mutating a Tower by hand.
+    const towerId = firstTowerId(state)
+    state = withDeck([standardCard('speed-10d', 10, 'diamonds')], state)
+    state = step(state, { kind: 'supportTower', cardId: 'speed-10d', towerId })
+
+    const pulses: FirePulse[] = []
+    for (let i = 0; i < STEPS_PAST_ONE_INTERVAL; i += 1) {
       state = tick(state, FIXED_DT_MS)
       pulses.push(...detectShots(last, state.towers, i / 60))
     }
@@ -245,6 +303,18 @@ describe('accumulatePulses', () => {
     expect(channel(out, 1, 1)).toBeGreaterThan(0)
     expect(out[squareFloats]).toBe(-1)
     expect(out[squareFloats + 11]).toBe(-1)
+  })
+
+  it('indexes the buffer the way allSquares orders squares', () => {
+    // Pins the ordering `channel()` above and `accumulatePulses` both assume
+    // — rank-major, rank outer, file inner — independently of the index
+    // formula under test. Without this, the formula in `channel()` and the
+    // one in `accumulatePulses` could agree with each other while both
+    // disagreeing with `allSquares`, and every test here would still pass
+    // while the renderer drew every pulse transposed.
+    allSquares(board).forEach((square, index) => {
+      expect(index).toBe(square.rank * board.files + square.file)
+    })
   })
 })
 
