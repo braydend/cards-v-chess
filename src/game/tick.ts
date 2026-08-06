@@ -356,8 +356,13 @@ function movePieces(
           outcome.towerId,
           (towerDamage.get(outcome.towerId) ?? 0) + attackDamage * BLOCKED_ATTACK_MULTIPLIER,
         )
-        // Stay put, and leave nothing for the renderer to interpolate.
+        // Stay put, and leave nothing for the renderer to interpolate. The
+        // latch still has to persist here exactly as it does on a real move
+        // below: a Knight's first hunting hop can land on a Tower just as
+        // easily as an open square, and `hunting` is documented to go true
+        // the moment a Knight starts hunting, not only the moment it moves.
         prevSquare = square
+        hunting = outcome.hunting ?? hunting
         continue
       }
 

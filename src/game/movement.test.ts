@@ -417,6 +417,7 @@ describe('knight hunting', () => {
     expect(move('knight', from, towers, { moveCount: 1, hunting: true })).toEqual({
       kind: 'attackTower',
       towerId: 'tower-0',
+      hunting: true,
     })
   })
 })

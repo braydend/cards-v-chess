@@ -14,11 +14,15 @@ import type { BoardSpec, Handedness, Piece, PieceTypeId, Square, Tower } from '.
  * `promote` means a Pawn has reached the back rank: chess promotes it there,
  * rather than stranding it the way `stuck` would.
  *
- * `move.hunting`, like `move.handedness`, is a Knight-only detail riding on
- * the shared outcome shape: present exactly when a Knight has just started
+ * `hunting`, on both `move` and `attackTower`, is a Knight-only detail riding
+ * on the shared outcome shape: present exactly when a Knight has just started
  * hunting or continues to, so `tick.ts`'s `movePieces` can latch it onto the
  * Piece permanently. See `hunting` on `Piece` in types.ts for why the latch
- * has to be permanent.
+ * has to be permanent. It rides on `attackTower` too, not just `move`,
+ * because a Knight's very first hunting hop is exactly as likely to land on
+ * a Tower-blocked square as any other — `Piece.hunting` is documented to go
+ * true the moment a Knight starts hunting, full stop, not "the moment it
+ * starts hunting and also happens to move that hop".
  */
 export type MoveOutcome =
   | {
@@ -27,7 +31,7 @@ export type MoveOutcome =
       readonly handedness?: Handedness
       readonly hunting?: boolean
     }
-  | { readonly kind: 'attackTower'; readonly towerId: string }
+  | { readonly kind: 'attackTower'; readonly towerId: string; readonly hunting?: boolean }
   | { readonly kind: 'reachCore' }
   | { readonly kind: 'stuck' }
   | { readonly kind: 'promote' }
@@ -274,7 +278,7 @@ function huntCore(
     if (squaresEqual(to, coreSquare)) return { kind: 'reachCore' }
 
     const blocker = towerBySquare.get(squareKey(to))
-    if (blocker) return { kind: 'attackTower', towerId: blocker.id }
+    if (blocker) return { kind: 'attackTower', towerId: blocker.id, hunting: true }
 
     return { kind: 'move', to, hunting: true }
   }

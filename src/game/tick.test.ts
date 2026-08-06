@@ -229,6 +229,36 @@ describe('tick: round completion', () => {
   })
 })
 
+describe('tick: hunting Knight latch', () => {
+  it('latches hunting even when the very first hunt hop lands on a Tower', () => {
+    // (5,0) has no legal forward hop, so it hunts immediately, and (4,2) is
+    // its one distance-1 neighbour (see knightDistance.ts). A Tower there
+    // forces the Knight's very first hunting decision down the attackTower
+    // branch — exactly the path that used to leave `hunting` unpersisted on
+    // the surviving Piece, because `movePieces`' attackTower branch never
+    // touched it.
+    const placed = step(createInitialState(), {
+      kind: 'placeTower',
+      square: { file: 4, rank: 2 },
+      cardRank: 2,
+    })
+    const state: GameState = {
+      ...placed,
+      phase: 'inProgress',
+      pendingSpawns: [],
+      pieces: [pieceAt('n', 'knight', { file: 5, rank: 0 })],
+    }
+
+    const after = runFor(state, PIECE_TYPES.knight.moveIntervalMs + DT)
+
+    // Attacked rather than moved, proving this hop actually took the
+    // Tower-blocked path rather than some other candidate.
+    expect(after.pieces[0]?.square).toEqual({ file: 5, rank: 0 })
+    expect(after.towers[0]?.health).toBeLessThan(TOWER_RANKS[2].maxHealth)
+    expect(after.pieces[0]?.hunting).toBe(true)
+  })
+})
+
 describe('tick: motion state', () => {
   it('counts a Piece hops so zig-zag and alternation advance', () => {
     const started = startedRound()
