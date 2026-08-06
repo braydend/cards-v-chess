@@ -48,6 +48,7 @@ function rookOnBackRank(file: number, handedness: Handedness): GameState {
         auraCooldownMs: 0,
         buffed: false,
         hunting: false,
+        promoted: false,
       },
     ],
   }
@@ -76,6 +77,7 @@ function pieceAt(
     auraCooldownMs: 0,
     buffed: false,
     hunting: false,
+    promoted: false,
     ...overrides,
   }
 }

@@ -93,6 +93,8 @@ export function tick(state: GameState, dtMs: number): GameState {
     // A promoted Queen never hunts — that field only ever means anything for
     // a Knight, and this Piece is not one any more.
     hunting: false,
+    // Renderer-facing only. This is the one place it is ever true.
+    promoted: true,
   }))
   const entityIdAfterPromotion = nextEntityId + moved.promoted.length
 
@@ -336,6 +338,7 @@ function drainDueSpawns(
       auraCooldownMs: 0,
       buffed: false,
       hunting: false,
+      promoted: false,
     })
     nextEntityId += 1
   }
@@ -431,6 +434,12 @@ function movePieces(
       if (outcome.kind === 'promote') {
         promoted.push(square)
         isPromoted = true
+        exits.push({
+          pieceId: piece.id,
+          typeId: piece.typeId,
+          reason: 'promotion',
+          from: square,
+        })
         break
       }
 

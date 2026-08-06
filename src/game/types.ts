@@ -126,6 +126,19 @@ export interface Piece {
    * than omitted so every Piece has the same shape.
    */
   readonly hunting: boolean
+  /**
+   * Whether this Piece is a Queen minted by Pawn promotion.
+   *
+   * Renderer-facing and never read by the engine — the same category `buffed`
+   * occupies. `Pieces.tsx` pops a Queen's mesh once, on the first frame it sees
+   * one, which needs no diff: a promoted Queen gets a fresh entity id, so React
+   * mounts a fresh mesh for it.
+   *
+   * False for every spawned Piece and every type that is not a promoted Queen,
+   * kept false rather than omitted so every Piece has the same shape, exactly
+   * as `hunting` is.
+   */
+  readonly promoted: boolean
 }
 
 /**
