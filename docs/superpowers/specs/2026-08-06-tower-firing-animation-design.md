@@ -177,6 +177,15 @@ Consequences that matter:
   it is fine; additive on teal lightens it, briefly.
 - **The group toggles `visible`, never unmounts**, so no material recompiles when
   firing stops.
+- **The live-pulse list is compacted in place, not with `Array.prototype.filter`.**
+  The component never unmounts, so its `useFrame` callback runs for the
+  lifetime of the run, and `filter` allocates a fresh array on every call —
+  including the idle frames where nothing needs filtering. A swap-write
+  compaction (walk the array, keep what's still live, truncate `.length`)
+  drops that allocation without changing behaviour. The two allocations Task 1
+  keeps — the array `detectShots` returns, and the `FirePulse` record per shot
+  — are unavoidable because a shot must allocate a record regardless; this one
+  was not, so it does not get the same exemption.
 
 ### 6. Where the code goes
 

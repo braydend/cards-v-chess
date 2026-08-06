@@ -14,7 +14,7 @@
 
 - **`src/game/` and `src/data/` must never import React or three.js.** This work touches neither, but do not "help" by adding a field to the engine — ESLint fails the build.
 - **`src/scene/` must import engine code through the `../game` barrel**, never a module inside it (`../game/coverage` is a lint error; `../game` is correct). **Test files are exempt**, which is what lets `firePulse.test.ts` import `../game/fixtures`.
-- **Do not allocate in the frame loop.** Reuse module-level scratch objects and caller-owned buffers. Two exceptions are deliberate and explained in Task 1 — do not "fix" them.
+- **Do not allocate in the frame loop.** Reuse module-level scratch objects and caller-owned buffers. Two exceptions are deliberate and explained in Task 1 — the array `detectShots` returns, and the `FirePulse` records themselves — do not "fix" them. Anything else that allocates per frame, such as compacting the live-pulse list, is in scope for you to fix.
 - **Never call `setState` inside `useFrame`.** Mutate refs.
 - **A growing `limit` on drei's `Instances` needs a `key` on the same value.** Non-negotiable — see the Ace wedge in CLAUDE.md.
 - **TypeScript config:** `strict`, `noUncheckedIndexedAccess: true`, `noUnusedLocals: true`, `noUnusedParameters: true`, `verbatimModuleSyntax: true`. So indexing an array or `Float32Array` yields `T | undefined` and must be guarded, and type-only imports must use `import type`.
@@ -732,20 +732,34 @@ export const FirePulses = memo(function FirePulses({ board }: { board: BoardSpec
 
   useFrame((state) => {
     const now = state.clock.elapsedTime
-    const live = getState()
+    const liveState = getState()
 
     // `reset()` rewinds `nextEntityId` to 1 — the only way it goes backwards
     // within a run. Without this, a previous run's pulses would ride into the
     // new one, and a remembered cooldown under a reused Tower id would read as
     // a shot that never happened.
-    if (live.nextEntityId < lastEntityId.current) {
+    if (liveState.nextEntityId < lastEntityId.current) {
       pulses.current.length = 0
       lastCooldownMs.current.clear()
     }
-    lastEntityId.current = live.nextEntityId
+    lastEntityId.current = liveState.nextEntityId
 
-    pulses.current = pulses.current.filter((pulse) => isPulseLive(pulse, now))
-    pulses.current.push(...detectShots(lastCooldownMs.current, live.towers, now))
+    // Compacted in place rather than with `filter`, which allocates a fresh
+    // array on every frame — including the idle ones, where there is nothing
+    // to filter. Mutating in place also keeps `pulses.current`'s identity
+    // stable instead of rebinding the ref 60 times a second.
+    const live = pulses.current
+    let write = 0
+    for (let read = 0; read < live.length; read += 1) {
+      const pulse = live[read]
+      if (pulse && isPulseLive(pulse, now)) {
+        live[write] = pulse
+        write += 1
+      }
+    }
+    live.length = write
+
+    pulses.current.push(...detectShots(lastCooldownMs.current, liveState.towers, now))
 
     // Toggle `visible` rather than unmount, so no material ever recompiles.
     // Stale colours behind a hidden group do not matter: the frame that makes

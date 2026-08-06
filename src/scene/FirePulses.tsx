@@ -56,20 +56,34 @@ export const FirePulses = memo(function FirePulses({ board }: { board: BoardSpec
 
   useFrame((state) => {
     const now = state.clock.elapsedTime
-    const live = getState()
+    const liveState = getState()
 
     // `reset()` rewinds `nextEntityId` to 1 — the only way it goes backwards
     // within a run. Without this, a previous run's pulses would ride into the
     // new one, and a remembered cooldown under a reused Tower id would read as
     // a shot that never happened.
-    if (live.nextEntityId < lastEntityId.current) {
+    if (liveState.nextEntityId < lastEntityId.current) {
       pulses.current.length = 0
       lastCooldownMs.current.clear()
     }
-    lastEntityId.current = live.nextEntityId
+    lastEntityId.current = liveState.nextEntityId
 
-    pulses.current = pulses.current.filter((pulse) => isPulseLive(pulse, now))
-    pulses.current.push(...detectShots(lastCooldownMs.current, live.towers, now))
+    // Compacted in place rather than with `filter`, which allocates a fresh
+    // array on every frame — including the idle ones, where there is nothing
+    // to filter. Mutating in place also keeps `pulses.current`'s identity
+    // stable instead of rebinding the ref 60 times a second.
+    const live = pulses.current
+    let write = 0
+    for (let read = 0; read < live.length; read += 1) {
+      const pulse = live[read]
+      if (pulse && isPulseLive(pulse, now)) {
+        live[write] = pulse
+        write += 1
+      }
+    }
+    live.length = write
+
+    pulses.current.push(...detectShots(lastCooldownMs.current, liveState.towers, now))
 
     // Toggle `visible` rather than unmount, so no material ever recompiles.
     // Stale colours behind a hidden group do not matter: the frame that makes
