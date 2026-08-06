@@ -16,17 +16,28 @@ import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { squareKey, stagingRank } from './board'
-import { firstTower, pawnAt, pieceAt, standardCard, towersAt, withDeck, withTower } from './fixtures'
+import {
+  firstTower,
+  jokerCard,
+  liveRound,
+  pawnAt,
+  pieceAt,
+  standardCard,
+  towersAt,
+  withDeck,
+  withTower,
+} from './fixtures'
 import {
   allSquares,
   canBuildOn,
+  coversSquare,
   createInitialState,
   isInBounds,
   isStuck,
   step,
   tick,
 } from './index'
-import type { GameState, PieceTypeId } from './types'
+import type { GameState, PieceTypeId, Square } from './types'
 
 /** The fixed timestep the app runs at. Tests drive time; nothing reads a clock. */
 const DT = 1000 / 60
@@ -266,5 +277,98 @@ describe('round termination with Pieces still on the Staging rank', () => {
     expect(after.phase).toBe('gap')
     expect(after.towers).toEqual([])
     expect(after.pieces).toEqual([])
+  })
+})
+
+/**
+ * "A Piece on the Staging rank is otherwise ordinary" is a deliberate design
+ * decision, not an oversight — the rejected alternative was making the
+ * Staging rank a safe zone excluded from Tower fire, Clear, and auras. Each
+ * test below pins one of those three so that carve-out cannot be added back
+ * silently, with nothing failing to say so.
+ */
+describe('a Piece on the Staging rank is an ordinary Piece', () => {
+  it('is fired on by a Tower whose geometry reaches the Staging rank', () => {
+    const base = createInitialState()
+    const towerSquare: Square = { file: 3, rank: base.board.ranks - 1 }
+    const stagingSquare: Square = { file: 3, rank: stagingRank(base.board) }
+
+    // Rank 3 is vertical with range 4 (src/data/towerRanks.ts), so a Tower on
+    // the far rank covers the Staging square directly up-file at file
+    // distance 0 — unlike the diagonal rank 5 the walled tests deliberately
+    // use, which cannot reach it. Asserted directly so a balance tweak's
+    // failure here names its own cause rather than surfacing as an
+    // inexplicable failure below.
+    expect(coversSquare(TOWER_RANKS[3].geometry, TOWER_RANKS[3].range, towerSquare, stagingSquare)).toBe(
+      true,
+    )
+
+    const built = withTower(3, towerSquare, base)
+    let state: GameState = {
+      ...built,
+      phase: 'inProgress',
+      pendingSpawns: [{ atMs: 0, typeId: 'pawn', file: 3 }],
+    }
+
+    const squaresSeen = new Set<string>()
+
+    // Deliberate design decision, not an oversight: a Piece standing on the
+    // Staging rank sits in Tower fire's line exactly like any other Piece —
+    // the rejected alternative was making the Staging rank a safe zone Tower
+    // fire could not reach. Without a test pinning it, that carve-out could
+    // be reintroduced later with nothing failing.
+    //
+    // Generous: Pawn maxHealth 3 (pieceTypes.ts), rank 3 deals 1 damage every
+    // 600ms fire interval, so three shots land comfortably inside 5 seconds.
+    for (let elapsed = 0; elapsed < 5_000 && state.phase === 'inProgress'; elapsed += DT) {
+      state = tick(state, DT)
+      for (const piece of state.pieces) squaresSeen.add(squareKey(piece.square))
+    }
+
+    // The Pawn's only forward square holds the Tower, so it is blocked and
+    // grinds from the Staging rank rather than ever advancing — it is
+    // destroyed exactly where it stood, never on the board.
+    expect([...squaresSeen]).toEqual([squareKey(stagingSquare)])
+    expect(state.pieces).toEqual([])
+    // `totalKillReward` in tick.ts is paid only for Pieces Tower fire
+    // destroys — a leak or a promotion never pays there — so a rise in Ink is
+    // proof fire is what killed it, not anything else.
+    expect(state.ink).toBeGreaterThan(0)
+  })
+
+  it("a Joker's Clear destroys a Piece on the Staging rank", () => {
+    const base = withDeck([jokerCard('joker-1')], createInitialState())
+    const rank = stagingRank(base.board)
+
+    // Four Pawns rather than one: `clearReward` (ink.ts) floors the TOTAL
+    // kill reward, never each Piece individually — a single Pawn's reward of
+    // 1 floors to 0, which would let this test pass even if Clear silently
+    // skipped every Piece on the Staging rank and paid nothing at all. Four
+    // Pawns' total floors to a genuine, non-zero share.
+    const waiting = [0, 1, 2, 3].map((file) => pawnAt(`waiting-${file}`, { file, rank }))
+    const state = liveRound(base, waiting)
+
+    const cleared = step(state, { kind: 'clearPieces', cardId: 'joker-1' })
+
+    expect(cleared.pieces).toEqual([])
+    // Proves Clear actually processed the Pieces standing on the Staging
+    // rank, rather than the array merely ending up empty for some unrelated
+    // reason: floor(4 * 1 * 0.25) = 1.
+    expect(cleared.ink).toBe(1)
+  })
+
+  it("a King's aura reaches a Piece on the Staging rank", () => {
+    const base = createInitialState()
+    // `buffedPieceIds` (auras.ts) reads Chebyshev distance 1 as adjacent; this
+    // King sits diagonally one square from the Pawn's Staging square, which is
+    // exactly that distance.
+    const king = pieceAt('king', 'king-1', { file: 4, rank: base.board.ranks - 1 })
+    const waiting = pawnAt('waiting', { file: 3, rank: stagingRank(base.board) })
+    const state = liveRound(base, [king, waiting])
+
+    const after = tick(state, DT)
+    const pawn = after.pieces.find((piece) => piece.id === 'waiting')
+
+    expect(pawn?.buffed).toBe(true)
   })
 })
