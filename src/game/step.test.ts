@@ -138,11 +138,13 @@ describe('step: buildTower', () => {
     // building under a Piece manufactures the state blocking exists to prevent.
     const occupied = { file: 2, rank: 2 }
     const initial = liveRound(withDeck([FIVE]), [pawnAt('p', occupied)])
-    const state = step(initial, { kind: 'buildTower', cardId: 'five', square: occupied })
+    const refused = step(initial, { kind: 'buildTower', cardId: 'five', square: occupied })
 
-    expect(state).toBe(initial)
-    expect(state.towers).toHaveLength(0)
-    expect(state.deck).toHaveLength(1)
+    expect(refused).toBe(initial)
+    // Asserted on `refused`, the play's own outcome, not on `initial` — it
+    // only holds of `initial` too because the refusal returned it unchanged.
+    expect(refused.towers).toHaveLength(0)
+    expect(refused.deck).toHaveLength(1)
   })
 
   it('allows the square once the Piece has hopped away', () => {
