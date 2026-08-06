@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { BISHOP_HEAL_INTERVAL_MS, KING_SPEED_MULTIPLIER } from './auras'
-import { withTower } from './fixtures'
+import { liveRound, pawnAt, withTower } from './fixtures'
 import { createInitialState, step, tick } from './index'
+import { roundIncome } from './ink'
 import type { GameState, Handedness, Piece, PieceTypeId, Square, Tower } from './types'
 
 /** The fixed timestep the app runs at. Tests drive time; nothing reads a clock. */
@@ -509,5 +510,137 @@ describe('tick: determinism', () => {
     expect(atThirty.pieces.map((piece) => piece.square)).toEqual(
       atSixty.pieces.map((piece) => piece.square),
     )
+  })
+})
+
+describe('Ink from kills', () => {
+  // A rank-4 Tower is `cross`, so it covers its own file: the target is
+  // blocked directly up-file from it and stays inside coverage while it is
+  // shot. The bystander is far enough away that the round is STILL LIVE when
+  // the assertion runs — without it the board would empty, the round would
+  // complete, and round income would land in the same total, so the assertion
+  // would no longer be about kills at all.
+  const TOWER_SQUARE = { file: 3, rank: 4 }
+
+  function towerAndTwoPawns(): GameState {
+    return liveRound(withTower(4, TOWER_SQUARE), [
+      pawnAt('target', { file: 3, rank: 5 }),
+      pawnAt('bystander', { file: 7, rank: 7 }),
+    ])
+  }
+
+  it('pays the kill reward when a Tower destroys a Piece', () => {
+    const after = runFor(towerAndTwoPawns(), 1200)
+
+    expect(after.pieces.map((piece) => piece.id)).toEqual(['bystander'])
+    expect(after.phase).toBe('inProgress')
+    expect(after.ink).toBe(PIECE_TYPES.pawn.inkReward)
+  })
+
+  it('pays nothing for a Piece that leaks, which the player did not kill', () => {
+    const leaking = liveRound(createInitialState(), [
+      pawnAt('leaker', { file: 3, rank: 1 }),
+      pawnAt('bystander', { file: 7, rank: 7 }),
+    ])
+    const after = runFor(leaking, PIECE_TYPES.pawn.moveIntervalMs + DT)
+
+    expect(after.leaks).toBe(1)
+    expect(after.ink).toBe(0)
+  })
+
+  it('pays nothing for a promoted Pawn, which was not destroyed but transformed', () => {
+    // The Queen it becomes pays when the Queen dies. Paying here would pay
+    // twice for one Piece.
+    const promoting = liveRound(createInitialState(), [pawnAt('promoter', { file: 0, rank: 0 })])
+    const after = runFor(promoting, PIECE_TYPES.pawn.moveIntervalMs + DT)
+
+    expect(after.pieces.map((piece) => piece.typeId)).toEqual(['queen'])
+    expect(after.ink).toBe(0)
+  })
+})
+
+describe('Ink: the defeated branch still pays a kill from the same tick', () => {
+  it('pays the kill reward for a Tower kill that lands on the tick the Core falls', () => {
+    // The `defeated` branch pays `ink`, which already folds in kill rewards
+    // accrued this tick — a deliberate decision, not an oversight, but the
+    // only existing defeat test drives defeat with a leak and no Towers, so
+    // `ink` is 0 there for the leak reason rather than the branch reason. A
+    // single big `tick` call (a whole Pawn move interval, and comfortably
+    // past any Tower's fire interval) forces the leaker's one hop and the
+    // Tower's one shot to resolve inside the same call, so both events land
+    // on the tick that zeroes the Core. The target is a Rook rather than a
+    // Pawn purely so its slow move interval keeps it sitting still in the
+    // Tower's coverage for the whole call.
+    const TOWER_SQUARE = { file: 3, rank: 4 }
+    const TARGET_SQUARE = { file: 3, rank: 6 }
+    const LEAK_SQUARE = { file: 3, rank: 1 }
+
+    const built = withTower(4, TOWER_SQUARE)
+    const fragileCore: GameState = { ...built, core: { ...built.core, health: 1 } }
+    const state = liveRound(fragileCore, [
+      pawnAt('leaker', LEAK_SQUARE),
+      pieceAt('target', 'rook', TARGET_SQUARE, { health: 1 }),
+    ])
+
+    const after = tick(state, PIECE_TYPES.pawn.moveIntervalMs)
+
+    expect(after.phase).toBe('defeated')
+    expect(after.leaks).toBe(1)
+    expect(after.pieces).toHaveLength(0)
+    expect(after.ink).toBe(PIECE_TYPES.rook.inkReward)
+  })
+})
+
+describe('Ink: a kill and round income can land in the same tick', () => {
+  it("pays the kill reward for the round's last Piece plus round income for the round it ends", () => {
+    // The `gap` branch adds `roundIncome` on top of `ink`, which already
+    // folds in this tick's kill rewards — but every existing completion test
+    // ends the round with a leak, which pays nothing, so that composition was
+    // never exercised. A round whose final Piece dies to Tower fire, rather
+    // than leaking, is the ordinary way a round actually ends. Ticking by
+    // exactly the Tower's own fire interval is enough on its own: the Rook
+    // target's move interval is longer, so it never moves out of coverage.
+    const TOWER_SQUARE = { file: 3, rank: 4 }
+    const TARGET_SQUARE = { file: 3, rank: 6 }
+
+    const state = liveRound(withTower(4, TOWER_SQUARE), [
+      pieceAt('target', 'rook', TARGET_SQUARE, { health: 1 }),
+    ])
+
+    const after = tick(state, TOWER_RANKS[4].fireIntervalMs)
+
+    expect(after.phase).toBe('gap')
+    expect(after.pieces).toHaveLength(0)
+    expect(after.ink).toBe(PIECE_TYPES.rook.inkReward + roundIncome(state.roundNumber))
+  })
+})
+
+describe('Ink from round completion', () => {
+  /** A lone Pawn one square up-file from the Core, so the round ends when it leaks. */
+  function oneLeakAway(state: GameState = createInitialState()): GameState {
+    return liveRound(state, [pawnAt('leaker', { file: 3, rank: 1 })])
+  }
+
+  it('pays a lump sum for the round just played, not the one about to start', () => {
+    // The Pawn walks into the Core and nothing is left to act, so the round
+    // completes. Leaks pay nothing, which makes every Ink here the lump sum.
+    const after = runFor(oneLeakAway(), PIECE_TYPES.pawn.moveIntervalMs + DT * 2)
+
+    expect(after.phase).toBe('gap')
+    expect(after.roundNumber).toBe(2)
+    expect(after.ink).toBe(roundIncome(1))
+    // The off-by-one this guards: `tick` increments roundNumber in the same
+    // branch that pays, so reading the incremented value pays for a round that
+    // has not been played.
+    expect(after.ink).not.toBe(roundIncome(2))
+  })
+
+  it('pays nothing when the Core falls, since the run is over', () => {
+    const base = createInitialState()
+    const doomed = oneLeakAway({ ...base, core: { ...base.core, health: 1 } })
+    const after = runFor(doomed, PIECE_TYPES.pawn.moveIntervalMs + DT * 2)
+
+    expect(after.phase).toBe('defeated')
+    expect(after.ink).toBe(0)
   })
 })
