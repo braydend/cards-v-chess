@@ -425,3 +425,170 @@ canvas {
   font-size: 0.85rem;
   color: #c3cdda;
 }
+
+/* The pack shop.
+
+   A modal because pick → cull → reveal is one commitment, and because nothing
+   is spent until the single buyPack command lands, so dismissing it is free.
+
+   `.hud` is pointer-events: none, and this sits inside it — so the scrim and
+   panel must re-enable them, exactly as `.hud__panel` does. */
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+/* A button, not a div: dismissing by clicking away must be reachable from the
+   keyboard and announced, and `aria-label` gives it a name. */
+.modal__scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgb(8 11 15 / 62%);
+  cursor: pointer;
+}
+
+.modal__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  width: min(30rem, calc(100% - 2rem));
+  max-height: calc(100% - 2rem);
+  overflow-y: auto;
+  padding: 1rem 1.15rem;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 0.6rem;
+  background: rgb(16 20 26 / 98%);
+  color: #e8edf4;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 55%);
+}
+
+.modal__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+/* Ink has a colour of its own here, so price reads as currency rather than as
+   another number in the row. */
+.modal__ink {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: #c9a84c;
+}
+
+.modal__packs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.4rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.modal__pack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 0.4rem;
+  background: #1c232d;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.modal__pack:hover {
+  border-color: rgb(255 255 255 / 28%);
+}
+
+.modal__pack--active {
+  border-color: #4fd1c5;
+}
+
+/* Dimmed, not disabled: the price is the information, so it must stay readable
+   and selectable. The commit button is what refuses. */
+.modal__pack--poor {
+  opacity: 0.5;
+}
+
+.modal__suits {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.modal__suit {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 0.3rem;
+  background: #232b36;
+  color: #e8edf4;
+  font: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.modal__suit--active {
+  border-color: #4fd1c5;
+}
+
+.modal__cull {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgb(255 255 255 / 10%);
+}
+
+.modal__reveal {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(2.4rem, 1fr));
+  gap: 0.3rem;
+  padding: 0.3rem 0.1rem 0.1rem;
+  margin: 0;
+  list-style: none;
+}
+
+.modal__actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgb(255 255 255 / 10%);
+}
+
+.modal__cancel {
+  padding: 0.55rem 0.9rem;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 0.4rem;
+  background: #2a323d;
+  color: #b9c6d6;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Marked for destruction. Red because it is destructive and irreversible once
+   the purchase commits. */
+.deck__card--doomed {
+  border-color: #e06c75;
+  background: #38222a;
+  color: #e06c75;
+}
+
+/* Just pulled. Teal, the same value selection uses elsewhere. */
+.deck__card--new {
+  border-color: #4fd1c5;
+  background: #1d3a38;
+  color: #4fd1c5;
+}
