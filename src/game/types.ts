@@ -226,10 +226,11 @@ export interface GameState {
   /**
    * The run currency.
    *
-   * Earned two ways and only two ways: destroying a Piece with Tower fire, and
-   * completing a round. NEVER from elapsed time — the gap between rounds is
-   * untimed, so time-based income would be unbounded and the player would
-   * simply wait for it. It is spent on packs alone, and never to play a Card.
+   * Earned three ways: destroying a Piece with Tower fire, completing a round,
+   * and a quarter share when a Joker's Clear destroys the board. NEVER from
+   * elapsed time — the gap between rounds is untimed, so time-based income
+   * would be unbounded and the player would simply wait for it. It is spent on
+   * packs alone, and never to play a Card.
    *
    * An integer. Every calculation that could produce a fraction floors in
    * `src/game/ink.ts`.

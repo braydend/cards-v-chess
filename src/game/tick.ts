@@ -89,10 +89,12 @@ export function tick(state: GameState, dtMs: number): GameState {
   const core = { ...state.core, health: coreHealth }
   const leaks = state.leaks + moved.leaked
 
-  // Tower fire is the ONLY thing that pays. A leak and a promotion each remove
-  // a Piece without passing through fireTowers, so neither can pay by
-  // accident: the player did not kill a leaker, and a promoted Pawn was not
-  // destroyed — it became a Queen, which pays when the Queen dies.
+  // Within this function, Tower fire is the ONLY thing that pays a kill
+  // reward — a Joker's Clear pays its own quarter share in cardPlays.ts. A
+  // leak and a promotion each remove a Piece without passing through
+  // fireTowers, so neither can pay by accident here: the player did not kill
+  // a leaker, and a promoted Pawn was not destroyed — it became a Queen,
+  // which pays when the Queen dies.
   const ink = state.ink + totalKillReward(fired.destroyed)
 
   if (coreHealth === 0) {

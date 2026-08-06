@@ -37,11 +37,12 @@ export function structuralKey(state: GameState): string {
     state.core.health,
     state.core.maxHealth,
     state.leaks,
-    // Ink only ever moves on a kill or a round completion, and both already
-    // change this key — a kill through the `pieces` string, a completion
-    // through `phase` and `roundNumber`. Keyed because the HUD prints it, not
-    // because it adds a publish. It is NOT a per-tick value; adding one of
-    // those here would force a React render every frame.
+    // Ink moves on a kill, a round completion, or a Joker's Clear, and all
+    // three already change this key: a kill and a Clear both shrink or empty
+    // the `pieces` string, a Clear also drops `deck.length` for the consumed
+    // Joker, and a completion changes `phase` and `roundNumber`. Keyed because
+    // the HUD prints it, not because it adds a publish. It is NOT a per-tick
+    // value; adding one of those here would force a React render every frame.
     state.ink,
     state.autoStart,
     state.pendingSpawns.length,

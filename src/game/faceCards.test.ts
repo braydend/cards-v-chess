@@ -259,10 +259,7 @@ describe('Ace — Expand', () => {
 
 describe('Joker — Clear', () => {
   function withJoker(): GameState {
-    const built = withTower(5, SQUARE)
-    const seeded = withDeck([jokerCard('joker')], built)
-
-    return liveRound(seeded, [pawnAt('a', { file: 1, rank: 6 }), pawnAt('b', { file: 6, rank: 3 })])
+    return withJokerAnd([pawnAt('a', { file: 1, rank: 6 }), pawnAt('b', { file: 6, rank: 3 })])
   }
 
   it('destroys every Piece on the board', () => {

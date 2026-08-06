@@ -559,6 +559,62 @@ describe('Ink from kills', () => {
   })
 })
 
+describe('Ink: the defeated branch still pays a kill from the same tick', () => {
+  it('pays the kill reward for a Tower kill that lands on the tick the Core falls', () => {
+    // The `defeated` branch pays `ink`, which already folds in kill rewards
+    // accrued this tick — a deliberate decision, not an oversight, but the
+    // only existing defeat test drives defeat with a leak and no Towers, so
+    // `ink` is 0 there for the leak reason rather than the branch reason. A
+    // single big `tick` call (a whole Pawn move interval, and comfortably
+    // past any Tower's fire interval) forces the leaker's one hop and the
+    // Tower's one shot to resolve inside the same call, so both events land
+    // on the tick that zeroes the Core. The target is a Rook rather than a
+    // Pawn purely so its slow move interval keeps it sitting still in the
+    // Tower's coverage for the whole call.
+    const TOWER_SQUARE = { file: 3, rank: 4 }
+    const TARGET_SQUARE = { file: 3, rank: 6 }
+    const LEAK_SQUARE = { file: 3, rank: 1 }
+
+    const built = withTower(4, TOWER_SQUARE)
+    const fragileCore: GameState = { ...built, core: { ...built.core, health: 1 } }
+    const state = liveRound(fragileCore, [
+      pawnAt('leaker', LEAK_SQUARE),
+      pieceAt('target', 'rook', TARGET_SQUARE, { health: 1 }),
+    ])
+
+    const after = tick(state, PIECE_TYPES.pawn.moveIntervalMs)
+
+    expect(after.phase).toBe('defeated')
+    expect(after.leaks).toBe(1)
+    expect(after.pieces).toHaveLength(0)
+    expect(after.ink).toBe(PIECE_TYPES.rook.inkReward)
+  })
+})
+
+describe('Ink: a kill and round income can land in the same tick', () => {
+  it("pays the kill reward for the round's last Piece plus round income for the round it ends", () => {
+    // The `gap` branch adds `roundIncome` on top of `ink`, which already
+    // folds in this tick's kill rewards — but every existing completion test
+    // ends the round with a leak, which pays nothing, so that composition was
+    // never exercised. A round whose final Piece dies to Tower fire, rather
+    // than leaking, is the ordinary way a round actually ends. Ticking by
+    // exactly the Tower's own fire interval is enough on its own: the Rook
+    // target's move interval is longer, so it never moves out of coverage.
+    const TOWER_SQUARE = { file: 3, rank: 4 }
+    const TARGET_SQUARE = { file: 3, rank: 6 }
+
+    const state = liveRound(withTower(4, TOWER_SQUARE), [
+      pieceAt('target', 'rook', TARGET_SQUARE, { health: 1 }),
+    ])
+
+    const after = tick(state, TOWER_RANKS[4].fireIntervalMs)
+
+    expect(after.phase).toBe('gap')
+    expect(after.pieces).toHaveLength(0)
+    expect(after.ink).toBe(PIECE_TYPES.rook.inkReward + roundIncome(state.roundNumber))
+  })
+})
+
 describe('Ink from round completion', () => {
   /** A lone Pawn one square up-file from the Core, so the round ends when it leaks. */
   function oneLeakAway(state: GameState = createInitialState()): GameState {
