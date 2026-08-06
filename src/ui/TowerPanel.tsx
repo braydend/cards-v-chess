@@ -14,9 +14,10 @@ import { GEOMETRY_LABELS } from './geometryLabels'
  * It updates in step with damage for free: a hit changes `health`, `health` is
  * in `structuralKey`, and a change there is what publishes a snapshot.
  *
- * `damageTaken` is a lifetime total, not `maxHealth - health`. Once ♥ repair
- * exists, a Tower at full health still reporting heavy damage taken is the
- * "Repair versus the wall" open question made visible — see the design doc.
+ * `damageTaken` is a lifetime total, not `maxHealth - health`. ♥ repair
+ * already exists (`src/game/cardPlays.ts`), so a Tower at full health still
+ * reporting heavy damage taken is the "Repair versus the wall" open question
+ * made visible right now — see the design doc.
  */
 export function TowerPanel() {
   const selectedTowerId = useUiStore((store) => store.selectedTowerId)
