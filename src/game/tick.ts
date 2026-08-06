@@ -3,7 +3,7 @@ import { towerRank, type TowerRankDef } from '../data/towerRanks'
 import { KING_SPEED_MULTIPLIER, applyHealing, buffedPieceIds, slideBonusFor } from './auras'
 import { squareKey } from './board'
 import { coversSquare } from './coverage'
-import { totalKillReward } from './ink'
+import { roundIncome, totalKillReward } from './ink'
 import { isStuck, nextMove } from './movement'
 import { step } from './step'
 import type { BoardSpec, GameState, Piece, Square, Tower } from './types'
@@ -151,7 +151,9 @@ export function tick(state: GameState, dtMs: number): GameState {
       roundElapsedMs: 0,
       core,
       leaks,
-      ink,
+      // `state.roundNumber`, NOT the incremented value on the next line: this
+      // pays for the round just played, not the one about to start.
+      ink: ink + roundIncome(state.roundNumber),
       pieces: healed,
       towers: fired.towers,
       pendingSpawns: [],

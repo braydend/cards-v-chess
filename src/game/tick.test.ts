@@ -4,6 +4,7 @@ import { TOWER_RANKS } from '../data/towerRanks'
 import { BISHOP_HEAL_INTERVAL_MS, KING_SPEED_MULTIPLIER } from './auras'
 import { liveRound, pawnAt, withTower } from './fixtures'
 import { createInitialState, step, tick } from './index'
+import { roundIncome } from './ink'
 import type { GameState, Handedness, Piece, PieceTypeId, Square, Tower } from './types'
 
 /** The fixed timestep the app runs at. Tests drive time; nothing reads a clock. */
@@ -554,6 +555,36 @@ describe('Ink from kills', () => {
     const after = runFor(promoting, PIECE_TYPES.pawn.moveIntervalMs + DT)
 
     expect(after.pieces.map((piece) => piece.typeId)).toEqual(['queen'])
+    expect(after.ink).toBe(0)
+  })
+})
+
+describe('Ink from round completion', () => {
+  /** A lone Pawn one square up-file from the Core, so the round ends when it leaks. */
+  function oneLeakAway(state: GameState = createInitialState()): GameState {
+    return liveRound(state, [pawnAt('leaker', { file: 3, rank: 1 })])
+  }
+
+  it('pays a lump sum for the round just played, not the one about to start', () => {
+    // The Pawn walks into the Core and nothing is left to act, so the round
+    // completes. Leaks pay nothing, which makes every Ink here the lump sum.
+    const after = runFor(oneLeakAway(), PIECE_TYPES.pawn.moveIntervalMs + DT * 2)
+
+    expect(after.phase).toBe('gap')
+    expect(after.roundNumber).toBe(2)
+    expect(after.ink).toBe(roundIncome(1))
+    // The off-by-one this guards: `tick` increments roundNumber in the same
+    // branch that pays, so reading the incremented value pays for a round that
+    // has not been played.
+    expect(after.ink).not.toBe(roundIncome(2))
+  })
+
+  it('pays nothing when the Core falls, since the run is over', () => {
+    const base = createInitialState()
+    const doomed = oneLeakAway({ ...base, core: { ...base.core, health: 1 } })
+    const after = runFor(doomed, PIECE_TYPES.pawn.moveIntervalMs + DT * 2)
+
+    expect(after.phase).toBe('defeated')
     expect(after.ink).toBe(0)
   })
 })
