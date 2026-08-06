@@ -231,6 +231,16 @@ function fireTowers(
 
   for (const tower of towers) {
     const def = towerRank(tower.cardRank)
+
+    // The Wall never fires. Skipping before the cooldown loop rather than
+    // relying on `selectTargets` returning nothing keeps a gunless Tower out
+    // of the firing path entirely — and means its inert `fireIntervalMs` is
+    // never read, so it can never gate a loop.
+    if (def.geometry === 'none') {
+      nextTowers.push(tower)
+      continue
+    }
+
     let cooldown = tower.fireCooldownMs + dtMs
 
     while (cooldown >= tower.fireIntervalMs) {

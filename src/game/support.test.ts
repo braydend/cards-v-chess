@@ -128,7 +128,10 @@ describe('♦ Speed', () => {
     // ticks a ♦-supported Tower, so this suite would still pass if
     // fireTowers read the rank definition's interval instead of the Tower's
     // own.
-    const built = withTower(5, SQUARE)
+    // Rank 3, not rank 5: the rebalance moved rank 5 to a 550ms interval, and
+    // 550 - 270 = 280 is fractionally over half, so two shots no longer fit in
+    // one rank-interval window. Rank 3's 500ms keeps the original arithmetic.
+    const built = withTower(3, SQUARE)
     const towerId = firstTowerId(built)
 
     // Three Aces played for ♦ shrink the 500ms rank interval by 270ms
@@ -147,20 +150,23 @@ describe('♦ Speed', () => {
       withCards,
     )
 
-    expect(firstTower(boosted).fireIntervalMs).toBeLessThan(TOWER_RANKS[5].fireIntervalMs / 2)
+    expect(firstTower(boosted).fireIntervalMs).toBeLessThan(TOWER_RANKS[3].fireIntervalMs / 2)
 
-    // Two Pieces, each one-shot by the rank's own damage (3 vs. 3 health),
-    // sitting on opposite diagonals so both are covered.
-    const state = liveRound(boosted, [
-      pawnAt('a', { file: 1, rank: 1 }),
-      pawnAt('b', { file: 3, rank: 3 }),
-    ])
+    // One Pawn, not two: rank 3 now deals 2 damage, under a Pawn's 3 health,
+    // so no firing rank can one-shot a Pawn any more (rank 5 dropped to 2
+    // damage as well) -- the "each one-shot" premise this test used to rely
+    // on no longer holds anywhere. Two hits of 2 on the SAME Pawn (4 total
+    // against 3 health) destroys it just as legibly as two one-shots did, and
+    // proves the same thing: two shots landed inside the window. Rank 3 is
+    // `vertical`, so the Piece has to sit on the Tower's own file --
+    // off-file is uncovered regardless of range.
+    const state = liveRound(boosted, [pawnAt('a', { file: SQUARE.file, rank: 4 })])
 
     // A window just over the rank's OWN interval: at that interval only one
     // shot would land, so only using the Tower's own (post-support) interval
-    // gets through both Pieces in time.
+    // gets through in time for a second.
     let current = state
-    const windowMs = TOWER_RANKS[5].fireIntervalMs + DT
+    const windowMs = TOWER_RANKS[3].fireIntervalMs + DT
     for (let elapsed = 0; elapsed < windowMs; elapsed += DT) {
       current = tick(current, DT)
     }

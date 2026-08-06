@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
-import { liveRound, pawnAt, withTower } from './fixtures'
+import { liveRound, pawnAt, pieceAt, withTower } from './fixtures'
 import { tick } from './index'
 import type { BuildableRank, GameState, Square } from './types'
 
@@ -50,12 +50,16 @@ function scenario(
 
 describe('tower firing', () => {
   it('damages a Piece inside its coverage', () => {
-    // Rank 2 covers only its eight neighbours, so the Piece sits alongside it.
-    const state = scenario(2, { file: 3, rank: 6 }, [{ file: 4, rank: 6 }])
+    // A Rook, not a Pawn: rank 2 deals 3 and a Pawn has exactly 3 health, so a
+    // Pawn would die on the first shot and leave nothing to read a health off.
+    const state = liveRound(withTower(2, { file: 3, rank: 3 }), [
+      pieceAt('rook', 'target-0', { file: 3, rank: 4 }),
+    ])
 
     const after = runFor(state, TOWER_RANKS[2].fireIntervalMs + DT)
+    const survivor = after.pieces.find((piece) => piece.id === 'target-0')
 
-    expect(after.pieces[0]?.health).toBe(PAWN_HEALTH - TOWER_RANKS[2].damage)
+    expect(survivor?.health).toBe(PIECE_TYPES.rook.maxHealth - TOWER_RANKS[2].damage)
   })
 
   it('does not fire before its interval has elapsed', () => {
@@ -225,11 +229,13 @@ describe('targets per shot', () => {
   })
 
   it('a multi-target Tower damages several covered Pieces in one shot', () => {
-    // Rank 8 is a star with 3 targets. Three Pieces on three different rays.
+    // Rank 8 is now a ring at range 4: covered iff Chebyshev distance is 3 or
+    // 4 from the Tower, and BLIND at 1-2 (the hollow core). All three squares
+    // below sit at distance 3, so all three are covered.
     const state = scenario(8, { file: 3, rank: 3 }, [
-      { file: 3, rank: 4 },
-      { file: 4, rank: 4 },
-      { file: 4, rank: 3 },
+      { file: 0, rank: 3 },
+      { file: 6, rank: 3 },
+      { file: 3, rank: 6 },
     ])
 
     const after = runFor(state, TOWER_RANKS[8].fireIntervalMs + DT)
@@ -239,12 +245,14 @@ describe('targets per shot', () => {
   })
 
   it('caps at its target count', () => {
-    // Rank 8 covers four Pieces but may only hit 3.
+    // Rank 8 covers four Pieces but may only hit 3. All four squares sit at
+    // Chebyshev distance 3 from the Tower — inside the ring, not the hollow
+    // core distance 1-2 would put them in.
     const state = scenario(8, { file: 3, rank: 3 }, [
-      { file: 3, rank: 4 },
-      { file: 4, rank: 4 },
-      { file: 4, rank: 3 },
-      { file: 2, rank: 2 },
+      { file: 0, rank: 3 },
+      { file: 6, rank: 3 },
+      { file: 3, rank: 6 },
+      { file: 0, rank: 6 },
     ])
 
     const after = runFor(state, TOWER_RANKS[8].fireIntervalMs + DT)
@@ -254,27 +262,43 @@ describe('targets per shot', () => {
   })
 
   it('rank 10 hits everything it covers', () => {
+    // A band spans the full file width, so these are spread across the board
+    // on purpose — that is the property being tested. Rank 5 is outside the
+    // +/-1 band from board rank 3 and must NOT be hit.
     const state = scenario(10, { file: 3, rank: 3 }, [
+      { file: 0, rank: 4 },
       { file: 3, rank: 4 },
-      { file: 4, rank: 4 },
-      { file: 2, rank: 2 },
-      { file: 5, rank: 5 },
-      { file: 1, rank: 3 },
+      { file: 7, rank: 2 },
+      { file: 6, rank: 3 },
     ])
 
     const after = runFor(state, TOWER_RANKS[10].fireIntervalMs + DT)
     const hit = state.pieces.filter((piece) => wasHit(state, after, piece.id))
 
-    expect(hit).toHaveLength(5)
+    expect(hit).toHaveLength(4)
   })
 
   it('is deterministic when more Pieces are covered than can be hit', () => {
+    // The point of this test is the id tie-break in selectTargets, which only
+    // fires when two candidates tie on Manhattan distance to the Core at
+    // {file: 3, rank: 0}. All four squares below sit at Chebyshev distance 3
+    // or 4 from the Tower, so all four are covered (none in the hollow core),
+    // and their Core-distances are:
+    //   target-0 {6,1}: |6-3| + |1-0| = 4  (nearest -- picked outright)
+    //   target-1 {7,1}: |7-3| + |1-0| = 5  (second -- picked outright)
+    //   target-2 {0,3}: |0-3| + |3-0| = 6  (tied for the last slot)
+    //   target-3 {6,3}: |6-3| + |3-0| = 6  (tied for the last slot)
+    // targetsPerShot is 3, so exactly one of target-2/target-3 is dropped,
+    // decided only by id ('target-2' < 'target-3'). Without a tie at the cap
+    // boundary, distance alone would decide and the tie-break would never run
+    // — which is exactly how this test passed vacuously before this repair,
+    // with all four Pieces sitting unhit in the hollow core.
     const build = () =>
       scenario(8, { file: 3, rank: 3 }, [
-        { file: 3, rank: 4 },
-        { file: 4, rank: 4 },
-        { file: 4, rank: 3 },
-        { file: 2, rank: 2 },
+        { file: 6, rank: 1 },
+        { file: 7, rank: 1 },
+        { file: 0, rank: 3 },
+        { file: 6, rank: 3 },
       ])
 
     const a = runFor(build(), 2000)

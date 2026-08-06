@@ -296,11 +296,15 @@ describe('accumulatePulses', () => {
     const out = new Float32Array(squareFloats + 12)
     out.fill(-1, squareFloats)
 
-    // Rank 8 is `star` at range 6, so from the corner its footprint runs well
-    // past two edges of an 8x8 board.
+    // Rank 8 is `ring` at range 4, so from the corner its footprint still
+    // wants files and ranks below 0 on both axes, which get clamped to the
+    // board's edges -- that clamping is what this test guards. The probed
+    // square sits at Chebyshev distance 4 from the corner: inside the ring's
+    // outer edge, not its distance 1-2 hollow core, which is blind and would
+    // read back 0 regardless of whether the bounds guard worked.
     accumulatePulses(out, board, [pulseAt(8, 0, 0)], 0.2)
 
-    expect(channel(out, 1, 1)).toBeGreaterThan(0)
+    expect(channel(out, 4, 4)).toBeGreaterThan(0)
     expect(out[squareFloats]).toBe(-1)
     expect(out[squareFloats + 11]).toBe(-1)
   })
@@ -329,7 +333,7 @@ describe('isPulseLive', () => {
   })
 
   it('gives a short-range Tower a shorter life than a long-range one', () => {
-    // Rank 2 reaches 1 square (205ms of life); rank 8 reaches 6 (433ms).
+    // Rank 2 reaches 1 square (205ms of life); rank 8 reaches 4 (342ms).
     expect(isPulseLive(pulseAt(2), 0.25)).toBe(false)
     expect(isPulseLive(pulseAt(8), 0.25)).toBe(true)
   })
