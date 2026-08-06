@@ -5,9 +5,13 @@ export const SUITS: readonly Suit[] = ['hearts', 'diamonds', 'spades', 'clubs']
 /**
  * How strong a suit's support action is when played from this rank.
  *
- * Support magnitude scales with rank, as Tower power does: a 9♥ is a large
- * repair, a 2♥ a small one. The face ranks continue the scale past 10, which is
- * why a K♥ is a top-of-scale repair.
+ * Support magnitude scales with rank, as Tower power does: a 9♠ is a large
+ * buff, a 2♠ a small one. The face ranks continue the scale past 10, which is
+ * why a K♠ is a top-of-scale buff.
+ *
+ * **♥ does not read this.** Repair restores to full whatever the rank — see
+ * `applySupport` in `src/game/support.ts` for why — so a ♥'s rank matters only
+ * when it is played to build.
  */
 export function supportMagnitude(rank: CardRank): number {
   switch (rank) {

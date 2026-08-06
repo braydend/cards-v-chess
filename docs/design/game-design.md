@@ -23,7 +23,7 @@ The board starts **8×8** and **gains a rank every time an Ace is played**, so i
 
 The Core stays on rank 0 and Pieces enter from whatever the far rank currently is, so growth lengthens the run to the Core and buys Towers more shots. That is the Ace's whole effect.
 
-Growing the board retires the *thematic* claim to a true chessboard, deliberately. Nothing mechanical is lost: **square colour is `(file + rank)` parity**, so the checker pattern survives a rectangular board and the Knight's light-square vulnerability is unaffected.
+Growing the board retires the *thematic* claim to a true chessboard, deliberately. Nothing mechanical is lost: **square colour is `(file + rank)` parity**, so the checker pattern survives a rectangular board intact. Nothing keys off colour today — the Knight is damageable on every square — so the pattern is preserved for chess-authenticity alone; see "Board geometry" in the open questions.
 
 ## The card system
 
@@ -50,14 +50,16 @@ Preserve the rest of the property. Ranks 2–10, King, Ace and the Jokers are al
 
 | Suit | Action on a Tower |
 | --- | --- |
-| ♥ Hearts | **Repair** — restore lost health |
+| ♥ Hearts | **Repair** — restore a Tower to full health |
 | ♦ Diamonds | **Speed** — increase fire rate |
-| ♠ Spades | **Health** — increase maximum health |
+| ♠ Spades | **Health** — increase current and maximum health together |
 | ♣ Clubs | **Damage** — increase damage |
 
-Support magnitude scales with rank, as Tower power does: a 9♥ is a large repair, a 2♥ a small one. The scale is **face value for 2–10, then J 11, Q 12, K 13, A 14** — so a K♥ is a top-of-scale repair, and every face card is worth weighing for its suit as well as for its action.
+**♦ ♠ ♣ scale with rank; ♥ does not.** For the three that scale, magnitude is **face value for 2–10, then J 11, Q 12, K 13, A 14**, so a 9♠ is a large buff and a 2♠ a small one, and every face card is worth weighing for its suit as well as for its action.
 
-**♠ raises the health ceiling without healing.** That is what keeps it distinct from ♥: ♠ grows the ceiling, ♥ fills it. A ♠ on a damaged Tower buys headroom for a later ♥.
+**♥ restores to full whatever the rank.** A 2♥ repairs exactly as much as a K♥. This is what keeps ♥ and ♠ distinct now that ♠ heals as well: rank-scaled repair made ♥ strictly worse than a ♠ of the same rank — same healing, and ♠ raised the ceiling on top. A full restore gives each a job the other cannot do. **♥ is the emergency**, the answer to a Tower about to fall, and worth most when the Tower is nearly dead. **♠ is the investment**, worth most on a healthy Tower you intend to keep. It also inverts what rank means for repair: since a low ♥ heals as well as a high one, the high ♥ is better spent building, and the cheap ♥ becomes the efficient repair.
+
+**♠ raises current and maximum health together**, as a King does for the Core. It was previously specified as raising the ceiling *only*, which read as a bug in play: the renderer's only signal for damage is `health / maxHealth`, so moving the ceiling alone darkened the Tower exactly as a hit does, and two stacked ♠ could start the critical "about to die" pulse on a Tower that had never been touched. A Tower buffed this way is also no closer to dying than before, so the old signal was not merely ugly but wrong. Changed in response to issue #14.
 
 ### Rank ladder
 
@@ -93,7 +95,7 @@ These **act instead of building**, under one governing principle:
 
 > **Suits tune numbers. Face cards change kind.**
 
-♥ ♦ ♠ ♣ already own the whole stat quartet, and their magnitude scales with rank, so a face card whose rank mode merely bumped a stat would be a fifth suit.
+♥ ♦ ♠ ♣ already own the whole stat quartet, and ♦ ♠ ♣ scale with rank on top of that, so a face card whose rank mode merely bumped a stat would be a fifth suit.
 
 | Card | Action | Needs a Tower? |
 | --- | --- | --- |
@@ -329,6 +331,6 @@ This is a **coverage** tower defense, not a **maze** one: defense is about which
 | **Running out of cards** | Cards are consumed and packs are the only source, so a player can reach zero. Loss, stall, or covered by a guaranteed Ink floor? |
 | **Pack weighting and prices** | How rank scarcity translates into pack contents, and what each type costs. |
 | **PRNG streams** | One stream (simplest) versus separate named streams for packs/rounds/draws, so seeds survive code changes. |
-| **Repair versus the wall** | **Reachable now — ♥ Repair exists.** Towers block and there is no pathfinding, so a repaired Tower a Piece cannot break is a permanent wall, and against a rank-5 Tower's `diagonal` blind spot the Piece cannot even shoot back. What bounds it today is that **cards are consumed and packs do not exist**: ♥ runs out, the Tower falls, and the round resumes. `src/game/roundTermination.test.ts` pins that bound, and the Joker is the escape hatch. **Adding packs removes the bound.** Candidate answers: attacked Towers lose *maximum* health permanently so repair only delays; repair capped per round; or a blocked Piece eventually breaks through regardless. Decide with play experience, not on paper. |
+| **Repair versus the wall** | **Reachable now — ♥ Repair exists.** Towers block and there is no pathfinding, so a repaired Tower a Piece cannot break is a permanent wall, and against a rank-5 Tower's `diagonal` blind spot the Piece cannot even shoot back. What bounds it today is that **cards are consumed and packs do not exist**: ♥ runs out, the Tower falls, and the round resumes. `src/game/roundTermination.test.ts` pins that bound, and the Joker is the escape hatch. **Adding packs removes the bound.** Two later changes made each ♥ worth more against the wall without touching that bound: ♥ now restores to **full** rather than by magnitude, so one card can absorb a whole Tower's worth of grinding; and ♠ raises `maxHealth`, so a ♠-fed Tower gives each subsequent ♥ a higher ceiling to fill. The wall is the same length in cards and longer in seconds. Candidate answers: attacked Towers lose *maximum* health permanently so repair only delays; repair capped per round; or a blocked Piece eventually breaks through regardless. Decide with play experience, not on paper. |
 | **Board geometry** | Growable, starting at a literal 8x8 — an Ace adds a rank. Square colour is no longer load-bearing, since the Knight is damageable everywhere, so the checkerboard is preserved for chess-authenticity alone. Whether that argument carries enough weight on its own is undecided. |
 | **Multiplayer scope** | Still assumed single-player versus AI, no backend, no netcode. |
