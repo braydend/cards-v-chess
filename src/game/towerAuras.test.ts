@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { BLOCKED_ATTACK_MULTIPLIER, PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { KING_SPEED_MULTIPLIER } from './auras'
 import { firstTowerId, liveRound, pawnAt, pieceAt, withTower } from './fixtures'
@@ -131,6 +132,22 @@ describe('frozenPieceIds', () => {
 
     expect(frozenPieceIds(state.towers, state.pieces).size).toBe(0)
   })
+
+  it('covers a doubly-covered Piece exactly once — membership, not count', () => {
+    // Two Freezers over the same Piece must not make it "more frozen" than
+    // one. A Set cannot represent that even in principle — there is no
+    // per-source detail here the way `amplifierIdsByPiece` keeps tower ids
+    // for the Amplifier — so this pins the contract this function actually
+    // promises: whether at least one Freezer covers a Piece, never how many.
+    const withFirst = withTower(9, { file: 1, rank: 4 })
+    const withBoth = withTower(9, { file: 5, rank: 4 }, withFirst)
+    const state = liveRound(withBoth, [pawnAt('doubly-covered', { file: 3, rank: 4 })])
+
+    expect(state.towers).toHaveLength(2)
+    const frozen = frozenPieceIds(state.towers, state.pieces)
+    expect(frozen.has('doubly-covered')).toBe(true)
+    expect(frozen.size).toBe(1)
+  })
 })
 
 describe('the Freezer in a live round', () => {
@@ -184,16 +201,19 @@ describe('the Freezer in a live round', () => {
     // (move count = floor(windowMs / interval); the accumulator's carried
     // leftover cooldown makes that division exact regardless of tick size.)
     //
-    // NOT covered here: a mutant where the buff wins outright and the freeze
-    // is ignored while buffed (900 * 0.7 = 630ms/hop). Verified by hand that
-    // this arrangement cannot catch that one — the King is stationary and the
-    // Pawn moves straight down away from it, so the buff is positional and
-    // expires the instant the Pawn takes its first hop (Chebyshev distance
-    // goes from 1 to 2). After that hop both the correct code and that mutant
-    // fall back to the same unbuffed, frozen 1350ms interval, so they agree
-    // on the second hop never landing inside 1300ms either. Distinguishing
-    // that mutant would need the buff to persist across a hop, which asks a
-    // King to keep pace with a Pawn it is chess-slower than.
+    // This arrangement — a WALKING Pawn and a stationary King — cannot also
+    // catch the other wrong formula: buff wins outright, freeze ignored while
+    // buffed (900 * 0.7 = 630ms/hop). Verified by hand: the King is stationary
+    // and the Pawn walks straight down away from it, so the buff is
+    // positional and expires the instant the Pawn takes its first hop
+    // (Chebyshev distance goes from 1 to 2). After that hop both the correct
+    // code and that mutant fall back to the same unbuffed, frozen 1350ms
+    // interval, so they agree that the second hop doesn't land inside 1300ms
+    // either. That is a real gap in THIS arrangement, not a limit on what is
+    // testable — see 'discriminates all three move-interval formulas' below,
+    // which closes it by grinding a Piece against a Wall instead of walking
+    // one: a blocked Piece never leaves its square, so the King and the
+    // Freezer both stay in range for the whole window, buff included.
     const composedInterval = 900 * KING_SPEED_MULTIPLIER * FREEZE_MULTIPLIER
     const replacedInterval = 900 * FREEZE_MULTIPLIER
     const windowMs = 1300
@@ -216,5 +236,105 @@ describe('the Freezer in a live round', () => {
     const runner = after.pieces.find((piece) => piece.id === 'runner')
 
     expect(runner?.square.rank).toBe(3)
+  })
+
+  it('discriminates all three move-interval formulas by grinding against a Wall', () => {
+    // A Piece BLOCKED by a Tower never leaves its square — `movePieces`'
+    // while loop attacks on exactly the cadence it would have walked on,
+    // without ever advancing — so a King and a Freezer that both cover a
+    // grinding Piece stay in range for the WHOLE window, not just one hop.
+    // That is what the walking-Pawn test above cannot offer, and it is what
+    // lets this arrangement discriminate every wrong formula, not just one:
+    //
+    //  - Correct (compose):                  900 * 0.7 * 1.5 = 945ms/attack  -> floor(2000/945)  = 2 attacks
+    //  - Mutant A, freeze REPLACES the buff:  900 * 1.5       = 1350ms/attack -> floor(2000/1350) = 1 attack
+    //  - Mutant B, buff wins, freeze ignored: 900 * 0.7       = 630ms/attack  -> floor(2000/630)  = 3 attacks
+    //
+    // A rank-7 Wall sits directly ahead of the Pawn (its forward square),
+    // blocking it permanently. The King sits adjacent to the Pawn's fixed
+    // square and the Freezer covers it too — both stay put for the entire
+    // 2000ms window regardless of which formula above is live, because the
+    // King's own move interval is at least 1800ms under every one of them
+    // (it is never buffed by itself, and the freeze can only ever multiply
+    // its interval upward), which is already past the window.
+    //
+    // Each attack costs the Wall attackDamage(2) * BLOCKED_ATTACK_MULTIPLIER(0.5)
+    // = 1 health, so health lost IS the attack count — confirmed below, not
+    // assumed.
+    const perAttackDamage = PIECE_TYPES.pawn.attackDamage * BLOCKED_ATTACK_MULTIPLIER
+    expect(perAttackDamage).toBe(1)
+
+    const composedInterval = 900 * KING_SPEED_MULTIPLIER * FREEZE_MULTIPLIER
+    expect(composedInterval).toBeCloseTo(945)
+    expect(Math.floor(2000 / composedInterval)).toBe(2)
+    expect(Math.floor(2000 / (900 * FREEZE_MULTIPLIER))).toBe(1)
+    expect(Math.floor(2000 / (900 * KING_SPEED_MULTIPLIER))).toBe(3)
+
+    const withWall = withTower(7, { file: 4, rank: 3 })
+    const withFreezer = withTower(9, { file: 2, rank: 4 }, withWall)
+    const state = liveRound(withFreezer, [
+      pieceAt('king', 'guard', { file: 4, rank: 5 }),
+      pawnAt('runner', { file: 4, rank: 4 }),
+    ])
+
+    const after = runFor(state, 2000)
+    const wall = after.towers.find((tower) => tower.cardRank === 7)
+    expect(wall).toBeDefined()
+
+    const attacks = (TOWER_RANKS[7].maxHealth - (wall?.health ?? 0)) / perAttackDamage
+    expect(attacks).toBe(2)
+
+    // The Freezer's own shots are incidental to this test, but must not
+    // remove the Pawn (or the King) from the board — a dead grinder stops
+    // attacking, which would undercount rather than measure the interval.
+    // Confirmed, not assumed: the Pawn survives on 1 of its 3 health.
+    expect(after.pieces.find((piece) => piece.id === 'runner')).toBeDefined()
+    expect(after.pieces.find((piece) => piece.id === 'guard')).toBeDefined()
+  })
+
+  it('does not stack: two Freezers slow a grinding Piece exactly as much as one', () => {
+    // Guards the same property `amplificationFor`'s stacking test guards for
+    // the Amplifier, adapted to how the Freezer represents coverage.
+    // `frozenPieceIds` returns a flat Set, so there is no per-source count
+    // for anything to multiply by in the first place — but the guarantee
+    // this test defends lives at the CALL SITE in `movePieces`
+    // (`frozen.has(piece.id) ? ... * FREEZE_MULTIPLIER : ...`), not in that
+    // data structure, and a future change to how many times the multiplier
+    // gets applied would not touch `frozenPieceIds` at all.
+    //
+    // A Rook (14 health, 1600ms move interval, 4 attack damage) blocked by a
+    // rank-7 Wall, with two Freezer Towers both covering its fixed square:
+    //
+    //  - Correct (single multiplier): 1600 * 1.5       = 2400ms/attack -> floor(4800/2400) = 2 attacks
+    //  - Wrongly stacked (squared):   1600 * 1.5 * 1.5 = 3600ms/attack -> floor(4800/3600) = 1 attack
+    //
+    // A Rook rather than a Pawn: two INDEPENDENT Freezers both targeting the
+    // same lone Piece deal twice the fire of the single-Freezer tests above
+    // (2 damage per 750ms volley here, 6 volleys in the window = 12 total) —
+    // a Pawn's 3 health would not survive that, and a dead Piece stops
+    // grinding, undercounting attacks rather than measuring the interval.
+    const perAttackDamage = PIECE_TYPES.rook.attackDamage * BLOCKED_ATTACK_MULTIPLIER
+    const singleInterval = PIECE_TYPES.rook.moveIntervalMs * FREEZE_MULTIPLIER
+    const stackedInterval = PIECE_TYPES.rook.moveIntervalMs * FREEZE_MULTIPLIER * FREEZE_MULTIPLIER
+    const windowMs = 4800
+
+    expect(Math.floor(windowMs / singleInterval)).toBe(2)
+    expect(Math.floor(windowMs / stackedInterval)).toBe(1)
+
+    const withWall = withTower(7, { file: 4, rank: 3 })
+    const withFirstFreezer = withTower(9, { file: 2, rank: 4 }, withWall)
+    const withBothFreezers = withTower(9, { file: 6, rank: 4 }, withFirstFreezer)
+    const state = liveRound(withBothFreezers, [pieceAt('rook', 'grinder', { file: 4, rank: 4 })])
+
+    const after = runFor(state, windowMs)
+    const wall = after.towers.find((tower) => tower.cardRank === 7)
+    expect(wall).toBeDefined()
+
+    const attacks = (TOWER_RANKS[7].maxHealth - (wall?.health ?? 0)) / perAttackDamage
+    expect(attacks).toBe(2)
+
+    // Confirmed, not assumed: the Rook survives the two Freezers' combined
+    // fire (12 damage against 14 health).
+    expect(after.pieces.find((piece) => piece.id === 'grinder')).toBeDefined()
   })
 })
