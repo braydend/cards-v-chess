@@ -1,9 +1,6 @@
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import {
-  BoxGeometry,
-  ConeGeometry,
-  CylinderGeometry,
   MeshStandardMaterial,
   RingGeometry,
   type BufferGeometry,
@@ -16,32 +13,8 @@ import { getState } from '../state/simulation'
 import { useGameStore } from '../state/store'
 import { fileToWorldX, rankToWorldZ } from './coords'
 import { PIECE_COLOURS } from './pieceColours'
-
-const GEOMETRY_BY_TYPE: Record<PieceTypeId, () => BufferGeometry> = {
-  pawn: () => new ConeGeometry(0.28, 0.55, 6),
-  knight: () => new BoxGeometry(0.4, 0.6, 0.3),
-  bishop: () => new ConeGeometry(0.2, 0.8, 6),
-  rook: () => new CylinderGeometry(0.32, 0.32, 0.45, 6),
-  queen: () => new ConeGeometry(0.3, 0.9, 8),
-  king: () => new CylinderGeometry(0.26, 0.3, 0.85, 8),
-}
-
-/**
- * Where each silhouette's origin sits so the Piece rests on the board rather
- * than in it — half its height, rounded to the nearest hundredth. The Pawn is
- * the exception: it keeps the existing hand-tuned 0.35 (not a half-height
- * value at all) so it looks unchanged from before this task.
- */
-const REST_Y_BY_TYPE: Record<PieceTypeId, number> = {
-  pawn: 0.35,
-  knight: 0.3,
-  bishop: 0.4,
-  rook: 0.23,
-  queen: 0.45,
-  king: 0.43,
-}
-
-const PIECE_TYPE_IDS = Object.keys(GEOMETRY_BY_TYPE) as PieceTypeId[]
+import { GEOMETRY_BY_TYPE, PIECE_TYPE_IDS, REST_Y_BY_TYPE } from './pieceGeometry'
+import { PROMOTION_POP_MS, promotionPopLift, promotionPopScale } from './promotionPop'
 
 /**
  * How long the visual hop takes. Deliberately much shorter than a piece's move
@@ -96,6 +69,7 @@ export function Pieces({ board }: { board: BoardSpec }) {
             key={piece.id}
             pieceId={piece.id}
             typeId={piece.typeId}
+            promoted={piece.promoted}
             board={board}
             geometry={shared.geometry}
             material={shared.material}
@@ -111,6 +85,7 @@ export function Pieces({ board }: { board: BoardSpec }) {
 function PieceMesh({
   pieceId,
   typeId,
+  promoted,
   board,
   geometry,
   material,
@@ -119,6 +94,7 @@ function PieceMesh({
 }: {
   pieceId: string
   typeId: PieceTypeId
+  promoted: boolean
   board: BoardSpec
   geometry: BufferGeometry
   material: Material
@@ -127,17 +103,28 @@ function PieceMesh({
 }) {
   const ref = useRef<Mesh>(null)
   const ringRef = useRef<Mesh>(null)
+  const firstSeenAt = useRef(-1)
 
   // Reads live simulation state and mutates the mesh transform directly. No
   // state is set here, and nothing is allocated — the sanctioned way to do
   // per-frame work in R3F.
-  useFrame(() => {
+  useFrame((frame) => {
     const mesh = ref.current
     if (!mesh) return
 
     const state = getState()
     const piece = state.pieces.find((candidate) => candidate.id === pieceId)
     if (!piece) return
+
+    const now = frame.clock.elapsedTime
+    if (firstSeenAt.current < 0) firstSeenAt.current = now
+
+    // A promoted Queen gets a fresh entity id, and `Pieces` keys each mesh on
+    // `piece.id` — so this mesh's first frame IS the promotion, and no diff is
+    // needed to spot it. An unpromoted Piece is handed a spent age, so both
+    // helpers return neutral and cost nothing.
+    const popAgeMs = promoted ? (now - firstSeenAt.current) * 1000 : PROMOTION_POP_MS
+    const pop = promotionPopScale(popAgeMs)
 
     const progress = Math.min(1, piece.moveCooldownMs / HOP_ANIMATION_MS)
 
@@ -150,14 +137,16 @@ function PieceMesh({
 
     mesh.position.set(
       fromX + (toX - fromX) * progress,
-      restY + Math.sin(progress * Math.PI) * HOP_ARC,
+      restY + Math.sin(progress * Math.PI) * HOP_ARC + promotionPopLift(popAgeMs),
       fromZ + (toZ - fromZ) * progress,
     )
 
     // Shrink as it takes damage, so Tower fire has visible effect before the
-    // Piece dies. Mutation only — no state, no allocation.
+    // Piece dies. The promotion pop MULTIPLIES this rather than replacing it, so
+    // a Queen shot during her pop still shrinks. Mutation only — no state, no
+    // allocation.
     const healthFraction = piece.health / pieceType(piece.typeId).maxHealth
-    const scale = 0.55 + healthFraction * 0.45
+    const scale = (0.55 + healthFraction * 0.45) * pop
     mesh.scale.set(scale, scale, scale)
 
     // Toggling `visible` rather than mounting conditionally — mounting would

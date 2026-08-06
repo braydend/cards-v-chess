@@ -23,6 +23,7 @@ export type {
   Card,
   CardRank,
   Command,
+  ExitRecord,
   FaceRank,
   GameState,
   Handedness,

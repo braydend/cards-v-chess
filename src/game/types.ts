@@ -60,6 +60,31 @@ export interface PieceTypeDef {
  */
 export type Handedness = 1 | -1
 
+/**
+ * Why a Piece left `state.pieces`, recorded for the renderer.
+ *
+ * A KILL IS THE ABSENCE OF A RECORD. Kills are unbounded within a round, so
+ * logging them would be the wrong shape; leaks and promotions are both rare, so
+ * recording those two and inferring the rest is exhaustive rather than a guess —
+ * `reset()` and a Joker's Clear are the only other ways a Piece leaves, and the
+ * renderer detects both separately. See `src/scene/pieceExit.ts`.
+ */
+export interface ExitRecord {
+  /** The DEPARTING Piece's id — for a promotion, the Pawn's, not the Queen's. */
+  readonly pieceId: string
+  readonly typeId: PieceTypeId
+  readonly reason: 'leak' | 'promotion'
+  /**
+   * The square it left FROM.
+   *
+   * For a leak this is NEVER the Core's square: a leaking Piece never occupies
+   * it. `nextMove` returns `reachCore` for the square it would step to, and
+   * `movePieces` drops the Piece without ever assigning it — so this is the
+   * only record of where the impact should start.
+   */
+  readonly from: Square
+}
+
 export interface Piece {
   readonly id: string
   readonly typeId: PieceTypeId
@@ -101,6 +126,19 @@ export interface Piece {
    * than omitted so every Piece has the same shape.
    */
   readonly hunting: boolean
+  /**
+   * Whether this Piece is a Queen minted by Pawn promotion.
+   *
+   * Renderer-facing and never read by the engine — the same category `buffed`
+   * occupies. `Pieces.tsx` pops a Queen's mesh once, on the first frame it sees
+   * one, which needs no diff: a promoted Queen gets a fresh entity id, so React
+   * mounts a fresh mesh for it.
+   *
+   * False for every spawned Piece and every type that is not a promoted Queen,
+   * kept false rather than omitted so every Piece has the same shape, exactly
+   * as `hunting` is.
+   */
+  readonly promoted: boolean
 }
 
 /**
@@ -226,6 +264,37 @@ export interface GameState {
   readonly towers: readonly Tower[]
   /** Count of pieces that have reached the Core. */
   readonly leaks: number
+  /**
+   * The most recent leaks and promotions, for the renderer to animate. Kills
+   * are deliberately absent — see `ExitRecord`.
+   *
+   * NEVER CLEARED. Capped at `EXIT_RING_SIZE` in `tick.ts` instead, because
+   * clearing it at `startRound` loses records: `tick` auto-starts by calling
+   * `step` from inside itself, and `advance` runs up to five ticks before
+   * emitting once, so a leak, the round ending and the auto-start can all land
+   * inside a single frame — wiping the record before the renderer's only
+   * publish. That is the last-Piece-leaks-and-ends-the-round case, the most
+   * important leak in a round.
+   *
+   * Lookup is by `pieceId`, unique within a run because `nextEntityId` only
+   * rises, so a stale record can never match a live Piece. Deliberately
+   * duplicates part of what `leaks` counts: a count cannot say WHICH Piece or
+   * FROM WHERE.
+   */
+  readonly recentExits: readonly ExitRecord[]
+  /**
+   * How many Joker Clears have resolved this run. Monotonic.
+   *
+   * The renderer's signal to flash the whole board rather than burst every
+   * Piece it just saw vanish, and it cannot be inferred from an empty `pieces`
+   * array — killing the last Piece on the board also empties it, and that one
+   * SHOULD burst.
+   *
+   * A counter rather than a flag deliberately: `advance` runs up to five ticks
+   * per emit, so anything written and cleared per tick can be lost, while a
+   * monotonic count read per frame cannot.
+   */
+  readonly clears: number
   /**
    * The run currency.
    *

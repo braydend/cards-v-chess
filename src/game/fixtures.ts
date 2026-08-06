@@ -75,6 +75,7 @@ export function pieceAt(typeId: PieceTypeId, id: string, square: Square): Piece 
     auraCooldownMs: 0,
     buffed: false,
     hunting: false,
+    promoted: false,
   }
 }
 

@@ -24,9 +24,18 @@ What exists:
 - **The full Chess roster** — Pawn, Knight, Bishop, Rook, Queen, King — each with its own movement, Pawn promotion on the back rank, hunting Knights, the King's move-speed/slide aura, and the Bishop's healing aura.
 - **Tower combat.** Firing geometry per rank, Tower health, shields, damage from blocked Pieces, and destruction.
 - **Tower legibility.** A Tower darkens as it loses health, flashes on a hit, pulses at critical health, and flares as it dies; clicking one opens an inspect panel with the exact figures, including lifetime `damageTaken`.
+- **Piece exit legibility.** A Piece that leaks lunges onto the Core's square
+  and flashes it on contact; one killed by a Tower bursts where it stood; a
+  Joker's Clear flashes the whole board instead of bursting each Piece; and a
+  promoted Queen pops as she appears. The engine records only the exits that
+  cannot be inferred — leaks and promotions, in a never-cleared 32-entry ring on
+  `GameState.recentExits`, plus a monotonic `clears` count — and
+  `src/scene/pieceExit.ts` infers a Tower kill as the only case left. The ring
+  is never cleared on purpose: `tick` auto-starts from inside itself, so
+  clearing at `startRound` can wipe a record before the frame's only publish.
 - The renderer (`src/scene/`), with distinct per-type rendering for each Piece, and the HUD, the Deck UI and the Tower panel (`src/ui/`).
 - **CI.** `lint`, `typecheck`, `test:coverage` with per-directory thresholds, and `build` — see "CI" below.
-- 560 tests across 34 files, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
+- 613 tests across 38 files, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
 
 What does **not** exist yet:
 
@@ -199,6 +208,7 @@ These are the failure modes that cause every R3F performance horror story:
 - **Toggle `visible`** rather than conditionally mounting, where mounting would recompile materials.
 - Load assets with `useLoader` / `useGLTF` so they are cached scene-wide.
 - **Resetting state when a prop flips wants render-phase adjustment, not an effect.** `setState` inside `useEffect` trips `react-hooks/set-state-in-effect`. Compare the current value against a tracked previous one and set during render, updating the tracker in the same guarded block so the guard flips and the render converges — the pattern React documents for adjusting state when a prop changes. `src/ui/PackShop.tsx` does this to clear a stale selection when the shop reopens.
+- **A ref passed down as a prop must be bound to a local name ending in `Ref` before you write through it.** `react-hooks/immutability` rejects `someProp.current = x` with `` `someProp` cannot be modified `` — the rule's analysis treats everything reached through a prop as immutable, and cannot tell a forwarded ref from ordinary data. It exempts ref-*named* identifiers, so `const { flash: flashRef } = props` and writing `flashRef.current` satisfies it, while an `eslint-disable` would only hide the check. `src/scene/PieceExits.tsx` does exactly this, and says why in place: it stamps the Core's flash through a ref `GameScene` owns and `Core` reads. Sharing per-frame data between sibling components is the case that hits this, since state is not an option in a frame loop.
 
 ## Domain vocabulary
 
