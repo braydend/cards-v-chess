@@ -121,26 +121,47 @@ describe('the rank ladder', () => {
  * auto-rounds for 45+ rounds unattended. A ceiling on footprint is what keeps
  * placement a decision, so it is asserted rather than eyeballed.
  *
- * Measured on a literal 8x8 even though an Ace grows the board. Growth only
- * ever DILUTES a footprint's share — a `band` covers the same absolute squares
- * on a taller board, and no other geometry gains reach — so 8x8 is the tightest
- * case and passing it here means passing it everywhere.
+ * Board growth is NOT uniformly dilutive, and an earlier version of this test
+ * claimed otherwise — that claim was false and has been corrected (see the
+ * erratum on the frozen design spec). Files stay fixed at 8 for a run's whole
+ * life; only board ranks grow, one at a time, from an Ace. `vertical`,
+ * `cross`, `diagonal`, and `ring` are all bounded by Chebyshev distance along
+ * the rank axis as well as the file axis, so on the literal 8x8 starting
+ * board several of them are RANK-CLIPPED — a centrally-placed Tower's reach
+ * along the ranks runs into the top or bottom edge before its shape is done.
+ * The first Ace removes that clipping and each of those geometries jumps to
+ * its true, larger absolute size — permanently, since none of them shrink
+ * again — after which further growth only dilutes their now-fixed size as a
+ * SHARE of the board. `band` alone was never rank-clipped, because its reach
+ * along the file axis was always the full board width; it is the only
+ * geometry whose absolute footprint is flat from the start.
+ *
+ * So there is no single tightest board height: the ABSOLUTE ceiling is worst
+ * one Ace in (9 board ranks), and the SHARE ceiling is worst at the same
+ * point, for the same reason. This is measured directly across several
+ * heights below rather than assumed from one.
  */
 const FILES = 8
-const RANKS = 8
-const OTHER_SQUARES = FILES * RANKS - 1
 
-/** The most squares this rank can cover from any one square of an 8x8 board. */
-function peakCoverage(rank: (typeof BUILDABLE_RANKS)[number]): number {
+/**
+ * The heights actually swept: the starting board, one Ace in (the worst
+ * absolute case), and two much taller boards to confirm the plateau holds
+ * rather than merely appearing to at the first check past 8.
+ */
+const BOARD_HEIGHTS = [8, 9, 16, 24]
+
+/** The most squares this rank can cover from any one square of an 8-file
+ * board with the given number of board ranks. */
+function peakCoverage(rank: (typeof BUILDABLE_RANKS)[number], boardRanks: number): number {
   const def = towerRank(rank)
   let peak = 0
 
   for (let file = 0; file < FILES; file += 1) {
-    for (let boardRank = 0; boardRank < RANKS; boardRank += 1) {
+    for (let boardRank = 0; boardRank < boardRanks; boardRank += 1) {
       let covered = 0
 
       for (let targetFile = 0; targetFile < FILES; targetFile += 1) {
-        for (let targetRank = 0; targetRank < RANKS; targetRank += 1) {
+        for (let targetRank = 0; targetRank < boardRanks; targetRank += 1) {
           const hit = coversSquare(
             def.geometry,
             def.range,
@@ -160,34 +181,77 @@ function peakCoverage(rank: (typeof BUILDABLE_RANKS)[number]): number {
 
 describe('the coverage ceiling', () => {
   /**
-   * 39 of 63 squares — 61.9% — is the ring at rank 8 placed centrally, and it
-   * is the widest footprint on the ladder. Asserted as a SQUARE COUNT rather
-   * than a percentage so the threshold is exact rather than a rounded float.
+   * 47 squares is rank 8's ring, centrally placed, at 9 board ranks (one
+   * Ace) — the ladder's absolute peak. It is worse than the 39 the pre-Ace
+   * 8x8 board shows, because the ring is rank-clipped at 8x8 and only
+   * reaches its true size once there is room. Every rank-clipped geometry
+   * (vertical, cross, diagonal, ring) reaches its own plateau by 9 board
+   * ranks and none has been observed to exceed it at any greater height
+   * checked here. Asserted as a SQUARE COUNT rather than a percentage so the
+   * threshold is exact rather than a rounded float.
    */
-  const CEILING = 39
+  const ABSOLUTE_CEILING = 47
 
-  it('never lets any rank cover more than 39 of the other 63 squares', () => {
-    for (const rank of BUILDABLE_RANKS) {
-      expect(peakCoverage(rank)).toBeLessThanOrEqual(CEILING)
+  it('never lets any rank cover more than 47 squares, at any board height', () => {
+    for (const boardRanks of BOARD_HEIGHTS) {
+      for (const rank of BUILDABLE_RANKS) {
+        expect(peakCoverage(rank, boardRanks)).toBeLessThanOrEqual(ABSOLUTE_CEILING)
+      }
     }
   })
 
-  it('never lets any rank cover the whole board', () => {
-    // The specific failure #19 reported. Kept separate from the ceiling above
-    // because it is the property that matters even if the ceiling is retuned.
-    for (const rank of BUILDABLE_RANKS) {
-      expect(peakCoverage(rank)).toBeLessThan(OTHER_SQUARES)
+  it('never lets any rank cover the whole board, at any height', () => {
+    // The specific failure #19 reported, and the property that survives
+    // growth without qualification: the ceiling above is an absolute count
+    // that plateaus, but the board's own square count keeps growing past it,
+    // so "not the whole board" holds more comfortably the taller it gets.
+    for (const boardRanks of BOARD_HEIGHTS) {
+      const otherSquares = FILES * boardRanks - 1
+      for (const rank of BUILDABLE_RANKS) {
+        expect(peakCoverage(rank, boardRanks)).toBeLessThan(otherSquares)
+      }
     }
   })
 
-  it('gives the Wall no footprint at all', () => {
-    expect(peakCoverage(7)).toBe(0)
+  it('gives the Wall no footprint at all, at any height', () => {
+    for (const boardRanks of BOARD_HEIGHTS) {
+      expect(peakCoverage(7, boardRanks)).toBe(0)
+    }
   })
 
-  it('leaves every firing rank somewhere it is not', () => {
-    for (const rank of FIRING_RANKS) {
-      expect(peakCoverage(rank)).toBeGreaterThan(0)
-      expect(peakCoverage(rank)).toBeLessThan(OTHER_SQUARES)
+  it('leaves every firing rank somewhere it is not, at any height', () => {
+    for (const boardRanks of BOARD_HEIGHTS) {
+      const otherSquares = FILES * boardRanks - 1
+      for (const rank of FIRING_RANKS) {
+        expect(peakCoverage(rank, boardRanks)).toBeGreaterThan(0)
+        expect(peakCoverage(rank, boardRanks)).toBeLessThan(otherSquares)
+      }
+    }
+  })
+
+  it('makes the first Ace the worst share the board ever sees, diluting from there', () => {
+    // The ladder's worst-covered-SHARE moment, not just its worst absolute
+    // count: 47 of 71 squares (66.2%) at 9 board ranks beats the pre-Ace
+    // 8x8's 39 of 63 (61.9%), because the ring only reaches its full size
+    // once the first Ace removes its rank-clipping. Every height strictly
+    // past 9 has strictly more squares while the absolute ceiling does not
+    // grow, so the share falls every time after that — checked directly
+    // rather than trusted, because a share could rise again if some future
+    // geometry kept growing rank-for-rank with the board.
+    const shareAt = (boardRanks: number): number => {
+      const otherSquares = FILES * boardRanks - 1
+      const peak = Math.max(...BUILDABLE_RANKS.map((rank) => peakCoverage(rank, boardRanks)))
+      return peak / otherSquares
+    }
+
+    const worst = shareAt(9)
+
+    for (const boardRanks of BOARD_HEIGHTS) {
+      expect(shareAt(boardRanks)).toBeLessThanOrEqual(worst)
+    }
+
+    for (const boardRanks of BOARD_HEIGHTS.filter((height) => height > 9)) {
+      expect(shareAt(boardRanks)).toBeLessThan(worst)
     }
   })
 })

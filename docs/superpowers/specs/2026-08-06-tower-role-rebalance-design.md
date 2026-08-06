@@ -369,3 +369,55 @@ not only against 8x8.
 | `docs/design/game-design.md` | Replace the rank ladder table and its rationale. Update "Repair versus the wall" — the wall and the freezer both bear on it. Note that the rank-2 horizontal rejection now also explains rank 6, and that rank 10 is where horizontal earns its place. |
 | `CLAUDE.md` | Add Wall, Amplifier, Freezer, Toll gate to the vocabulary table. Update the "Current state" summary. |
 | `src/data/towerRanks.ts` | New table, and a comment explaining the coverage⇔DPS trade so a future balance pass does not undo it by raising one axis alone. |
+
+## Erratum (2026-08-06)
+
+This is a frozen decision record, so the claim below is left in place above and
+corrected here rather than edited in place.
+
+**The original claim.** "Known interactions" above states: "Board growth
+dilutes the band and nothing else. An Ace adds a rank, so the band's share of
+the board shrinks while ring and disc coverage is unaffected." "Verification"
+above sizes the ceiling test at 39 of 63 squares on a literal 8x8 board only,
+on the reasoning that 8x8 is the tightest case growth can produce.
+
+**Both are false.** `vertical`, `cross`, `diagonal`, and `ring` are all
+bounded by Chebyshev distance along the rank axis, so a centrally-placed
+Tower using one of them is RANK-CLIPPED on the 8x8 starting board — its reach
+runs into the top or bottom edge before its shape is complete. The first Ace
+(9 board ranks) removes that clipping, and each of those geometries jumps to
+its true, larger absolute size, permanently. `band` is the only geometry that
+was never rank-clipped, because its reach along the files was always the full
+board width — it alone matches the original claim.
+
+Measured peak coverage, files fixed at 8, board ranks swept 8/9/10/12/16/24
+(the 8x8 column matches the 39-of-63 figure "Verification" above already
+gives for rank 8; the columns after it are the correction):
+
+| Rank | Geometry | 8 ranks | 9 ranks | 10 | 12 | 16 | 24 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 3 | vertical | 7 | 8 | 9 | 10 | 10 | 10 |
+| 4 | cross | 14 | 15 | 15 | 15 | 15 | 15 |
+| 5 | diagonal | 13 | 14 | 14 | 14 | 14 | 14 |
+| 8 | ring | 39 | 47 | 47 | 47 | 47 | 47 |
+| 10 | band | 23 | 23 | 23 | 23 | 23 | 23 |
+
+(Ranks 2, 6, 7, 9 are unaffected by growth and are omitted; they hold flat at
+their 8x8 values from the original table.)
+
+Rank 8's ring is both the absolute ceiling (47 squares) and the worst SHARE
+the board ever shows (47 of 71, 66.2%, at 9 board ranks) — worse than the
+39-of-63 (61.9%) the pre-Ace board shows, because the ring only reaches its
+full size once the first Ace removes its clipping. Every height past 9 has
+strictly more squares while the absolute ceiling does not grow further, so
+the share falls from there.
+
+**The design intent survives.** No Tower ever blankets the board at any
+measured height — 47 stays well under the whole-board count at every size —
+so placement still matters at every point in a run; 66% at the worst point
+(one Ace in) is the number that intent has to be judged against, not the
+39-of-63 this document originally gave. `src/data/towerRanks.test.ts`'s
+`describe('the coverage ceiling', ...)` block now sweeps board heights
+8/9/16/24 rather than asserting against 8x8 alone, asserts an absolute
+ceiling of 47 and a "never the whole board" property at every height, and
+checks the 9-board-rank share is the worst the board ever sees.
