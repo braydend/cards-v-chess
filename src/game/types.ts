@@ -144,14 +144,21 @@ export interface Piece {
 /**
  * A Tower's firing geometry, set by the rank of the Card that built it.
  * Towers are generic — this is NOT chess-piece movement.
+ *
+ * `none` is a Tower that never fires. Rank 7 is the Wall: its whole identity
+ * is blocking and soaking, so it has no firing geometry at all rather than a
+ * geometry that happens to be empty.
  */
 export type TowerGeometry =
+  | 'none'
   | 'adjacent'
   | 'horizontal'
   | 'vertical'
   | 'cross'
   | 'diagonal'
   | 'star'
+  | 'ring'
+  | 'band'
 
 /**
  * Ranks that build a Tower. 2–10 carry the geometry ladder.

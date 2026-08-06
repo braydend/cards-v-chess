@@ -22,4 +22,7 @@ export const GEOMETRY_LABELS: Record<TowerGeometry, string> = {
   cross: 'Fires along rank and file',
   diagonal: 'Fires along diagonals — one colour only',
   star: 'Fires along rank, file and diagonals',
+  none: 'Never fires — it blocks and soaks',
+  ring: 'Hits at a distance, blind at its feet',
+  band: 'Fires across the full width of the board',
 }
