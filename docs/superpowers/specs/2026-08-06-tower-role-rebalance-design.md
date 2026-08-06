@@ -84,7 +84,7 @@ becomes true rather than aspirational.
 | **6** | star r3 | 25% / 38% | 3.3 | 3.3 | 4 and 5 together — the composition payoff |
 | **7** | none | — | 0 | 0 | **Wall** — no gun, blocks and soaks |
 | **8** | ring r4 | 38% / 62% | 1.4 | 4.3 | **Amplifier** — marks what it covers |
-| **9** | adjacent r2 | 27% / 38% | 1.5 | 4.6 | **Freezer** — slows what it covers |
+| **9** | adjacent r2 | 27% / 38% | 1.3 | 4.0 | **Freezer** — slows what it covers |
 | **10** | band ±1 | 33% / 37% | 1.3 | **all** | **Toll gate** — full width, nothing passes un-shot |
 
 Four properties this encodes, each answering one of the four symptoms:
@@ -197,14 +197,25 @@ rank  geometry   range  dmg  interval  targets  maxHealth
  4    cross        4     2     550        1         18
  5    diagonal     5     2     550        1         22
  6    star         3     2     600        1         26
- 7    none         0     0      —         0         45     <- wall
+ 7    none         0     0    1000        0         45     <- wall
  8    ring         4     1     700        3         30     <- amplifier
- 9    adjacent     2     1     650        3         34     <- freezer
+ 9    adjacent     2     1     750        3         34     <- freezer
 10    band         1     1     800        ∞         38     <- toll gate
 
 AMPLIFIER_MULTIPLIER = 2.0    damage from other Towers, inside the ring
 FREEZE_MULTIPLIER    = 1.5    move interval, mirroring KING_SPEED_MULTIPLIER = 0.7
 ```
+
+Single-target DPS across the firing ranks is therefore 7.50, 4.00, 3.64, 3.64,
+3.33, 1.43, 1.33, 1.25 — **non-increasing**, with ranks 4 and 5 deliberately
+tied. Rank 9 sits at 750ms rather than 650ms specifically to preserve that: at
+650ms it would out-damage rank 8, and the whole point of the ladder is that
+damage never rises as coverage does.
+
+The wall's `fireIntervalMs` of 1000 is inert — `geometry: 'none'` means it never
+has a target and `fireTowers` skips it outright — but it is deliberately
+positive rather than 0, so that no future change to the firing loop's
+`while (cooldown >= tower.fireIntervalMs)` condition can spin on it.
 
 **The wall's 45 health is deliberately shy** — roughly 1.7 times rank 6, not
 three times. A blocked Pawn deals `2 × 0.5 = 1` damage per 900ms and a Queen
