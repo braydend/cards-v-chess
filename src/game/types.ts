@@ -6,6 +6,8 @@
  * mutating, which is what keeps the simulation deterministic and testable.
  */
 
+import type { Rng } from './rng'
+
 export interface Square {
   readonly file: number
   readonly rank: number
@@ -237,8 +239,41 @@ export interface GameState {
    */
   readonly ink: number
   readonly pendingSpawns: readonly Spawn[]
-  /** Monotonic counter so entity ids are deterministic, never random. */
+  /**
+   * Monotonic counter so entity ids are deterministic, never random.
+   *
+   * Its **parity is load-bearing**: `tick.ts` reads it for a spawned Piece's
+   * `handedness`. Do not spend it on anything that is not a Piece or a Tower —
+   * Cards have `nextCardId` for this reason.
+   */
   readonly nextEntityId: number
+  /**
+   * This run's seed. Runs are reproducible and shareable: same seed, same pack
+   * contents, same opening deal.
+   *
+   * Supplied from outside the engine — `Math.random` is banned in this
+   * directory, which is exactly why the engine cannot mint its own.
+   */
+  readonly seed: string
+  /**
+   * The run's PRNG streams, each derived from `seed` and independent of the
+   * others. Packs are the only consumer today; a second random consumer takes a
+   * new named stream rather than sharing this one, so adding it cannot shift
+   * what an existing seed deals. See `src/game/rng.ts`.
+   */
+  readonly rng: {
+    readonly packs: Rng
+  }
+  /**
+   * Monotonic counter for Card ids.
+   *
+   * Deliberately NOT `nextEntityId`. That counter's **parity is load-bearing** —
+   * `tick.ts` derives a spawned Piece's `handedness` from it, so consecutively
+   * spawned Pieces weave opposite ways. Dealing a 10-card pack from it would
+   * shift the parity and silently reverse Piece movement for the rest of the
+   * run. Cards therefore count on their own.
+   */
+  readonly nextCardId: number
   /**
    * Every Card held for this run, always fully visible and playable. Capped at
    * `DECK_CAP`. There is no hand and no draw pile — playing consumes a card and
