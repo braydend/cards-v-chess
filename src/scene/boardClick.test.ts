@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { Card, CardRank, Square, Suit, Tower } from '../game'
+import type { BuildableRank, Card, CardRank, Square, Suit, Tower } from '../game'
 import { resolveBoardAction, resolveBoardClick, type BoardClickContext } from './boardClick'
 
-function towerAt(id: string, square: Square): Tower {
+function towerAt(id: string, square: Square, cardRank: BuildableRank = 3): Tower {
   return {
     id,
     square,
-    cardRank: 3,
+    cardRank,
     fireCooldownMs: 0,
     health: 12,
     maxHealth: 12,
@@ -17,8 +17,10 @@ function towerAt(id: string, square: Square): Tower {
   }
 }
 
+// Two different ranks on purpose: support now depends on which Tower was
+// clicked, not just on whether one was.
 const A = towerAt('tower-1', { file: 2, rank: 2 })
-const B = towerAt('tower-2', { file: 5, rank: 6 })
+const B = towerAt('tower-2', { file: 5, rank: 6 }, 7)
 
 describe('resolveBoardClick', () => {
   it('builds on an empty square', () => {
@@ -107,7 +109,7 @@ describe('resolveBoardAction: a Card whose play targets a Tower beats inspecting
   it('supports the Tower rather than opening its panel', () => {
     expect(
       resolveBoardAction(
-        click({ square: A.square, card: card(7, 'hearts'), playMode: 'support' }),
+        click({ square: A.square, card: card(3, 'hearts'), playMode: 'support' }),
       ),
     ).toEqual({
       kind: 'play',
@@ -121,7 +123,7 @@ describe('resolveBoardAction: a Card whose play targets a Tower beats inspecting
         click({
           square: A.square,
           selectedTowerId: A.id,
-          card: card(7, 'hearts'),
+          card: card(3, 'hearts'),
           playMode: 'support',
         }),
       ),
@@ -197,6 +199,40 @@ describe('resolveBoardAction: a Card that cannot act on the click does not consu
     expect(
       resolveBoardAction(click({ square: A.square, card: JOKER, playMode: 'support' })),
     ).toEqual({ kind: 'select', towerId: A.id })
+  })
+
+  it('opens the panel when a support Card cannot reach the clicked Tower', () => {
+    // A 7♥ has nothing to do with a rank-3 Tower. Without this the click is
+    // swallowed: `commandFor` still produces a supportTower command, the engine
+    // refuses it, and the player gets no play and no panel either.
+    expect(
+      resolveBoardAction(
+        click({ square: A.square, card: card(7, 'hearts'), playMode: 'support' }),
+      ),
+    ).toEqual({ kind: 'select', towerId: A.id })
+  })
+
+  it('supports the Tower the same Card does match', () => {
+    // The same 7♥, one Tower over. B is rank 7.
+    expect(
+      resolveBoardAction(
+        click({ square: B.square, card: card(7, 'hearts'), playMode: 'support' }),
+      ),
+    ).toEqual({
+      kind: 'play',
+      command: { kind: 'supportTower', cardId: 'card-1', towerId: B.id },
+    })
+  })
+
+  it('supports from a face card, which reaches any Tower', () => {
+    expect(
+      resolveBoardAction(
+        click({ square: A.square, card: card('K', 'spades'), playMode: 'support' }),
+      ),
+    ).toEqual({
+      kind: 'play',
+      command: { kind: 'supportTower', cardId: 'card-1', towerId: A.id },
+    })
   })
 })
 

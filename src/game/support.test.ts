@@ -1,17 +1,34 @@
 import { describe, expect, it } from 'vitest'
-import { MIN_FIRE_INTERVAL_MS, supportMagnitude } from '../data/cards'
-import { TOWER_RANKS } from '../data/towerRanks'
+import {
+  CLUB_DAMAGE,
+  DIAMOND_SPEED_MS,
+  FACE_SUPPORT_PREMIUM,
+  MIN_FIRE_INTERVAL_MS,
+  SPADE_HEALTH,
+} from '../data/cards'
+import { BUILDABLE_RANKS, TOWER_RANKS } from '../data/towerRanks'
 import { firstTower, firstTowerId, liveRound, pawnAt, standardCard, withDeck, withTower } from './fixtures'
 import { step, tick } from './index'
-import type { GameState } from './types'
+import type { BuildableRank, CardRank, GameState, Suit } from './types'
 
 const DT = 1000 / 60
 
 const SQUARE = { file: 2, rank: 2 }
 
-/** A rank-5 Tower plus the one support Card under test. */
-function withSupport(cardId: string, rank: 2 | 5 | 'K', suit: 'hearts' | 'diamonds' | 'spades' | 'clubs') {
-  const built = withTower(5, SQUARE)
+/**
+ * A Tower plus the one support Card under test.
+ *
+ * `towerCardRank` defaults to 5 because most of this suite is about what a
+ * support does rather than where it may land; the tests for the rank-match rule
+ * pass it explicitly.
+ */
+function withSupport(
+  cardId: string,
+  rank: CardRank,
+  suit: Suit,
+  towerCardRank: BuildableRank = 5,
+) {
+  const built = withTower(towerCardRank, SQUARE)
   return withDeck([standardCard(cardId, rank, suit)], built)
 }
 
@@ -37,22 +54,23 @@ describe('♥ Repair', () => {
     expect(play(state, 'h').towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth)
   })
 
-  it('restores the same amount whatever the rank — a 2♥ repairs as fully as a K♥', () => {
+  it('restores the same amount from a matched Card or a face card alike', () => {
     // ♥ is the one support that does NOT scale with rank. That is deliberate:
-    // it is what stops ♠ (heal + ceiling, rank-scaled) from strictly
-    // dominating ♥, and it makes a low ♥ the efficient repair while a high one
-    // is better spent building.
-    const healed = (rank: 2 | 'K') =>
+    // it is what stops ♠ (heal + ceiling) from strictly dominating ♥, and it
+    // makes the cheap ♥ the efficient repair while a high one is better spent
+    // building. The comparison is now matched-vs-face rather than low-vs-high,
+    // because a 2♥ can no longer reach a rank-5 Tower at all.
+    const healed = (rank: 5 | 'K') =>
       firstTower(play(hurtTo(1)(withSupport('h', rank, 'hearts')), 'h')).health
 
-    expect(healed(2)).toBe(TOWER_RANKS[5].maxHealth)
-    expect(healed('K')).toBe(healed(2))
+    expect(healed(5)).toBe(TOWER_RANKS[5].maxHealth)
+    expect(healed('K')).toBe(healed(5))
   })
 
   it('fills a ceiling a ♠ has raised, which is what keeps the two suits distinct', () => {
     const built = withTower(5, SQUARE)
     const withCards = withDeck(
-      [standardCard('s', 'A', 'spades'), standardCard('h', 2, 'hearts')],
+      [standardCard('s', 'A', 'spades'), standardCard('h', 5, 'hearts')],
       built,
     )
     const towerId = firstTowerId(withCards)
@@ -61,7 +79,9 @@ describe('♥ Repair', () => {
     const damaged = hurtTo(3)(raised)
     const repaired = firstTower(step(damaged, { kind: 'supportTower', cardId: 'h', towerId }))
 
-    expect(repaired.health).toBe(TOWER_RANKS[5].maxHealth + supportMagnitude('A'))
+    expect(repaired.health).toBe(
+      TOWER_RANKS[5].maxHealth + SPADE_HEALTH * FACE_SUPPORT_PREMIUM,
+    )
     expect(repaired.health).toBe(repaired.maxHealth)
   })
 })
@@ -71,6 +91,22 @@ describe('♦ Speed', () => {
     const state = withSupport('d', 5, 'diamonds')
 
     expect(play(state, 'd').towers[0]?.fireIntervalMs).toBeLessThan(TOWER_RANKS[5].fireIntervalMs)
+  })
+
+  it('shortens the interval by exactly the flat value', () => {
+    const state = withSupport('d', 5, 'diamonds')
+
+    expect(firstTower(play(state, 'd')).fireIntervalMs).toBe(
+      TOWER_RANKS[5].fireIntervalMs - DIAMOND_SPEED_MS,
+    )
+  })
+
+  it('pays a face card the premium, on any Tower', () => {
+    const state = withSupport('d', 'A', 'diamonds')
+
+    expect(firstTower(play(state, 'd')).fireIntervalMs).toBe(
+      TOWER_RANKS[5].fireIntervalMs - DIAMOND_SPEED_MS * FACE_SUPPORT_PREMIUM,
+    )
   })
 
   it('never drops below the floor, however many are stacked', () => {
@@ -95,17 +131,23 @@ describe('♦ Speed', () => {
     const built = withTower(5, SQUARE)
     const towerId = firstTowerId(built)
 
-    // Two Aces played for ♦ shrink the 500ms rank interval by 280ms (2 * 14
-    // magnitude * 10ms), to 220ms — comfortably under half, so two shots fit
-    // inside one rank-interval-sized window.
+    // Three Aces played for ♦ shrink the 500ms rank interval by 270ms
+    // (3 × 60ms × the 1.5 face premium), to 230ms — under half, so two shots
+    // fit inside one rank-interval-sized window.
     const withCards = withDeck(
-      [standardCard('d0', 'A', 'diamonds'), standardCard('d1', 'A', 'diamonds')],
+      [
+        standardCard('d0', 'A', 'diamonds'),
+        standardCard('d1', 'A', 'diamonds'),
+        standardCard('d2', 'A', 'diamonds'),
+      ],
       built,
     )
-    const supportedOnce = step(withCards, { kind: 'supportTower', cardId: 'd0', towerId })
-    const boosted = step(supportedOnce, { kind: 'supportTower', cardId: 'd1', towerId })
+    const boosted = ['d0', 'd1', 'd2'].reduce(
+      (state, cardId) => step(state, { kind: 'supportTower', cardId, towerId }),
+      withCards,
+    )
 
-    expect(boosted.towers[0]?.fireIntervalMs).toBeLessThan(TOWER_RANKS[5].fireIntervalMs / 2)
+    expect(firstTower(boosted).fireIntervalMs).toBeLessThan(TOWER_RANKS[5].fireIntervalMs / 2)
 
     // Two Pieces, each one-shot by the rank's own damage (3 vs. 3 health),
     // sitting on opposite diagonals so both are covered.
@@ -128,20 +170,16 @@ describe('♦ Speed', () => {
 })
 
 describe('♠ Health', () => {
-  it('raises maxHealth', () => {
+  it('raises maxHealth by the flat value', () => {
     const state = withSupport('s', 5, 'spades')
 
-    expect(play(state, 's').towers[0]?.maxHealth).toBe(TOWER_RANKS[5].maxHealth + supportMagnitude(5))
+    expect(firstTower(play(state, 's')).maxHealth).toBe(TOWER_RANKS[5].maxHealth + SPADE_HEALTH)
   })
 
-  it('heals by the same magnitude, so a damaged Tower keeps the headroom it had', () => {
-    const state = withSupport('s', 5, 'spades')
-    const hurt: GameState = {
-      ...state,
-      towers: state.towers.map((tower) => ({ ...tower, health: 4 })),
-    }
+  it('heals by the same amount, so a damaged Tower keeps the headroom it had', () => {
+    const state = hurtTo(4)(withSupport('s', 5, 'spades'))
 
-    expect(play(hurt, 's').towers[0]?.health).toBe(4 + supportMagnitude(5))
+    expect(firstTower(play(state, 's')).health).toBe(4 + SPADE_HEALTH)
   })
 
   it('leaves a full-health Tower at full health — issue #14, where the Tower rendered as damaged', () => {
@@ -152,19 +190,50 @@ describe('♠ Health', () => {
 
     expect(tower.health).toBe(tower.maxHealth)
   })
+
+  it('gives a rank-2 Tower exactly what it gives a rank-10 — rank no longer scales a buff', () => {
+    // The whole point of flat values: a 2♠ on a rank-2 Tower is worth the same
+    // upgrade as a 10♠ on a rank-10 Tower, so a Tower's power grows at a
+    // predictable rate however it was built.
+    const gain = (rank: 2 | 10) =>
+      firstTower(play(withSupport('s', rank, 'spades', rank), 's')).maxHealth -
+      TOWER_RANKS[rank].maxHealth
+
+    expect(gain(2)).toBe(SPADE_HEALTH)
+    expect(gain(10)).toBe(SPADE_HEALTH)
+  })
+
+  it('pays a face card the premium, on any Tower', () => {
+    const state = withSupport('s', 'A', 'spades')
+
+    expect(firstTower(play(state, 's')).maxHealth).toBe(
+      TOWER_RANKS[5].maxHealth + SPADE_HEALTH * FACE_SUPPORT_PREMIUM,
+    )
+  })
 })
 
 describe('♣ Damage', () => {
-  it('raises damage', () => {
+  it('raises damage by the flat value', () => {
     const state = withSupport('c', 5, 'clubs')
 
-    expect(play(state, 'c').towers[0]?.damage).toBeGreaterThan(TOWER_RANKS[5].damage)
+    expect(firstTower(play(state, 'c')).damage).toBe(TOWER_RANKS[5].damage + CLUB_DAMAGE)
   })
 
-  it('always adds at least one, even from the lowest rank', () => {
-    const state = withSupport('c', 2, 'clubs')
+  it('gives a rank-2 Tower exactly what it gives a rank-10', () => {
+    const gain = (rank: 2 | 10) =>
+      firstTower(play(withSupport('c', rank, 'clubs', rank), 'c')).damage -
+      TOWER_RANKS[rank].damage
 
-    expect(play(state, 'c').towers[0]?.damage).toBeGreaterThanOrEqual(TOWER_RANKS[5].damage + 1)
+    expect(gain(2)).toBe(CLUB_DAMAGE)
+    expect(gain(10)).toBe(CLUB_DAMAGE)
+  })
+
+  it('pays a face card the premium', () => {
+    const state = withSupport('c', 'K', 'clubs')
+
+    expect(firstTower(play(state, 'c')).damage).toBe(
+      TOWER_RANKS[5].damage + CLUB_DAMAGE * FACE_SUPPORT_PREMIUM,
+    )
   })
 })
 
@@ -200,4 +269,39 @@ describe('supportTower: refusals', () => {
 
     expect(play(state, 'k').towers[0]?.damage).toBeGreaterThan(TOWER_RANKS[5].damage)
   })
+})
+
+describe('canSupport: a numbered Card supports only a Tower of its own rank', () => {
+  // Typed as the real rank types rather than `number`, so no cast is needed at
+  // the call — `withSupport` takes a CardRank and a BuildableRank.
+  it.each<[CardRank, BuildableRank]>([
+    [7, 5],
+    [2, 10],
+  ])('refuses a %s played onto a rank-%s Tower, and keeps the Card', (cardRank, towerCardRank) => {
+    const state = hurtTo(1)(withSupport('h', cardRank, 'hearts', towerCardRank))
+    const after = step(state, { kind: 'supportTower', cardId: 'h', towerId: firstTowerId(state) })
+
+    // Identity, not equality: a refused play must return the very same state
+    // object, and must not consume the Card.
+    expect(after).toBe(state)
+    expect(after.deck).toHaveLength(1)
+  })
+
+  it.each(BUILDABLE_RANKS)('lets a %s support a Tower of that same rank', (rank) => {
+    const state = hurtTo(1)(withSupport('h', rank, 'hearts', rank))
+
+    expect(firstTower(play(state, 'h')).health).toBe(TOWER_RANKS[rank].maxHealth)
+  })
+
+  it.each(['J', 'Q', 'K', 'A'] as const)(
+    'exempts %s, which supports a Tower of any rank',
+    (rank) => {
+      // A Tower's cardRank is always 2–10, so strict equality would make every
+      // face card unplayable for its suit. The exemption is what keeps a face
+      // card worth weighing for its suit as well as for its action.
+      const state = hurtTo(1)(withSupport('h', rank, 'hearts', 10))
+
+      expect(firstTower(play(state, 'h')).health).toBe(TOWER_RANKS[10].maxHealth)
+    },
+  )
 })

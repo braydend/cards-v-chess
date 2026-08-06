@@ -25,7 +25,7 @@ What exists:
 - **Tower legibility.** A Tower darkens as it loses health, flashes on a hit, pulses at critical health, and flares as it dies; clicking one opens an inspect panel with the exact figures, including lifetime `damageTaken`.
 - The renderer (`src/scene/`), with distinct per-type rendering for each Piece, and the HUD, the Deck UI and the Tower panel (`src/ui/`).
 - **CI.** `lint`, `typecheck`, `test:coverage` with per-directory thresholds, and `build` — see "CI" below.
-- 419 tests across 27 files, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
+- 448 tests across 27 files, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
 
 What does **not** exist yet:
 
@@ -95,6 +95,8 @@ Design facts with hard implementation consequences. Breaking one of these is a b
 - **`Math.random` must never appear in `src/game/`.** Runs are seeded and the simulation must stay reproducible. Randomness comes from a seeded PRNG carried in `GameState`. **Enforced by ESLint** — a violation fails `pnpm lint`, and therefore CI.
 - **Ink income must be event-driven** — round completion and kills — **never time-based.** The gap between rounds is untimed, so time-based income is unbounded: the player would just wait.
 - **Playing a card consumes it.** There is no drawing, no shuffling, no discard pile, and no hand. The whole Deck is always visible and playable.
+- **A numbered Card supports only a Tower of its own rank; face cards support any Tower.** Suit and rank are not independent at play time. `canSupport` in `src/game/support.ts` is the single answer, and it is enforced twice on purpose: `supportTower` refuses the play, and `resolveBoardAction` declines the click so the Tower inspect panel gets it instead. `commandFor` deliberately does **not** check — it does not validate, and it only receives a `towerId`, never a Tower.
+- **A support's value never depends on a rank.** Not the Card's, not the Tower's. Every ♠ adds the same health wherever it lands; the only variation is a flat premium for a face card. Anything reintroducing rank-scaled magnitude is a regression, not a balance choice. Supports are, however, **uncapped** — bounding a stack is open work, not a settled rule.
 - **A Card's identity is its `id`, never its rank and suit.** The Deck is a multiset — cards come from random packs, so duplicates are normal, and the authored starting Deck already holds a triple. Three identical 5♦ are three distinct Cards, and playing one must leave the other two. Any lookup or removal keyed on rank+suit is a bug the moment a duplicate exists; go through `findCard` / `removeCard` in `src/game/cards.ts`.
 - **The board grows.** An Ace adds a rank, so never derive a spawn rank or a board extent from a module constant — read it from `state.board`. A static `SPAWN_RANK` in `src/data/board.ts` had to be deleted for exactly this reason. Reading the extent from state is necessary but **not sufficient**: growth also has to survive *reaching* the renderer, which is how the Ace wedge happened — `Board.tsx` read `state.board` correctly and still broke, because a buffer sized on the first render never grew with it. The fixed shadow frustum in `src/scene/GameScene.tsx` is the same assumption still unfixed, cosmetically.
 - **Towers block movement, and blocked Pieces attack them at half damage.** A Piece whose next square holds a Tower does not advance. The same rule constrains placement in the other direction: `canBuildOn` in `src/game/placement.ts` refuses a build on a square a Piece currently occupies, because a Piece standing on a Tower's square is one that walked through what should have stopped it. The renderer calls the same predicate to mark an illegal square before the click, so the marker and the refusal cannot disagree. This does not make the two exclusive in general — a Piece can still spawn onto an existing Tower's square, since `drainDueSpawns` in `src/game/tick.ts` does not consult `state.towers` (issue #22, open) — it only guarantees the player can never build the overlap into existence.
@@ -201,7 +203,7 @@ Use these terms exactly and consistently — in code, comments, and UI copy.
 | **Rank** | 2–10, J, Q, K, A. 2–10 build a Tower; J, Q, K, A act instead |
 | **Suit** | ♥ ♦ ♠ ♣. Determines the support action a Card can apply |
 | **Tower** | A Card played for its rank — placed, active, and destructible |
-| **Support** | A Card played for its suit, applied to an existing Tower. The four suit actions only — a face card's action is never Support |
+| **Support** | A Card played for its suit, applied to an existing Tower **of the same rank** — face cards excepted, which support any Tower. The four suit actions only; a face card's action is never Support |
 | **Shield** | Absorbing capacity on a Tower, granted by a **Jack**. Absorbed before health, never regenerates |
 | **Echo** | The **Queen**'s action: a copy of an existing Tower's rank, built on an empty square |
 | **Reinforce** | The **King**'s action: +1 to Core current and maximum health |
