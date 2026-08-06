@@ -1,7 +1,7 @@
 import { BLOCKED_ATTACK_MULTIPLIER, pieceType } from '../data/pieceTypes'
 import { towerRank, type TowerRankDef } from '../data/towerRanks'
 import { KING_SPEED_MULTIPLIER, applyHealing, buffedPieceIds, slideBonusFor } from './auras'
-import { squareKey } from './board'
+import { squareKey, stagingRank } from './board'
 import { coversSquare } from './coverage'
 import { roundIncome, totalKillReward } from './ink'
 import { isStuck, nextMove } from './movement'
@@ -288,9 +288,13 @@ function drainDueSpawns(
   for (const spawn of state.pendingSpawns) {
     if (spawn.atMs > roundElapsedMs) continue
 
-    // Read from state, not a constant: an Ace grows the board and Pieces must
-    // then enter from the new far rank.
-    const square: Square = { file: spawn.file, rank: state.board.ranks - 1 }
+    // The Staging rank, NOT the far rank. It is out of bounds, so no Tower can
+    // ever stand there — which is what stops a Piece being placed on top of
+    // one. The Piece steps onto the far rank on its own move interval, and a
+    // Tower in the way is then handled by the ordinary blocking rule rather
+    // than by a spawn-time special case. Read from state, not a constant: an
+    // Ace grows the board and the Staging rank moves up with it.
+    const square: Square = { file: spawn.file, rank: stagingRank(state.board) }
     spawned.push({
       id: `piece-${nextEntityId}`,
       typeId: spawn.typeId,

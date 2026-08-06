@@ -5,7 +5,7 @@
  * internal detail — tests should exercise behaviour through `step`, `tick`, and
  * state inspection rather than reaching into modules directly.
  */
-export { allSquares, isInBounds, squareKey, squaresEqual } from './board'
+export { allSquares, isInBounds, squareKey, squaresEqual, stagingRank } from './board'
 export { findCard, isBuildableRank, removeCard } from './cards'
 export { commandFor, type PlayMode, type PlayTarget } from './commandFor'
 export { coversSquare } from './coverage'

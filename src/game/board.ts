@@ -25,3 +25,19 @@ export function allSquares(board: BoardSpec): Square[] {
   }
   return squares
 }
+
+/**
+ * The off-board rank Pieces spawn onto, one past the board's last rank.
+ *
+ * **Never a board square**, and that is the whole point: `isInBounds` is false
+ * here, so `canBuildOn` refuses it without needing a clause of its own and a
+ * Tower can never stand where a Piece appears. Entry to the board is then an
+ * ordinary hop, which the existing rule already covers — a Piece whose next
+ * square holds a Tower grinds it rather than advancing.
+ *
+ * Derived from `board` rather than a constant, like every other board extent:
+ * an Ace grows the board and the Staging rank moves up with it.
+ */
+export function stagingRank(board: BoardSpec): number {
+  return board.ranks
+}

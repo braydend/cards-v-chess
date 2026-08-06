@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { ACE_BOARD_RANKS, JACK_SHIELD, KING_CORE_HEALTH } from '../data/cards'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { firstTowerId, jokerCard, liveRound, pawnAt, pieceAt, standardCard, withDeck, withTower } from './fixtures'
-import { step, tick } from './index'
+import { stagingRank, step, tick } from './index'
 import { clearReward, roundIncome, totalKillReward } from './ink'
 import type { GameState, Piece } from './types'
 
@@ -263,7 +263,7 @@ describe('Ace — Expand', () => {
     expect(step(state, { kind: 'expandBoard', cardId: 'five' })).toBe(state)
   })
 
-  it('spawns Pieces from the new far rank, not the old one', () => {
+  it('spawns Pieces from the new Staging rank, not the old one', () => {
     const grown = step(withAce(), { kind: 'expandBoard', cardId: 'a' })
     const started = step(grown, { kind: 'startRound' })
 
@@ -271,7 +271,7 @@ describe('Ace — Expand', () => {
     const spawned = after.pieces[0]
 
     expect(spawned).toBeDefined()
-    expect(spawned?.square.rank).toBe(grown.board.ranks - 1)
+    expect(spawned?.square.rank).toBe(stagingRank(grown.board))
   })
 })
 
