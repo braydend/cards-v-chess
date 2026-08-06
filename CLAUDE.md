@@ -24,13 +24,13 @@ What exists:
 - **Tower legibility.** A Tower darkens as it loses health, flashes on a hit, pulses at critical health, and flares as it dies; clicking one opens an inspect panel with the exact figures, including lifetime `damageTaken`.
 - The renderer (`src/scene/`), with distinct per-type rendering for each Piece, and the HUD, the Deck UI and the Tower panel (`src/ui/`).
 - **CI.** `lint`, `typecheck`, `test:coverage` with per-directory thresholds, and `build` — see "CI" below.
-- 292 tests across 19 files, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
+- 392 tests across 25 files, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
 
 What does **not** exist yet:
 
 - **Ink and packs.** No currency, no pack opening, no cull flow, and no seeded PRNG. The Deck is a fixed authored list in `src/data/deck.ts` — see the file's own comment before touching it.
 
-Towers fire and can kill Pieces outright, so a round does not resolve by leaking out — it ends when nothing on the board can still act, whether that means every Piece destroyed, stranded, or through the Core.
+Towers fire and can kill Pieces outright, so a round does not resolve by leaking out — it ends when nothing on the board can still act, whether that means every Piece destroyed or through the Core. No Piece type can end a round genuinely stranded any more: every type has a designed way off `stuck`.
 
 The design still runs ahead of the code on the economy, so read `docs/design/game-design.md` for the intended design rather than inferring it from what is built. The largest unbuilt piece is Ink and packs, with the cull flow and the PRNG.
 

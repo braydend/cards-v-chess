@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { BISHOP_HEAL_INTERVAL_MS, KING_SPEED_MULTIPLIER } from './auras'
+import { withTower } from './fixtures'
 import { createInitialState, step, tick } from './index'
 import type { GameState, Handedness, Piece, PieceTypeId, Square, Tower } from './types'
 
@@ -237,13 +238,8 @@ describe('tick: hunting Knight latch', () => {
     // branch — exactly the path that used to leave `hunting` unpersisted on
     // the surviving Piece, because `movePieces`' attackTower branch never
     // touched it.
-    const placed = step(createInitialState(), {
-      kind: 'placeTower',
-      square: { file: 4, rank: 2 },
-      cardRank: 2,
-    })
     const state: GameState = {
-      ...placed,
+      ...withTower(2, { file: 4, rank: 2 }),
       phase: 'inProgress',
       pendingSpawns: [],
       pieces: [pieceAt('n', 'knight', { file: 5, rank: 0 })],
@@ -462,6 +458,9 @@ describe('tick: the Bishop healing aura', () => {
       health: rank2.maxHealth,
       maxHealth: rank2.maxHealth,
       damageTaken: 0,
+      damage: rank2.damage,
+      fireIntervalMs: rank2.fireIntervalMs,
+      shield: 0,
     }
 
     const state: GameState = {

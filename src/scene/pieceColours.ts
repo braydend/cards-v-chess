@@ -1,6 +1,6 @@
 import type { PieceTypeId } from '../game'
 
-export const CHESS_COLOUR = '#c0392b'
+export const CHESS_COLOUR = '#7b241c'
 
 /**
  * One colour per Piece type. The Bishop and King are priority targets — the
@@ -33,5 +33,5 @@ export const PIECE_COLOURS: Record<PieceTypeId, string> = {
   bishop: '#f1948a',
   rook: CHESS_COLOUR,
   queen: '#a93226',
-  king: '#e67e22',
+  king: '#af601a',
 }
