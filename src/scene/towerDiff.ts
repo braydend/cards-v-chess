@@ -21,15 +21,20 @@ export interface Ghost {
  * written by the frame loop, and routing it through React would be the
  * per-frame render CLAUDE.md forbids.
  *
- * It carries the Tower's square and card rank as well as its health, because a
- * destroyed Tower leaves `GameState` entirely — this record is the only place
- * the renderer still knows where it was.
+ * It carries the Tower's square and card rank, because a destroyed Tower
+ * leaves `GameState` entirely — this record is the only place the renderer
+ * still knows where it was.
  */
 export interface TowerAnimation {
   cardRank: BuildableRank
   file: number
   boardRank: number
-  lastHealth: number
+  /**
+   * `damageTaken` as of the last diff, not `health` — a shield absorbs a hit
+   * before it ever reaches health, so a shield-soaked hit changes this without
+   * changing health. `damageTaken` only ever rises, so any increase is a hit.
+   */
+  lastDamageTaken: number
   /** Set by the snapshot diff; the next frame stamps it with a clock time. */
   flashPending: boolean
   /** Clock seconds when the current flash began; -1 when idle. */
@@ -62,15 +67,15 @@ export function diffTowers(
         cardRank: tower.cardRank,
         file: tower.square.file,
         boardRank: tower.square.rank,
-        lastHealth: tower.health,
+        lastDamageTaken: tower.damageTaken,
         flashPending: false,
         flashStartedAt: -1,
       })
       continue
     }
 
-    if (tower.health < existing.lastHealth) existing.flashPending = true
-    existing.lastHealth = tower.health
+    if (tower.damageTaken > existing.lastDamageTaken) existing.flashPending = true
+    existing.lastDamageTaken = tower.damageTaken
   }
 
   const fallen: Ghost[] = []

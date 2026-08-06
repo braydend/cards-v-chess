@@ -34,7 +34,7 @@ describe('diffTowers', () => {
       cardRank: t.cardRank,
       file: t.square.file,
       boardRank: t.square.rank,
-      lastHealth: t.health,
+      lastDamageTaken: t.damageTaken,
       flashPending: false,
       flashStartedAt: -1,
     })
@@ -42,9 +42,15 @@ describe('diffTowers', () => {
 
   it('flags flashPending when health drops between snapshots', () => {
     const animations = new Map<string, TowerAnimation>()
-    diffTowers(animations, snapshotWith({ towers: [tower({ health: 10, maxHealth: 10 })] }))
+    diffTowers(
+      animations,
+      snapshotWith({ towers: [tower({ health: 10, maxHealth: 10, damageTaken: 0 })] }),
+    )
 
-    diffTowers(animations, snapshotWith({ towers: [tower({ health: 7, maxHealth: 10 })] }))
+    diffTowers(
+      animations,
+      snapshotWith({ towers: [tower({ health: 7, maxHealth: 10, damageTaken: 3 })] }),
+    )
 
     expect(animations.get('tower-1')?.flashPending).toBe(true)
   })
@@ -58,25 +64,56 @@ describe('diffTowers', () => {
     expect(animations.get('tower-1')?.flashPending).toBe(false)
   })
 
-  it('updates lastHealth after a diff, so a health drop only flashes once', () => {
+  it('flags flashPending when damageTaken rises but health holds steady (a shield absorbed the hit)', () => {
     const animations = new Map<string, TowerAnimation>()
-    diffTowers(animations, snapshotWith({ towers: [tower({ health: 10, maxHealth: 10 })] }))
+    diffTowers(
+      animations,
+      snapshotWith({
+        towers: [tower({ health: 10, maxHealth: 10, shield: 10, damageTaken: 0 })],
+      }),
+    )
 
-    // The drop: flashPending is set, and lastHealth must track it — an
-    // implementation that forgot `existing.lastHealth = tower.health` would
-    // still pass this far, since flashPending is set from `existing.lastHealth`
-    // before it would have been (wrongly) left at its old value.
-    diffTowers(animations, snapshotWith({ towers: [tower({ health: 7, maxHealth: 10 })] }))
+    // The shield ate the whole hit: health is unchanged, but damageTaken still
+    // climbs, because a shield absorbing a hit is still weathering it.
+    diffTowers(
+      animations,
+      snapshotWith({
+        towers: [tower({ health: 10, maxHealth: 10, shield: 5, damageTaken: 5 })],
+      }),
+    )
+
+    expect(animations.get('tower-1')?.flashPending).toBe(true)
+  })
+
+  it('updates lastDamageTaken after a diff, so a hit only flashes once', () => {
+    const animations = new Map<string, TowerAnimation>()
+    diffTowers(
+      animations,
+      snapshotWith({ towers: [tower({ health: 10, maxHealth: 10, damageTaken: 0 })] }),
+    )
+
+    // The hit: flashPending is set, and lastDamageTaken must track it — an
+    // implementation that forgot `existing.lastDamageTaken = tower.damageTaken`
+    // would still pass this far, since flashPending is set from
+    // `existing.lastDamageTaken` before it would have been (wrongly) left at
+    // its old value.
+    diffTowers(
+      animations,
+      snapshotWith({ towers: [tower({ health: 7, maxHealth: 10, damageTaken: 3 })] }),
+    )
 
     // Consume the flash, as the frame loop does once it stamps flashStartedAt.
     const record = animations.get('tower-1')
     if (record) record.flashPending = false
 
-    // Same health as last time: this only stays flash-free if lastHealth was
-    // actually updated to 7 above. If it were still 10, 7 < 10 would set
-    // flashPending again here, and the Tower would flash on every subsequent
-    // diff forever after its first hit.
-    diffTowers(animations, snapshotWith({ towers: [tower({ health: 7, maxHealth: 10 })] }))
+    // Same damageTaken as last time: this only stays flash-free if
+    // lastDamageTaken was actually updated to 3 above. If it were still 0,
+    // 3 > 0 would set flashPending again here, and the Tower would flash on
+    // every subsequent diff forever after its first hit.
+    diffTowers(
+      animations,
+      snapshotWith({ towers: [tower({ health: 7, maxHealth: 10, damageTaken: 3 })] }),
+    )
 
     expect(animations.get('tower-1')?.flashPending).toBe(false)
   })
