@@ -9,6 +9,7 @@ import { SQUARE_SIZE, fileToWorldX, rankToWorldZ, worldXToFile, worldZToRank } f
 import { CoveragePreview } from './CoveragePreview'
 import { FirePulses } from './FirePulses'
 import { SelectionMarker } from './SelectionMarker'
+import { StagingRank } from './StagingRank'
 
 const LIGHT_SQUARE = '#e6e0cf'
 const DARK_SQUARE = '#3c4655'
@@ -54,6 +55,8 @@ export function Board({ board }: { board: BoardSpec }) {
           />
         ))}
       </Instances>
+
+      <StagingRank board={board} />
 
       <CoveragePreview board={board} />
       <SelectionMarker board={board} />
