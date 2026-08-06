@@ -283,6 +283,19 @@ export interface GameState {
    */
   readonly recentExits: readonly ExitRecord[]
   /**
+   * How many Joker Clears have resolved this run. Monotonic.
+   *
+   * The renderer's signal to flash the whole board rather than burst every
+   * Piece it just saw vanish, and it cannot be inferred from an empty `pieces`
+   * array — killing the last Piece on the board also empties it, and that one
+   * SHOULD burst.
+   *
+   * A counter rather than a flag deliberately: `advance` runs up to five ticks
+   * per emit, so anything written and cleared per tick can be lost, while a
+   * monotonic count read per frame cannot.
+   */
+  readonly clears: number
+  /**
    * The run currency.
    *
    * Earned three ways: destroying a Piece with Tower fire, completing a round,

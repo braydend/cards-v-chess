@@ -27,6 +27,25 @@ describe('structuralKey', () => {
 
     expect(structuralKey(earned)).not.toBe(structuralKey(base))
   })
+
+  it('ignores recentExits and clears, which add no publish of their own', () => {
+    // Every real exit already changes this key some other way: a leak moves
+    // `leaks` and `core.health`, a kill and a promotion move the pieces string,
+    // and a Clear empties it and removes the consumed Joker from the deck ids.
+    // Keying these two as well would add a per-leak string for no new publish —
+    // and `simulation.test.ts`'s bound of 60 publishes per 600 frames depends on
+    // this design adding none.
+    const base = createInitialState()
+    const recorded: GameState = {
+      ...base,
+      recentExits: [
+        { pieceId: 'leaker', typeId: 'pawn', reason: 'leak', from: { file: 3, rank: 1 } },
+      ],
+      clears: base.clears + 1,
+    }
+
+    expect(structuralKey(recorded)).toBe(structuralKey(base))
+  })
 })
 
 describe('the Deck', () => {
