@@ -134,12 +134,16 @@ describe('dealPack', () => {
       const aces = (cards: ReturnType<typeof dealMany>) =>
         cards.filter((card) => card.kind === 'standard' && card.rank === 'A').length
 
-      // Same weight in both, so neither should run away from the other. A loose
-      // band: this pins the intent, not the sample.
+      // Court boosts the scarce tier only, so its larger denominator makes Aces
+      // slightly RARER than in a Base — expected ratio ≈0.75. A 1.5x ceiling
+      // passes that comfortably while failing the bug this guards: boosting
+      // `rarest` 3x would put the ratio near 2.2. Ace scarcity is the only
+      // restraint on board growth, so this needs to be a real guard rather than
+      // a smoke test.
       const court = aces(dealMany('court', 300))
       const base = aces(dealMany('base', 300))
 
-      expect(court).toBeLessThan(base * 2 + 10)
+      expect(court).toBeLessThan(base * 1.5)
     })
   })
 })
