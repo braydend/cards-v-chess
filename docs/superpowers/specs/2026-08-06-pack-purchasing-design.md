@@ -106,8 +106,14 @@ On success, in one step: spend the Ink, remove the culled cards through the
 existing `removeCard`, deal `size(pack)` cards from the `packs` PRNG stream,
 append them, and advance the stream.
 
-New card ids come from `nextEntityId`, the counter Pieces and Towers already
-share, so ids are unique for the whole run and `reset()` rewinds them for free.
+New card ids come from `nextCardId`, a counter of their own.
+
+**Amended during implementation.** This spec originally sourced them from
+`nextEntityId`, the counter Pieces and Towers share. That is wrong:
+`src/game/tick.ts` derives a spawned Piece's `handedness` from that counter's
+parity, so spending ten of it on an opening pack would have flipped the movement
+direction of every Piece for the rest of the run — a silent gameplay change
+dressed as an id detail. `nextEntityId`'s doc comment now says so.
 
 ### 3. Culling is exactly what the cap demands — never more
 
