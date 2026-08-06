@@ -65,7 +65,12 @@ export function amplifierIdsByPiece(
  * buffing itself and `applyHealing`'s `other.id === piece.id` check, so all
  * three auras in the codebase agree on what "other" means.
  *
- * Auras do not stack: two Amplifiers are one Amplifier.
+ * A Piece's amplification is not multiplied by how many Amplifiers cover it —
+ * two Amplifiers give exactly the same 2x as one, never 4x. But an Amplifier
+ * is excluded only from its OWN aura, not from another Amplifier's: two
+ * Amplifiers covering the same Piece each amplify the *other's* shot, so the
+ * pair deals 2 each rather than 1. That is correct, not a stacking bug — it
+ * mirrors `auras.ts`'s King, which buffs a different King standing beside it.
  */
 export function amplificationFor(
   towerId: string,

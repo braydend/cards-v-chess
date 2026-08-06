@@ -275,6 +275,37 @@ describe('accumulatePulses', () => {
     expect(channel(out, 3, 4)).toBe(0)
   })
 
+  it('lights across the full board width for the rank-10 band, not just file ± range', () => {
+    // Finding 1 (whole-branch review): rank 10's range (1) bounds ranks only —
+    // `coversSquare('band', ...)` covers every file. The old scan window
+    // clipped to `file ± range` regardless of geometry, so a shot from file 3
+    // lit only files 2-4 and never reached file 7. This pins file 7 — five
+    // files past the old window's far edge — lighting once the wave carrying
+    // Chebyshev distance 4 (3 to 7) has arrived.
+    const out = new Float32Array(board.files * board.ranks * 3)
+    const pulse = pulseAt(10, 3, 3)
+    const arrival = 4 / PULSE_SQUARES_PER_SECOND
+
+    accumulatePulses(out, board, [pulse], arrival)
+
+    expect(channel(out, 7, 3)).toBeGreaterThan(0)
+    // File 0 is Chebyshev distance 3 from the origin — already arrived too.
+    expect(channel(out, 0, 3)).toBeGreaterThan(0)
+  })
+
+  it('still bounds the band by rank even though its files are unbounded', () => {
+    // `band` covers `rankDistance <= range`, never the whole board in ranks.
+    // A very late sample would catch a scan window that forgot the rank bound
+    // just as easily as an early one would miss a fix to the file bound.
+    const out = new Float32Array(board.files * board.ranks * 3)
+    const pulse = pulseAt(10, 3, 3)
+
+    accumulatePulses(out, board, [pulse], 10)
+
+    // Rank distance 2 from the origin's rank 3, past rank 10's range of 1.
+    expect(channel(out, 3, 5)).toBe(0)
+  })
+
   it('sums two pulses covering the same square', () => {
     const out = new Float32Array(board.files * board.ranks * 3)
     const below = pulseAt(4, 3, 3)
@@ -327,14 +358,45 @@ describe('isPulseLive', () => {
     // Rank 4, range 4: sweep 182ms, plus 160ms of fade, so 342ms of life.
     const pulse = pulseAt(4)
 
-    expect(isPulseLive(pulse, 0.1)).toBe(true)
-    expect(isPulseLive(pulse, 0.3)).toBe(true)
-    expect(isPulseLive(pulse, 0.35)).toBe(false)
+    expect(isPulseLive(pulse, 0.1, board)).toBe(true)
+    expect(isPulseLive(pulse, 0.3, board)).toBe(true)
+    expect(isPulseLive(pulse, 0.35, board)).toBe(false)
   })
 
   it('gives a short-range Tower a shorter life than a long-range one', () => {
     // Rank 2 reaches 1 square (205ms of life); rank 8 reaches 4 (342ms).
-    expect(isPulseLive(pulseAt(2), 0.25)).toBe(false)
-    expect(isPulseLive(pulseAt(8), 0.25)).toBe(true)
+    expect(isPulseLive(pulseAt(2), 0.25, board)).toBe(false)
+    expect(isPulseLive(pulseAt(8), 0.25, board)).toBe(true)
+  })
+
+  it('outlives a bounded-by-range life for the rank-10 band, which reaches the far edge', () => {
+    // Finding 1 (whole-branch review): `band` covers the full board width, not
+    // `range` squares either side. Rank 10 is range 1: the old, wrong formula
+    // (`range / PULSE_SQUARES_PER_SECOND + FADE_SECONDS`) declares this pulse
+    // dead at 1/22 + 0.16 = 0.2045s. From file 3 on an 8-file board the
+    // farthest covered file is 7, at Chebyshev distance 4 — the ring does not
+    // even arrive there (4/22 = 0.1818s) until after that wrong deadline, let
+    // alone finish fading (4/22 + 0.16 = 0.3418s). This pin fails against the
+    // old range-only formula and passes once the file reach is measured from
+    // the board's own width.
+    const pulse = pulseAt(10, 3, 3)
+
+    expect(isPulseLive(pulse, 0.3, board)).toBe(true)
+    expect(isPulseLive(pulse, 0.34, board)).toBe(true)
+    expect(isPulseLive(pulse, 0.35, board)).toBe(false)
+  })
+
+  it('reaches farther the closer the origin sits to a board edge', () => {
+    // From file 0, the farthest file is 7 — Chebyshev distance 7, not 4 as
+    // from file 3 above. A fixed reach (whatever board.files - 1 happened to
+    // be at the last board size) would get this wrong the moment the origin
+    // moves; measuring per-origin does not.
+    const centred = pulseAt(10, 3, 3)
+    const edged = pulseAt(10, 0, 3)
+
+    // Long past centred's life (distance 4: dead by 0.3418s) but still within
+    // edged's (distance 7: 7/22 + 0.16 = 0.4818s).
+    expect(isPulseLive(centred, 0.4, board)).toBe(false)
+    expect(isPulseLive(edged, 0.4, board)).toBe(true)
   })
 })
