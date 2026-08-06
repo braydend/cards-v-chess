@@ -685,11 +685,13 @@ describe('tick: exit records', () => {
   })
 
   it('records nothing when a Tower kills a Piece, since a kill is the absence of a record', () => {
-    // Rank 7 deals 4 to a Pawn's 3 health, so one shot at 450ms kills it well
+    // Rank 2 deals 3 to a Pawn's 3 health, so one shot at 400ms kills it well
     // inside the Pawn's 900ms hop — no movement, no leak, nothing recorded.
-    const armed = withTower(7, { file: 0, rank: 4 })
+    // Rank 2 is 'adjacent' with range 1, and the victim sits at Chebyshev
+    // distance 1 from the Tower, so it is covered from the first tick.
+    const armed = withTower(2, { file: 0, rank: 4 })
     const state = liveRound(armed, [pawnAt('victim', { file: 0, rank: 5 })])
-    const after = runFor(state, TOWER_RANKS[7].fireIntervalMs + DT)
+    const after = runFor(state, TOWER_RANKS[2].fireIntervalMs + DT)
 
     expect(after.pieces).toHaveLength(0)
     expect(after.recentExits).toEqual([])

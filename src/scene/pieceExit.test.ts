@@ -63,13 +63,15 @@ describe('diffPieceExits', () => {
   })
 
   it('reports a Tower kill in place, at the Piece last published square', () => {
-    // Rank 7 deals 4 to a Pawn's 3 health, so the shot at 450ms kills it inside
+    // Rank 2 deals 3 to a Pawn's 3 health, so the shot at 400ms kills it inside
     // the Pawn's 900ms hop — the Piece never moves, so "last published" and
-    // "where the player last saw it" are the same square here.
-    const before = liveRound(withTower(7, { file: 0, rank: 4 }), [
+    // "where the player last saw it" are the same square here. Rank 2 is
+    // 'adjacent' with range 1, and the victim sits at Chebyshev distance 1
+    // from the Tower, so it is covered throughout.
+    const before = liveRound(withTower(2, { file: 0, rank: 4 }), [
       pawnAt('victim', { file: 0, rank: 5 }),
     ])
-    const after = runFor(before, TOWER_RANKS[7].fireIntervalMs + DT)
+    const after = runFor(before, TOWER_RANKS[2].fireIntervalMs + DT)
     const diff = diffPieceExits(seededOn(before), after)
 
     expect(diff.ghosts).toEqual([
@@ -89,20 +91,18 @@ describe('diffPieceExits', () => {
     // told apart exactly, not guessed at by re-running movement. Drives both
     // in the same window so a single diff has to carry both reasons at once.
     //
-    // Rank 7 fires every 450ms for 4 damage, one-shotting a 3-health Pawn
+    // Rank 2 fires every 400ms for 3 damage, one-shotting a 3-health Pawn
     // well inside the Pawn's 900ms hop — the victim never moves before it
     // dies, so "last published" and "where it stood" agree (see the
     // single-kill test above). The leaker sits one hop from the Core at
-    // {3, 0} and reaches it on its first hop, at 900ms.
+    // {3, 1} and reaches it on its first hop, at 900ms.
     //
-    // The Tower sits at file 7, not file 0 as in the single-kill test above:
-    // rank 7's "adjacent" geometry covers a Chebyshev range of 3, and a Tower
-    // at {0, 4} is exactly distance 3 from the leaker's {3, 1} — close enough
-    // to make the Tower target the leaker instead (it is nearer the Core,
-    // and this rank only fires one shot), killing it before it ever reaches
-    // the Core. Moving the Tower to file 7 puts it distance 4 from the
-    // leaker — out of range — while staying distance 1 from its own victim.
-    const before = liveRound(withTower(7, { file: 7, rank: 4 }), [
+    // Rank 2 is 'adjacent' with range 1, so only a Chebyshev distance of
+    // exactly 1 is covered. The Tower sits at {7, 4}: distance 1 from its own
+    // victim at {7, 5}, but distance 4 from the leaker at {3, 1} — well out
+    // of range, so the Tower can never touch the leaker and the leaker's exit
+    // is a genuine leak, not a kill.
+    const before = liveRound(withTower(2, { file: 7, rank: 4 }), [
       pawnAt('leaker', { file: 3, rank: 1 }),
       pawnAt('victim', { file: 7, rank: 5 }),
     ])
