@@ -164,6 +164,31 @@ export const GHOST_LIFETIME_MS: Record<PieceGhost['reason'], number> = {
 }
 
 /**
+ * Slack added on top of `GHOST_LIFETIME_MS` when scheduling a ghost's expiry
+ * timer, in `PieceExits.tsx`.
+ *
+ * The timer is started the moment the store publish arrives. But a ghost's
+ * own animation clock — `GhostMesh`'s `startedAt` — is not stamped until the
+ * FIRST `useFrame` tick after the mesh mounts, which can land up to a whole
+ * frame later than the publish that scheduled the timer. Without slack, the
+ * wall-clock timer can fire before `ghostScale` has finished collapsing to 0,
+ * so the mesh unmounts mid-shrink instead of vanishing at scale 0 — exactly
+ * the "piece just disappears" complaint issue #12 exists to fix.
+ *
+ * Sized to outlast a full frame at a low refresh rate — 30fps, ~33ms, the
+ * rate the visible-truncation numbers above were measured at — rather than
+ * only at 60fps (~17ms), plus a small margin for the commit between the
+ * publish and the mesh actually mounting. The cost of overshooting is cheap
+ * (a spent ghost sits at scale 0, one idle mesh, for a few extra
+ * milliseconds); the cost of undershooting is the visible pop this exists to
+ * fix. Applied at the scheduling site rather than folded into
+ * `GHOST_LIFETIME_MS` itself, because that constant describes the
+ * animation's own length — a different fact from how long the mesh should
+ * stay mounted.
+ */
+export const GHOST_EXPIRY_SLACK_MS = 40
+
+/**
  * How far along its lunge a leak ghost is, 0..1.
  *
  * Squared, so it accelerates into the Core. A leak is a strike, not another hop

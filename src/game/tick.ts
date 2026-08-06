@@ -77,7 +77,7 @@ export function tick(state: GameState, dtMs: number): GameState {
   // Minted after movePieces has decided which Pawns reached the back rank, and
   // numbered starting after drainDueSpawns's own ids, so a Pawn and a spawn in
   // the same tick can never collide over the same id.
-  const promotedQueens: Piece[] = moved.promoted.map((square, index) => ({
+  const promotedQueens: Piece[] = moved.promotedFrom.map((square, index) => ({
     id: `piece-${nextEntityId + index}`,
     typeId: 'queen',
     square,
@@ -96,7 +96,7 @@ export function tick(state: GameState, dtMs: number): GameState {
     // Renderer-facing only. This is the one place it is ever true.
     promoted: true,
   }))
-  const entityIdAfterPromotion = nextEntityId + moved.promoted.length
+  const entityIdAfterPromotion = nextEntityId + moved.promotedFrom.length
 
   // Damage from blocked Pieces lands before Towers shoot, so a Tower destroyed
   // this tick does not get a parting shot.
@@ -370,12 +370,12 @@ function movePieces(
   pieces: Piece[]
   leaked: number
   towerDamage: Map<string, number>
-  promoted: Square[]
+  promotedFrom: Square[]
   exits: ExitRecord[]
 } {
   const survivors: Piece[] = []
   const towerDamage = new Map<string, number>()
-  const promoted: Square[] = []
+  const promotedFrom: Square[] = []
   const exits: ExitRecord[] = []
   let leaked = 0
 
@@ -432,7 +432,7 @@ function movePieces(
       }
 
       if (outcome.kind === 'promote') {
-        promoted.push(square)
+        promotedFrom.push(square)
         isPromoted = true
         exits.push({
           pieceId: piece.id,
@@ -486,7 +486,7 @@ function movePieces(
     })
   }
 
-  return { pieces: survivors, leaked, towerDamage, promoted, exits }
+  return { pieces: survivors, leaked, towerDamage, promotedFrom, exits }
 }
 
 /**

@@ -8,6 +8,7 @@ import type { CoreFlash } from './coreFlash'
 import { PIECE_COLOURS } from './pieceColours'
 import { GEOMETRY_BY_TYPE, PIECE_TYPE_IDS, REST_Y_BY_TYPE } from './pieceGeometry'
 import {
+  GHOST_EXPIRY_SLACK_MS,
   GHOST_LIFETIME_MS,
   createExitTracker,
   diffPieceExits,
@@ -21,10 +22,13 @@ import {
  * A Piece's exit, held on screen briefly after it leaves `GameState` — a leak
  * lunging into the Core, a Tower kill bursting where it stood.
  *
- * Every decision lives in `pieceExit.ts` and is unit-tested; this is plumbing.
- * Separate from `Pieces.tsx` on purpose: these have a different lifetime, a
- * different source (the store subscription, not `getState()`), and their own
- * React state and timers.
+ * Almost every decision lives in `pieceExit.ts` and is unit-tested; this is
+ * mostly plumbing. Three small decisions live here instead, each documented
+ * where it happens: the once-only `stamped` latch on the Core flash below,
+ * the expiry-timer scheduling a few lines down, and the clear-and-cancel
+ * response to `runReset`. Separate from `Pieces.tsx` on purpose: these have a
+ * different lifetime, a different source (the store subscription, not
+ * `getState()`), and their own React state and timers.
  *
  * Promotions are absent by design. A promoted Pawn is silenced by its exit
  * record, and the arriving Queen pops in `Pieces.tsx`, on the mesh that already
@@ -107,10 +111,14 @@ export function PieceExits({
       // that survives the spread above untouched, so identity can never match a
       // Piece id that a later `reset()` happens to reuse.
       for (const ghost of fresh) {
+        // + GHOST_EXPIRY_SLACK_MS: this timer starts now, on the publish, but
+        // the ghost's own animation clock does not start until its first
+        // `useFrame` tick — up to a frame later. See the constant's doc
+        // comment in pieceExit.ts.
         const timer = setTimeout(() => {
           timers.delete(timer)
           setGhosts((current) => current.filter((candidate) => candidate !== ghost))
-        }, GHOST_LIFETIME_MS[ghost.reason])
+        }, GHOST_LIFETIME_MS[ghost.reason] + GHOST_EXPIRY_SLACK_MS)
         timers.add(timer)
       }
     })

@@ -4,6 +4,8 @@ import { TOWER_RANKS } from '../data/towerRanks'
 import { createInitialState, step, tick, type GameState } from '../game'
 import { jokerCard, liveRound, pawnAt, withDeck, withTower } from '../game/fixtures'
 import {
+  GHOST_EXPIRY_SLACK_MS,
+  GHOST_LIFETIME_MS,
   KILL_BURST_MS,
   LEAK_BURST_MS,
   LEAK_LUNGE_MS,
@@ -80,6 +82,57 @@ describe('diffPieceExits', () => {
         boardRank: 5,
       },
     ])
+  })
+
+  it('tells apart a leak and a Tower kill that land in the same publish', () => {
+    // The headline claim of the whole design: a leak and a Tower kill are
+    // told apart exactly, not guessed at by re-running movement. Drives both
+    // in the same window so a single diff has to carry both reasons at once.
+    //
+    // Rank 7 fires every 450ms for 4 damage, one-shotting a 3-health Pawn
+    // well inside the Pawn's 900ms hop — the victim never moves before it
+    // dies, so "last published" and "where it stood" agree (see the
+    // single-kill test above). The leaker sits one hop from the Core at
+    // {3, 0} and reaches it on its first hop, at 900ms.
+    //
+    // The Tower sits at file 7, not file 0 as in the single-kill test above:
+    // rank 7's "adjacent" geometry covers a Chebyshev range of 3, and a Tower
+    // at {0, 4} is exactly distance 3 from the leaker's {3, 1} — close enough
+    // to make the Tower target the leaker instead (it is nearer the Core,
+    // and this rank only fires one shot), killing it before it ever reaches
+    // the Core. Moving the Tower to file 7 puts it distance 4 from the
+    // leaker — out of range — while staying distance 1 from its own victim.
+    const before = liveRound(withTower(7, { file: 7, rank: 4 }), [
+      pawnAt('leaker', { file: 3, rank: 1 }),
+      pawnAt('victim', { file: 7, rank: 5 }),
+    ])
+    const after = runFor(before, PIECE_TYPES.pawn.moveIntervalMs + DT)
+    const diff = diffPieceExits(seededOn(before), after)
+
+    // Sanity check the arrangement actually emptied the board as intended,
+    // rather than the assertions below passing on an accidental subset.
+    expect(after.pieces).toEqual([])
+    expect(diff.ghosts).toHaveLength(2)
+    expect(diff.ghosts).toEqual(
+      expect.arrayContaining([
+        {
+          id: 'leaker',
+          meshKey: 'ghost:leaker',
+          typeId: 'pawn',
+          reason: 'leak',
+          file: 3,
+          boardRank: 1,
+        },
+        {
+          id: 'victim',
+          meshKey: 'ghost:victim',
+          typeId: 'pawn',
+          reason: 'kill',
+          file: 7,
+          boardRank: 5,
+        },
+      ]),
+    )
   })
 
   it('reports nothing for a promoted Pawn, which was transformed rather than killed', () => {
@@ -176,5 +229,27 @@ describe('ghost timing', () => {
   it('lands exactly at the end of the lunge, so the Core flash is not early', () => {
     expect(hasLanded(LEAK_LUNGE_MS - 1)).toBe(false)
     expect(hasLanded(LEAK_LUNGE_MS)).toBe(true)
+  })
+})
+
+describe('ghost expiry slack', () => {
+  it('covers a full frame at a low refresh rate, not only at 60fps', () => {
+    // The expiry timer starts on the store publish; the animation's own clock
+    // does not start until the ghost's first `useFrame` tick, which can land
+    // up to a full frame later. 30fps is the low end this file's own numbers
+    // are measured against (see PieceExits.tsx's caller and the review this
+    // fixes), so the slack has to clear a whole frame there, not just at 60fps
+    // (~17ms) where the bug this guards against is far less visible.
+    const lowRefreshRateFrameMs = 1000 / 30
+
+    expect(GHOST_EXPIRY_SLACK_MS).toBeGreaterThan(lowRefreshRateFrameMs)
+  })
+
+  it('schedules a longer mount than the animation itself, for every ghost reason', () => {
+    for (const reason of Object.keys(GHOST_LIFETIME_MS) as (keyof typeof GHOST_LIFETIME_MS)[]) {
+      const scheduledMountMs = GHOST_LIFETIME_MS[reason] + GHOST_EXPIRY_SLACK_MS
+
+      expect(scheduledMountMs).toBeGreaterThan(GHOST_LIFETIME_MS[reason])
+    }
   })
 })
