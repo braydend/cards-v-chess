@@ -21,7 +21,9 @@ The player defends the **Core**. A Piece that reaches it causes a **leak** and d
 
 The board starts **8×8** and **gains a rank every time an Ace is played**, so its size is not fixed for a run and it is no longer a literal chessboard. Only ranks grow, never files.
 
-The Core stays on rank 0 and Pieces enter from whatever the far rank currently is, so growth lengthens the run to the Core and buys Towers more shots. That is the Ace's whole effect.
+The Core stays on rank 0 and Pieces enter from the **Staging rank** — one rank past the far rank, off the board — stepping onto the far rank on their own move interval. Growth lengthens the run to the Core and buys Towers more shots. That is the Ace's whole effect. An Ace played while Pieces are still waiting on the Staging rank admits them: the rank they occupy becomes the new far rank, which is new space no Tower can have been built on.
+
+**The Staging rank is not a board square.** No Tower can stand there, because placement refuses anything off the board — and that is precisely what stops a Piece appearing on top of a Tower. Entry to the board is an ordinary hop, so a Tower on the entry square blocks it and the Piece grinds from the Staging rank exactly as it would anywhere else. In every other respect a Piece there is an ordinary Piece: Towers whose coverage reaches it may shoot it, a Joker's Clear destroys it, and auras reach it. The wait is the point — it is a beat of warning about what is coming and on which file.
 
 Growing the board retires the *thematic* claim to a true chessboard, deliberately. Nothing mechanical is lost: **square colour is `(file + rank)` parity**, so the checker pattern survives a rectangular board intact. Nothing keys off colour today — the Knight is damageable on every square — so the pattern is preserved for chess-authenticity alone; see "Board geometry" in the open questions.
 
@@ -117,7 +119,7 @@ Each touches a different layer — a Tower's durability, the number of Towers, t
 
 **Reinforce is the only card that touches the Core, and the only Core recovery there is** — nothing else ever adds to it. A leak costs exactly 1 Core health, so a King buys exactly one extra leak. Whether that competes with playing the same King for its suit is a live balance question, not a settled one.
 
-**Clear leaves Towers and pending spawns alone.** Towers are permanent and only ever destroyed by Pieces, and a round still spawning continues rather than ending early. Being suitless, Clear is a Joker's only play — and it is the one card that can always break a grind.
+**Clear leaves Towers and pending spawns alone.** Towers are permanent and only ever destroyed by Pieces, and a round still spawning continues rather than ending early. Being suitless, Clear is a Joker's only play — and it is the one card that can always break a grind, **including a grind on the far rank by Pieces still standing on the Staging rank**. Sparing those would disarm the safety valve exactly when it is needed most.
 
 Two hazards arrive with packs, because copies are unlimited by design. **Both are
 now reachable** — packs are built and the Deck is no longer a fixed authored
@@ -242,7 +244,7 @@ Chess pieces move in **discrete hops** on a per-piece cadence, not by sliding co
 
 **Pieces move by real chess rules, not by walking toward the Core.** They have no pathfinding and no goal-seeking: each type moves as its chess counterpart would, and whether that happens to bring it near the Core is a property of the board, not of its intent.
 
-Every Piece is **forward-biased and deterministic**: it travels down-board, rank 7 toward rank 0, as a pure function of its type and its own carried state (`moveCount`, `handedness`) — never a PRNG, and never a line chosen because the Core happens to sit on it.
+Every Piece is **forward-biased and deterministic**: it travels down-board, from the Staging rank toward rank 0, as a pure function of its type and its own carried state (`moveCount`, `handedness`) — never a PRNG, and never a line chosen because the Core happens to sit on it.
 
 This has large consequences that are accepted deliberately:
 
@@ -343,7 +345,7 @@ Every Piece therefore contributes anti-Tower pressure, so repair reliably has a 
 
 **A Tower's own geometry decides whether it can defend itself.** A vertical, cross, adjacent, or star Tower covers the square a Piece attacks it from, so it shoots back. A **diagonal** Tower does not — a Piece attacking from directly along its file sits in a blind spot, and rank 5 is the only diagonal on the ladder. That asymmetry is emergent from real geometry, not assigned. Repair has since arrived, which makes it the live case: see "Repair versus the wall" in the open questions.
 
-**A Tower cannot be built on a square a Piece occupies.** Blocking only means something if the two never share a square, and a build is the one route onto the board the movement rule does not already guard. This closes it from the placement side only — a Piece can still spawn onto a square a Tower already occupies, which is the same overlap from the opposite direction and is tracked separately (issue #22, open).
+**A Tower and a Piece never share a square, and both routes onto that state are closed.** A Tower cannot be built on a square a Piece occupies: blocking only means something if the two never overlap, and a build is one route the movement rule does not already guard. The other route was spawning, and it is closed differently — Pieces spawn onto the **Staging rank**, off the board, where no Tower can stand, and enter by moving. Neither route needs a special case at the point of collision, because after both fixes there is no collision to arbitrate.
 
 ### No walls, no mazing
 
