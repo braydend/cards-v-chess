@@ -1,5 +1,5 @@
 import { PACKS, type PackType } from '../data/packs'
-import { canAfford, cullCountFor, type Suit } from '../game'
+import { canAfford, cullCountFor, type Card, type RoundPhase, type Suit } from '../game'
 
 /**
  * What the pack shop's commit button says and whether it can be pressed.
@@ -22,11 +22,24 @@ export interface CommitState {
 export function commitState(args: {
   readonly deckSize: number
   readonly ink: number
+  readonly phase: RoundPhase
   readonly pack: PackType | null
   readonly suit: Suit | null
   readonly markedIds: readonly string[]
 }): CommitState {
-  const { deckSize, ink, pack, suit, markedIds } = args
+  const { deckSize, ink, phase, pack, suit, markedIds } = args
+
+  // Phase first, ahead of even the no-pack check. Auto-start can begin a round
+  // while the shop is open, and `buyPack` refuses off-gap — so without this the
+  // button stays enabled and clicking it does nothing, silently. Mirrors the
+  // engine's own ordering, where the phase check comes before everything else.
+  if (phase !== 'gap') {
+    return {
+      enabled: false,
+      label: 'Open pack',
+      reason: 'A round is in progress — packs are bought between rounds.',
+    }
+  }
 
   if (!pack) return { enabled: false, label: 'Open pack', reason: 'Pick a pack.' }
 
@@ -68,4 +81,19 @@ export function commitState(args: {
   }
 
   return { enabled: true, label, reason: null }
+}
+
+/**
+ * The Cards a purchase added.
+ *
+ * Found by diffing ids against a snapshot taken before the purchase, which is
+ * why `GameState` needs no `lastPackCardIds` field. Card ids come from a
+ * monotonic counter, so a dealt card can never carry an id that was just
+ * culled.
+ */
+export function newCards(
+  beforeIds: ReadonlySet<string>,
+  afterDeck: readonly Card[],
+): readonly Card[] {
+  return afterDeck.filter((card) => !beforeIds.has(card.id))
 }

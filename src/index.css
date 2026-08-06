@@ -579,15 +579,22 @@ canvas {
 }
 
 /* Marked for destruction. Red because it is destructive and irreversible once
-   the purchase commits. */
-.deck__card--doomed {
+   the purchase commits.
+
+   Two classes plus `:hover` to match `.deck__card:not(.deck__card--active):hover`
+   above, which would otherwise outrank a single-class rule and wash the marked
+   colour out under the pointer. Equal specificity, later in the file, so these
+   win on source order. */
+.deck__card.deck__card--doomed,
+.deck__card.deck__card--doomed:hover {
   border-color: #e06c75;
   background: #38222a;
   color: #e06c75;
 }
 
 /* Just pulled. Teal, the same value selection uses elsewhere. */
-.deck__card--new {
+.deck__card.deck__card--new,
+.deck__card.deck__card--new:hover {
   border-color: #4fd1c5;
   background: #1d3a38;
   color: #4fd1c5;

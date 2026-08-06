@@ -1,13 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { SUITS } from '../data/cards'
 import { PACK_TYPES, PACKS, type PackType } from '../data/packs'
-import { cullCountFor, type Card, type Suit } from '../game'
+import { canAfford, cullCountFor, type Card, type Suit } from '../game'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
-import { CardFace } from './CardFace'
-import { commitState } from './packPurchase'
-
-const SUIT_GLYPH = { hearts: '♥', diamonds: '♦', spades: '♠', clubs: '♣' } as const
+import { CardFace, SUIT_GLYPH } from './CardFace'
+import { commitState, newCards } from './packPurchase'
 
 /**
  * The pack shop: pick a pack, cull to the cap, open it.
@@ -29,10 +27,14 @@ export function PackShop() {
 
   const deck = useGameStore((store) => store.snapshot.deck)
   const ink = useGameStore((store) => store.snapshot.ink)
+  const phase = useGameStore((store) => store.snapshot.phase)
 
   const [pack, setPack] = useState<PackType | null>(null)
   const [suit, setSuit] = useState<Suit | null>(null)
   const [revealed, setRevealed] = useState<readonly Card[] | null>(null)
+
+  const panelRef = useRef<HTMLDivElement>(null)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
 
   const close = useCallback(() => {
     setOpen(false)
@@ -42,6 +44,38 @@ export function PackShop() {
     clearMarked()
   }, [setOpen, clearMarked])
 
+  // A fresh open is always clean. `close()` resets these too, but the shop can
+  // be closed from outside as well — the HUD's reset does exactly that when a
+  // new run starts, and that path cannot reach this component's own state.
+  //
+  // Adjusted during render rather than in an effect: `react-hooks/set-state-in-effect`
+  // flags a setState called synchronously from an effect body, and the React docs'
+  // own answer to "reset state when a prop changes" is exactly this pattern —
+  // compare against the previous value during render and update if it moved.
+  // React bails out and re-renders before painting, so there is no flash of
+  // stale state and no extra effect round-trip.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setPack(null)
+      setSuit(null)
+      setRevealed(null)
+    }
+  }
+
+  // Remember where focus came from, move it into the dialog, and hand it back
+  // on the way out.
+  useEffect(() => {
+    if (!open) return
+
+    returnFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
+    panelRef.current?.focus()
+
+    return () => returnFocusRef.current?.focus()
+  }, [open])
+
   // Escape closes, like any modal. Bound only while open, so the handler is not
   // live for the whole session. `close` is memoised so this binds once per open
   // rather than on every render.
@@ -49,7 +83,30 @@ export function PackShop() {
     if (!open) return
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') close()
+      if (event.key === 'Escape') {
+        close()
+        return
+      }
+
+      if (event.key !== 'Tab') return
+
+      // `aria-modal` asserts focus is confined to this dialog, so confine it —
+      // otherwise Tab walks into the HUD behind, including "Play again".
+      const panel = panelRef.current
+      if (!panel) return
+
+      const focusable = panel.querySelectorAll<HTMLElement>('button:not([disabled])')
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (!first || !last) return
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
 
     window.addEventListener('keydown', onKeyDown)
@@ -80,20 +137,20 @@ export function PackShop() {
     // The reveal needs nothing from GameState: what is new is whatever was not
     // in the Deck a moment ago.
     const after = useGameStore.getState().snapshot.deck
-    setRevealed(after.filter((card) => !before.has(card.id)))
+    setRevealed(newCards(before, after))
     clearMarked()
   }
 
   if (!open) return null
 
   const needed = pack ? cullCountFor(deck.length, pack) : 0
-  const button = commitState({ deckSize: deck.length, ink, pack, suit, markedIds: marked })
+  const button = commitState({ deckSize: deck.length, ink, phase, pack, suit, markedIds: marked })
 
   return (
     <div className="modal" role="dialog" aria-modal="true" aria-label="Buy a pack">
       <button type="button" className="modal__scrim" aria-label="Close" onClick={close} />
 
-      <div className="modal__panel">
+      <div className="modal__panel" ref={panelRef} tabIndex={-1}>
         {revealed ? (
           <>
             <div className="modal__head">
@@ -133,7 +190,7 @@ export function PackShop() {
                     <button
                       type="button"
                       className={`modal__pack${pack === type ? ' modal__pack--active' : ''}${
-                        ink < def.price ? ' modal__pack--poor' : ''
+                        !canAfford(ink, type) ? ' modal__pack--poor' : ''
                       }`}
                       onClick={() => choose(type)}
                     >
@@ -172,11 +229,14 @@ export function PackShop() {
                     <li key={card.id}>
                       <CardFace
                         card={card}
-                        modifier={
-                          marked.includes(card.id) ? 'deck__card--doomed' : undefined
-                        }
+                        modifier={marked.includes(card.id) ? 'deck__card--doomed' : undefined}
                         onClick={() => toggleMarked(card.id)}
-                        title="Mark to destroy"
+                        pressed={marked.includes(card.id)}
+                        title={
+                          marked.includes(card.id)
+                            ? 'Unmark — keep this card'
+                            : 'Mark to destroy'
+                        }
                       />
                     </li>
                   ))}
