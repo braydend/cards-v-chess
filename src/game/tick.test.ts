@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { BISHOP_HEAL_INTERVAL_MS, KING_SPEED_MULTIPLIER } from './auras'
-import { withTower } from './fixtures'
+import { liveRound, pawnAt, withTower } from './fixtures'
 import { createInitialState, step, tick } from './index'
 import type { GameState, Handedness, Piece, PieceTypeId, Square, Tower } from './types'
 
@@ -509,5 +509,51 @@ describe('tick: determinism', () => {
     expect(atThirty.pieces.map((piece) => piece.square)).toEqual(
       atSixty.pieces.map((piece) => piece.square),
     )
+  })
+})
+
+describe('Ink from kills', () => {
+  // A rank-4 Tower is `cross`, so it covers its own file: the target is
+  // blocked directly up-file from it and stays inside coverage while it is
+  // shot. The bystander is far enough away that the round is STILL LIVE when
+  // the assertion runs — without it the board would empty, the round would
+  // complete, and round income would land in the same total, so the assertion
+  // would no longer be about kills at all.
+  const TOWER_SQUARE = { file: 3, rank: 4 }
+
+  function towerAndTwoPawns(): GameState {
+    return liveRound(withTower(4, TOWER_SQUARE), [
+      pawnAt('target', { file: 3, rank: 5 }),
+      pawnAt('bystander', { file: 7, rank: 7 }),
+    ])
+  }
+
+  it('pays the kill reward when a Tower destroys a Piece', () => {
+    const after = runFor(towerAndTwoPawns(), 1200)
+
+    expect(after.pieces.map((piece) => piece.id)).toEqual(['bystander'])
+    expect(after.phase).toBe('inProgress')
+    expect(after.ink).toBe(PIECE_TYPES.pawn.inkReward)
+  })
+
+  it('pays nothing for a Piece that leaks, which the player did not kill', () => {
+    const leaking = liveRound(createInitialState(), [
+      pawnAt('leaker', { file: 3, rank: 1 }),
+      pawnAt('bystander', { file: 7, rank: 7 }),
+    ])
+    const after = runFor(leaking, PIECE_TYPES.pawn.moveIntervalMs + DT)
+
+    expect(after.leaks).toBe(1)
+    expect(after.ink).toBe(0)
+  })
+
+  it('pays nothing for a promoted Pawn, which was not destroyed but transformed', () => {
+    // The Queen it becomes pays when the Queen dies. Paying here would pay
+    // twice for one Piece.
+    const promoting = liveRound(createInitialState(), [pawnAt('promoter', { file: 0, rank: 0 })])
+    const after = runFor(promoting, PIECE_TYPES.pawn.moveIntervalMs + DT)
+
+    expect(after.pieces.map((piece) => piece.typeId)).toEqual(['queen'])
+    expect(after.ink).toBe(0)
   })
 })

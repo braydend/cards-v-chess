@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { createInitialState } from '../game'
 import { withTower } from '../game/fixtures'
 import { structuralKey } from './structuralKey'
 
@@ -16,5 +17,12 @@ describe('structuralKey', () => {
     }
 
     expect(structuralKey(raisedCeiling)).not.toBe(structuralKey(base))
+  })
+
+  it('changes when Ink changes, since the HUD prints it', () => {
+    const base = createInitialState()
+    const earned = { ...base, ink: base.ink + 5 }
+
+    expect(structuralKey(earned)).not.toBe(structuralKey(base))
   })
 })
