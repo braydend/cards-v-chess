@@ -36,6 +36,19 @@ export interface PieceTypeDef {
    * and gain +1 from a King aura; everything else has a fixed hop.
    */
   readonly slides: boolean
+  /**
+   * Ink paid when a Tower destroys this Piece.
+   *
+   * Threat and scarcity, not durability — a Rook has the most health on the
+   * roster and is still a wall rather than an event, so it pays less than a
+   * Queen. Authored rather than derived from `maxHealth` for exactly that
+   * reason, and so that retuning a Piece's durability does not silently
+   * retune the economy.
+   *
+   * PLACEHOLDER balance. Ink's worth is set by what it buys, and packs do not
+   * exist yet — see "Ink income values" in the design doc's open questions.
+   */
+  readonly inkReward: number
 }
 
 /**
