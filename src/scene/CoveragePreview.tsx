@@ -37,19 +37,26 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
   const hoveredSquare = useUiStore((store) => store.hoveredSquare)
   const selectedCardId = useUiStore((store) => store.selectedCardId)
   const playMode = useUiStore((store) => store.playMode)
-  // The whole snapshot, not just the Deck: legality depends on Pieces, Towers
-  // and the Core square too. Subscribing to the snapshot means this re-renders
-  // on every Piece hop, which is what makes the marker clear itself when the
-  // Piece leaves — and is affordable here in a way it is not in Board.tsx,
-  // because this component draws a handful of planes and only while a build
-  // Card is picked, rather than every square on the board.
-  const snapshot = useGameStore((store) => store.snapshot)
+  // Board.tsx mounts this unconditionally, so this subscription is live
+  // whenever the board is — not only while a build Card is picked. What *is*
+  // bounded to that window is the drawing below (a handful of planes), and the
+  // cost this selector avoids: reading only the Deck rather than the whole
+  // snapshot means a Piece hop, which changes the snapshot on every hop, does
+  // not touch this value and so cannot force a recompute of the footprint.
+  const deck = useGameStore((store) => store.snapshot.deck)
+  // The engine's own predicate, deliberately: a narrower copy here would
+  // disagree with the refusal in `cardPlays.ts`. It reads false for a Piece,
+  // the Core square and an existing Tower alike. Selected on its own, not
+  // folded into the memo below, so zustand's `Object.is` on this boolean — not
+  // on the snapshot object — decides whether this component re-renders; a
+  // Piece hop that does not flip legality now costs nothing here.
+  const legal = useGameStore((store) => !hoveredSquare || canBuildOn(store.snapshot, hoveredSquare))
 
-  const preview = useMemo(() => {
+  const footprint = useMemo(() => {
     if (!hoveredSquare || !isInBounds(board, hoveredSquare)) return null
     if (!selectedCardId || playMode !== 'build') return null
 
-    const card = findCard(snapshot.deck, selectedCardId)
+    const card = findCard(deck, selectedCardId)
     if (!card || card.kind !== 'standard' || !isBuildableRank(card.rank)) return null
 
     const { geometry, range } = towerRank(card.rank)
@@ -58,15 +65,11 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
       // `coversSquare` never covers its own square, so `hoveredSquare` is
       // never in here — the red marker below cannot land on a teal one.
       covered: allSquares(board).filter((square) => coversSquare(geometry, range, hoveredSquare, square)),
-      // The engine's own predicate, deliberately: a narrower copy here would
-      // disagree with the refusal in `cardPlays.ts`. It reads false for a
-      // Piece, the Core square and an existing Tower alike.
-      legal: canBuildOn(snapshot, hoveredSquare),
       origin: hoveredSquare,
     }
-  }, [board, snapshot, hoveredSquare, playMode, selectedCardId])
+  }, [board, deck, hoveredSquare, playMode, selectedCardId])
 
-  if (!preview) return null
+  if (!footprint) return null
 
   return (
     <>
@@ -80,7 +83,7 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
       <Instances key={board.files * board.ranks} limit={board.files * board.ranks}>
         <boxGeometry args={[SQUARE_SIZE * 0.9, 0.02, SQUARE_SIZE * 0.9]} />
         <meshBasicMaterial color={COVERED} transparent opacity={0.42} depthWrite={false} />
-        {preview.covered.map((square) => (
+        {footprint.covered.map((square) => (
           <Instance
             key={squareKey(square)}
             position={[fileToWorldX(board, square.file), 0.04, rankToWorldZ(board, square.rank)]}
@@ -91,12 +94,12 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
       {/* One square, so a plain mesh. A second `Instances` would need a
           `limit` and a matching `key`, which is the exact hazard that produced
           the Ace wedge; a single mesh cannot have it. */}
-      {!preview.legal && (
+      {!legal && (
         <mesh
           position={[
-            fileToWorldX(board, preview.origin.file),
+            fileToWorldX(board, footprint.origin.file),
             0.04,
-            rankToWorldZ(board, preview.origin.rank),
+            rankToWorldZ(board, footprint.origin.rank),
           ]}
         >
           <boxGeometry args={[SQUARE_SIZE * 0.9, 0.02, SQUARE_SIZE * 0.9]} />
