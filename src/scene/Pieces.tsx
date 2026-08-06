@@ -14,6 +14,7 @@ import { useGameStore } from '../state/store'
 import { fileToWorldX, rankToWorldZ } from './coords'
 import { PIECE_COLOURS } from './pieceColours'
 import { GEOMETRY_BY_TYPE, PIECE_TYPE_IDS, REST_Y_BY_TYPE } from './pieceGeometry'
+import { PROMOTION_POP_MS, promotionPopLift, promotionPopScale } from './promotionPop'
 
 /**
  * How long the visual hop takes. Deliberately much shorter than a piece's move
@@ -68,6 +69,7 @@ export function Pieces({ board }: { board: BoardSpec }) {
             key={piece.id}
             pieceId={piece.id}
             typeId={piece.typeId}
+            promoted={piece.promoted}
             board={board}
             geometry={shared.geometry}
             material={shared.material}
@@ -83,6 +85,7 @@ export function Pieces({ board }: { board: BoardSpec }) {
 function PieceMesh({
   pieceId,
   typeId,
+  promoted,
   board,
   geometry,
   material,
@@ -91,6 +94,7 @@ function PieceMesh({
 }: {
   pieceId: string
   typeId: PieceTypeId
+  promoted: boolean
   board: BoardSpec
   geometry: BufferGeometry
   material: Material
@@ -99,17 +103,28 @@ function PieceMesh({
 }) {
   const ref = useRef<Mesh>(null)
   const ringRef = useRef<Mesh>(null)
+  const firstSeenAt = useRef(-1)
 
   // Reads live simulation state and mutates the mesh transform directly. No
   // state is set here, and nothing is allocated — the sanctioned way to do
   // per-frame work in R3F.
-  useFrame(() => {
+  useFrame((frame) => {
     const mesh = ref.current
     if (!mesh) return
 
     const state = getState()
     const piece = state.pieces.find((candidate) => candidate.id === pieceId)
     if (!piece) return
+
+    const now = frame.clock.elapsedTime
+    if (firstSeenAt.current < 0) firstSeenAt.current = now
+
+    // A promoted Queen gets a fresh entity id, and `Pieces` keys each mesh on
+    // `piece.id` — so this mesh's first frame IS the promotion, and no diff is
+    // needed to spot it. An unpromoted Piece is handed a spent age, so both
+    // helpers return neutral and cost nothing.
+    const popAgeMs = promoted ? (now - firstSeenAt.current) * 1000 : PROMOTION_POP_MS
+    const pop = promotionPopScale(popAgeMs)
 
     const progress = Math.min(1, piece.moveCooldownMs / HOP_ANIMATION_MS)
 
@@ -122,14 +137,16 @@ function PieceMesh({
 
     mesh.position.set(
       fromX + (toX - fromX) * progress,
-      restY + Math.sin(progress * Math.PI) * HOP_ARC,
+      restY + Math.sin(progress * Math.PI) * HOP_ARC + promotionPopLift(popAgeMs),
       fromZ + (toZ - fromZ) * progress,
     )
 
     // Shrink as it takes damage, so Tower fire has visible effect before the
-    // Piece dies. Mutation only — no state, no allocation.
+    // Piece dies. The promotion pop MULTIPLIES this rather than replacing it, so
+    // a Queen shot during her pop still shrinks. Mutation only — no state, no
+    // allocation.
     const healthFraction = piece.health / pieceType(piece.typeId).maxHealth
-    const scale = 0.55 + healthFraction * 0.45
+    const scale = (0.55 + healthFraction * 0.45) * pop
     mesh.scale.set(scale, scale, scale)
 
     // Toggling `visible` rather than mounting conditionally — mounting would
