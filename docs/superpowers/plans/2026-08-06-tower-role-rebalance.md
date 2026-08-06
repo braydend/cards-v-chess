@@ -289,14 +289,17 @@ and clipping it there would wrongly cut its flanks off."
 - Modify: `src/data/towerRanks.ts` (the whole `TOWER_RANKS` table, plus `aura` on `TowerRankDef`)
 - Modify: `src/game/tick.ts:198` (skip non-firing Towers in `fireTowers`)
 - Modify: `src/data/towerRanks.test.ts` (five invariant tests must be rewritten)
-- Modify: `src/game/firing.test.ts` (two tests repaired)
+- Modify: `src/game/firing.test.ts` (**four** tests repaired — every rank-8 target square in the file)
 - Modify: `src/game/support.test.ts` (one test repaired)
+- Modify: `src/scene/firePulse.test.ts` (one test repaired, one stale comment corrected)
 
 **Interfaces:**
 - Consumes: `TowerGeometry` including `'none' | 'ring' | 'band'` from Task 1.
 - Produces: `TowerRankDef` gains `readonly aura?: 'amplify' | 'freeze'`. `TOWER_RANKS[8].aura === 'amplify'`, `TOWER_RANKS[9].aura === 'freeze'`. Tasks 4 and 5 read this field.
 
-**This task breaks exactly 8 tests in 3 files.** That set was measured by applying the table and running the suite, so it is the expected fallout, not a surprise. Every one is repaired within this task.
+**This task breaks 11 tests in 4 files.** All 11 are repaired within this task.
+
+A **correction, recorded rather than quietly fixed**: an earlier draft of this plan said "8 tests in 3 files". That figure was measured against a *proxy* table, applied before Task 1 existed — with `ring` and `band` unavailable, rank 8 stood in as `star` at range 4 and rank 10 as `adjacent` at range 1. Both proxies are **solid** shapes, so every consequence of rank 8's real `ring` geometry — its hollow core — was invisible to that measurement. The true set is a strict superset. The lesson generalises: **a proxy that changes a shape's topology cannot measure that shape's fallout.**
 
 - [ ] **Step 1: Replace the rank table**
 
@@ -363,7 +366,7 @@ export const TOWER_RANKS: Record<BuildableRank, TowerRankDef> = {
 
 Run: `pnpm test:run`
 
-Expected: FAIL — **8 failures across 3 files**, exactly:
+Expected: FAIL — **11 failures across 4 files**, exactly:
 ```
 src/data/towerRanks.test.ts  never fires slower than a Pawn moves, so every Tower gets a shot
 src/data/towerRanks.test.ts  rises in health with rank
@@ -371,9 +374,14 @@ src/data/towerRanks.test.ts  never fires slower as rank rises
 src/data/towerRanks.test.ts  never targets fewer Pieces as rank rises
 src/data/towerRanks.test.ts  hits at least one Piece at every rank
 src/game/firing.test.ts      damages a Piece inside its coverage
+src/game/firing.test.ts      a multi-target Tower damages several covered Pieces in one shot
+src/game/firing.test.ts      caps at its target count
 src/game/firing.test.ts      rank 10 hits everything it covers
 src/game/support.test.ts     ♦ Speed > fires more often than its rank alone would once ticked
+src/scene/firePulse.test.ts  accumulatePulses > never writes past the squares the board actually has
 ```
+
+Plus **one test that still passes but for the wrong reason** and must be repaired anyway: `firing.test.ts` → `is deterministic when more Pieces are covered than can be hit`. Its four Pieces all sit in rank 8's new hollow core, so both runs agree on zero hits and the assertion is vacuous.
 
 If the count or the set differs, stop and diagnose — something in the table does not match this plan.
 
@@ -563,9 +571,19 @@ Add whatever of `pieceAt` and `PIECE_TYPES` the file does not already import —
   })
 ```
 
-Then read the surrounding tests in the `targets per shot` describe block and confirm the rank 8 ones still hold: rank 8 is now a `ring` at range 4, so a target at Chebyshev distance 3 or 4 from the Tower is covered and one at distance 1 or 2 is **not**. If the rank 8 tests place Pieces adjacent to the Tower, move them to distance 3–4 and keep the `toHaveLength(TOWER_RANKS[8].targetsPerShot)` assertion intact.
+**(c) Every rank-8 test in the `targets per shot` block.** Measured: **all eleven** rank-8 target squares in that block sit at Chebyshev distance 1 from the Tower at `{ file: 3, rank: 3 }` — squarely inside the new hollow core. Rank 8 is a `ring` at range 4, so a target is covered **iff its Chebyshev distance is 3 or 4**. Three tests are affected:
 
-**(c) `caps at its target count`** — this test passed under the experimental table but its comment says "Rank 8 covers four Pieces". Verify the four squares are all inside the ring at range 4 from `{ file: 3, rank: 3 }`; if any sits at distance 1 or 2 it is now in the hollow core and the test is passing for the wrong reason. Move any such square out to distance 3 or 4.
+| Test | Current squares | Required |
+| --- | --- | --- |
+| `a multi-target Tower damages several covered Pieces in one shot` | 3 Pieces, all distance 1 | 3 Pieces at distance 3–4, all covered; keep `toHaveLength(3)` |
+| `caps at its target count` | 4 Pieces, all distance 1 | 4 Pieces at distance 3–4 — more than `targetsPerShot` — keep `toHaveLength(TOWER_RANKS[8].targetsPerShot)` |
+| `is deterministic when more Pieces are covered than can be hit` | 4 Pieces, all distance 1 | 4 Pieces at distance 3–4 |
+
+In-bounds candidates at distance 3 from `{file: 3, rank: 3}` on an 8x8: `{file: 0, rank: 3}`, `{file: 6, rank: 3}`, `{file: 3, rank: 0}`, `{file: 3, rank: 6}`, `{file: 0, rank: 0}`, `{file: 6, rank: 6}`. At distance 4: `{file: 7, rank: 3}`, `{file: 3, rank: 7}`, `{file: 7, rank: 7}`.
+
+**`is deterministic` needs particular care.** Its point is that the id tie-break in `selectTargets` is what makes the choice reproducible, and that only bites when two candidates **tie on Manhattan distance to the Core** at `{file: 3, rank: 0}`. Choose squares so at least two candidates tie — otherwise distance alone decides, the tie-break is never exercised, and the test is vacuous in a new way rather than the old one. Verify the tie by hand and state it in a comment.
+
+After repairing, confirm each test would fail if the implementation were wrong: temporarily change one target square back into the hollow core and check the test goes red.
 
 - [ ] **Step 6: Repair `support.test.ts`**
 
@@ -587,10 +605,28 @@ Use rank 3 instead, whose 500ms interval preserves the original arithmetic exact
 
 Rank 3 is `vertical`, so confirm the test's Piece sits on the Tower's file. If `SQUARE` and the Piece square do not share a file, move the Piece onto it — a `vertical` Tower covers nothing off its own file.
 
+- [ ] **Step 6b: Repair `src/scene/firePulse.test.ts`**
+
+This file was missing from an earlier draft of this task's file list. It fails for the same reason as the `firing.test.ts` tests — it uses rank 8 as a stand-in for "a Tower whose footprint runs past the board edge from a corner":
+
+```ts
+// Rank 8 is `star` at range 6, so from the corner its footprint runs well
+// past two edges of an 8x8 board.
+accumulatePulses(out, board, [pulseAt(8, 0, 0)], 0.2)
+
+expect(channel(out, 1, 1)).toBeGreaterThan(0)
+```
+
+The probed square `(1,1)` is at Chebyshev distance 1 from the origin — now the hollow core, so nothing is written and the channel reads 0.
+
+**The test's real subject is buffer-bounds safety near an edge, not rank 8.** Keep that subject. Move the probed square to one the ring actually covers from `(0,0)` — distance 3 or 4, e.g. `(3,0)` or `(4,4)` — and rewrite the comment to state rank 8's *current* geometry, `ring` at range 4, and why the probe sits where it does. Do not weaken the assertion to `toBeGreaterThanOrEqual(0)`, which would pass against a Tower that draws nothing at all.
+
+Also in the same file, `isPulseLive` → `gives a short-range Tower a shorter life than a long-range one` carries a stale comment claiming "rank 8 reaches 6 (433ms)". Rank 8's range is now 4, giving roughly 342ms. The assertions still hold numerically, so the test does not fail — **correct the comment anyway**, because a comment stating a false number about the code beside it is how the next reader gets misled.
+
 - [ ] **Step 7: Run everything**
 
 Run: `pnpm test:run`
-Expected: PASS, all files. The count rises above 560 by the tests added in Steps 4.
+Expected: PASS, all files. The count rises above 560 by the tests added in Step 4.
 
 Run: `pnpm typecheck && pnpm lint`
 Expected: both clean.
@@ -598,7 +634,7 @@ Expected: both clean.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/data/towerRanks.ts src/data/towerRanks.test.ts src/game/tick.ts src/game/firing.test.ts src/game/support.test.ts
+git add src/data/towerRanks.ts src/data/towerRanks.test.ts src/game/tick.ts src/game/firing.test.ts src/game/support.test.ts src/scene/firePulse.test.ts
 git commit -m "Rebalance the rank ladder so coverage and damage trade
 
 Single-target DPS now falls as rank rises -- 7.5 at rank 2 down to 1.25
