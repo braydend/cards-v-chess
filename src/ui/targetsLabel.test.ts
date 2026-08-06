@@ -17,12 +17,33 @@ describe('targetsLabel', () => {
     expect(label).not.toContain('Infinity')
   })
 
-  it('never renders Infinity for any rank on the ladder', () => {
+  it('says nothing at all for a Tower with no gun', () => {
+    // The rank-7 Wall. "hits 0 per shot" is a fact about shooting on a Tower
+    // whose design is that it does not shoot, and the geometry line already
+    // says so properly. The panel drops the clause on null.
+    expect(targetsLabel(0)).toBeNull()
+  })
+
+  it('never renders Infinity, and never a zero count, for any rank on the ladder', () => {
     // Asserted across the real table rather than against hardcoded ranks: which
-    // ranks carry unlimited targeting is placeholder balance in
-    // src/data/towerRanks.ts, and a tuning pass moving it must not break this.
+    // ranks carry unlimited targeting, and which carry none, is placeholder
+    // balance in src/data/towerRanks.ts. A tuning pass that moves the Wall to
+    // another rank, or gives rank 7 a gun, must not break this.
     for (const def of Object.values(TOWER_RANKS)) {
-      expect(targetsLabel(def.targetsPerShot)).not.toContain('Infinity')
+      const label = targetsLabel(def.targetsPerShot)
+
+      // `?? ''` because null is the Wall's correct answer and `toContain`
+      // rejects it outright — the empty string satisfies both assertions below
+      // for exactly the ranks that should print nothing.
+      expect(label ?? '').not.toContain('Infinity')
+      expect(label ?? '').not.toBe('hits 0 per shot')
+      expect(label === null).toBe(def.targetsPerShot === 0)
     }
+  })
+
+  it('covers every rank on the ladder, so a new geometry cannot slip through untested', () => {
+    // Guards the loop above from silently testing nothing if the table changes
+    // shape.
+    expect(Object.values(TOWER_RANKS).length).toBeGreaterThanOrEqual(9)
   })
 })

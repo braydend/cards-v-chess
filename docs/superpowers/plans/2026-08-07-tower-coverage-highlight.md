@@ -286,7 +286,7 @@ Beside `<CoveragePreview>` and `<SelectionMarker>`. Order in JSX does not decide
 
 **Amended during implementation.** This was planned as `formatTargets` in `formatStat.ts`, returning `'3'` or `'all'`, with the panel composing the phrase around it. That left a second `Number.isFinite` branch inside `TowerPanel.tsx` choosing between two wordings — an untestable decision in a `.tsx`, which CLAUDE.md forbids — and made `formatTargets`' own `'all'` return unreachable from its only caller. It shipped instead as `targetsLabel`, returning the whole phrase, in its own file on the `supportLabel.ts` precedent. `formatStat.ts` is untouched.
 
-**Why this is in scope.** It is the second half of "what can this Tower attack". Once the footprint is lit, a rank-9 disc showing 48 amber squares while hitting 5 Pieces per shot over-promises unless the figure is on screen. `targetsPerShot` is the only field on `TowerRankDef` the panel currently omits.
+**Why this is in scope.** It is the second half of "what can this Tower attack". Once the footprint is lit, a wide disc showing dozens of amber squares while hitting only a few Pieces per shot over-promises unless the figure is on screen. `targetsPerShot` is the only field on `TowerRankDef` the panel currently omits.
 
 - [ ] **Step 1: Write the failing tests**
 

@@ -371,6 +371,8 @@ Every Piece therefore contributes anti-Tower pressure, so repair reliably has a 
 
 **Amber is a Tower you own; teal is a Card you have not played.** The build preview that follows the pointer while a rank Card is picked keeps teal, and both are shown at once rather than one hiding the other — comparing a proposed footprint against the coverage already on the board is how a gap gets found.
 
+**For a Tower with an aura, the same footprint is where the aura applies.** An aura reaches every Piece its Tower covers, so the lit squares are exactly the rank-8 Amplifier's amplified zone and the rank-9 Freezer's slowed zone. Those two ranks are utility roles whose value is the area rather than the shot, which makes seeing the area worth more for them than for anything else on the ladder. **The rank-7 Wall lights nothing**, correctly — it covers nothing, and the panel says "Never fires — it blocks and soaks" rather than quoting it a targets figure.
+
 **The highlight is coverage, not targeting.** It shows every square the Tower *can* hit, not the Pieces a shot *will* hit — a shot is capped at the rank's targets per shot and picks the Pieces nearest the Core. The panel carries that figure beside range and damage, which is what stops a wide disc at the top of the ladder from over-promising: it can light dozens of squares and reach only a handful of the Pieces on them. The moment of a shot is already shown separately, as a pulse over the same footprint.
 
 ### No walls, no mazing

@@ -274,6 +274,8 @@ describe('coversSquare: band', () => {
     // The whole point of the rank-10 toll gate. A file distance of 40 is
     // still covered; only the board-rank distance is bounded.
     expect(coversSquare('band', 1, ORIGIN, { file: 44, rank: 4 })).toBe(true)
+  })
+})
 
 describe('coveredSquares', () => {
   const board = { files: 8, ranks: 8 }

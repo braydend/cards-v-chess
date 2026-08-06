@@ -82,7 +82,8 @@ only one answer and both read it.
 
 It deliberately does **not** show which squares a shot will actually hit.
 `selectTargets` caps a shot at `targetsPerShot` and picks the Pieces nearest the
-Core, so at rank 8 (3 targets) a 27-square star resolves to three Pieces.
+Core, so a rank-8 Amplifier's ring resolves to the three Pieces nearest the
+Core, whatever the ring holds.
 Lighting only those would be a different feature — "what is this Tower about to
 do" — and it would change every tick, which is not what a reference overlay is
 for.
@@ -98,9 +99,16 @@ leave the overlay quietly lying.
 The panel carries the other half instead: **a line for targets per shot**, with
 rank 10's `Number.POSITIVE_INFINITY` rendered as "all". This is the one figure
 on `TowerRankDef` the panel omits, and it is precisely the number a player needs
-once they can see how many squares are lit. A rank-9 disc lighting 48 squares
-while hitting 5 Pieces per shot is legible; the same disc with no figure beside
+once they can see how many squares are lit. A rank-9 Freezer lighting a 5x5 disc
+while hitting 3 Pieces per shot is legible; the same disc with no figure beside
 it over-promises.
+
+**The rank-7 Wall prints no figure at all.** It has no gun — `targetsPerShot` is
+0 — and "hits 0 per shot" is a statistic about shooting on the one Tower whose
+design is that it does not shoot. `targetsLabel` returns null and the panel drops
+the clause; the geometry line's "Never fires — it blocks and soaks" is the true
+and sufficient statement. Its amber footprint is correspondingly empty, which is
+not a bug: a Wall covers nothing.
 
 ### 3. Amber for what exists, teal for what is proposed
 

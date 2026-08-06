@@ -100,10 +100,17 @@ const RENDER_ORDER = 1
  * thin?" is answered by seeing a new teal footprint against the existing amber
  * one, and hiding either would make the comparison impossible.
  *
+ * **An aura shares this footprint**, which the rebalanced ladder makes the more
+ * valuable half. `TowerRankDef.aura` applies to every Piece its Tower covers, so
+ * these squares are exactly the rank-8 Amplifier's amplified zone and the rank-9
+ * Freezer's slowed zone — roles whose whole value is the area rather than the
+ * shot. The rank-7 Wall is the opposite case and lights nothing at all, which is
+ * correct rather than broken: `none` geometry covers no square.
+ *
  * This shows coverage, not targeting. A shot is capped at `targetsPerShot` and
  * picks the Pieces nearest the Core, so a footprint of dozens of squares can
- * resolve to a single Piece — a rank-9 disc lights 48 squares from the middle of
- * an 8x8 board and hits 5 of the Pieces standing in them. The panel carries that
+ * resolve to a single Piece — a rank-9 Freezer lights a 5x5 disc and hits 3 of
+ * the Pieces standing in it. The panel carries that
  * figure. Lighting only the squares a shot would hit would change every tick,
  * which is not what a reference overlay is for.
  *

@@ -31,6 +31,7 @@ export function TowerPanel() {
   if (!tower) return null
 
   const def = towerRank(tower.cardRank)
+  const targets = targetsLabel(def.targetsPerShot)
 
   return (
     <div className="towerPanel">
@@ -75,11 +76,15 @@ export function TowerPanel() {
           this file's: which wording each case gets is a decision, and a
           decision inside a `.tsx` cannot be tested here.
 
+          It returns null for the rank-7 Wall, which has no gun, and then the
+          clause is dropped rather than printed as "hits 0 per shot". The
+          separator goes with it — hence the whole clause being one expression.
+
           `def`, not the Tower — ♣ and ♦ mutate damage and the fire interval
           onto the instance, but nothing moves this figure off the ladder. */}
       <p className="hud__muted">
-        range {def.range} · {formatStat(tower.damage)} dmg · {tower.fireIntervalMs}ms ·{' '}
-        {targetsLabel(def.targetsPerShot)}
+        range {def.range} · {formatStat(tower.damage)} dmg · {tower.fireIntervalMs}ms
+        {targets === null ? '' : ` · ${targets}`}
       </p>
     </div>
   )
