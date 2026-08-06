@@ -1,0 +1,159 @@
+import { Instance, Instances, type PositionMesh } from '@react-three/drei'
+import { useFrame } from '@react-three/fiber'
+import { memo, useMemo, useRef } from 'react'
+import { AdditiveBlending, type Group } from 'three'
+import { allSquares, squareKey, type BoardSpec } from '../game'
+import { getState } from '../state/simulation'
+import { SQUARE_SIZE, fileToWorldX, rankToWorldZ } from './coords'
+import { accumulatePulses, detectShots, isPulseLive, type FirePulse } from './firePulse'
+
+/**
+ * Above the coverage preview, whose box top sits at 0.05, and the selection
+ * marker at 0.06. Nothing in that stack writes depth, so there is no z-fight
+ * against the board — but coplanar transparent quads sort unstably by camera
+ * distance, so the pulse takes its own height and an explicit `renderOrder`
+ * rather than relying on that sort. The box is 0.01 tall, so it spans
+ * 0.065–0.075 and stays clear of the marker entirely.
+ *
+ * Drawing over a hovered build preview is fine: additive on teal lightens it,
+ * for a fraction of a second.
+ */
+const PULSE_Y = 0.07
+const PULSE_HEIGHT = 0.01
+
+/**
+ * A Tower's shots, as a ring of lit squares expanding through its firing
+ * geometry — so the player can read where a Tower reaches and how often it
+ * fires, neither of which a silent Tower shows.
+ *
+ * Every decision lives in `firePulse.ts` and is unit-tested; this is plumbing.
+ * It subscribes to nothing: `board` arrives as a prop and everything else is
+ * read live from `getState()` in the frame loop, the same way `Pieces.tsx`
+ * interpolates. Nothing here reaches React, so a shot costs no render.
+ *
+ * The layer is a fixed instance per board square, mounted once and never
+ * remounted for a shot. Additive blending is what makes that work: black
+ * contributes nothing, so an unlit square needs no special case, and
+ * overlapping pulses sum into something brighter for free. The alternative —
+ * an instance per lit square per pulse — would need a `limit` guessed from a
+ * concurrent pulse count that nothing bounds.
+ */
+export const FirePulses = memo(function FirePulses({ board }: { board: BoardSpec }) {
+  const squares = useMemo(() => allSquares(board), [board])
+
+  // An array, not a Map: `squareKey(square)` in the frame loop would allocate
+  // a string per square per frame. `allSquares` is row-major (rank outer, file
+  // inner), which is the order `accumulatePulses` writes, so one index serves
+  // both.
+  const meshes = useRef<(PositionMesh | null)[]>([])
+  const pulses = useRef<FirePulse[]>([])
+  const lastCooldownMs = useRef(new Map<string, number>())
+  const lastEntityId = useRef(0)
+  const group = useRef<Group>(null)
+
+  // Reallocated only when the board grows, never per frame.
+  const intensity = useMemo(() => new Float32Array(squares.length * 3), [squares.length])
+
+  useFrame((state) => {
+    const now = state.clock.elapsedTime
+    const live = getState()
+
+    // `reset()` rewinds `nextEntityId` to 1 — the only way it goes backwards
+    // within a run. Without this, a previous run's pulses would ride into the
+    // new one, and a remembered cooldown under a reused Tower id would read as
+    // a shot that never happened.
+    if (live.nextEntityId < lastEntityId.current) {
+      pulses.current.length = 0
+      lastCooldownMs.current.clear()
+    }
+    lastEntityId.current = live.nextEntityId
+
+    pulses.current = pulses.current.filter((pulse) => isPulseLive(pulse, now))
+    pulses.current.push(...detectShots(lastCooldownMs.current, live.towers, now))
+
+    // Toggle `visible` rather than unmount, so no material ever recompiles.
+    // Stale colours behind a hidden group do not matter: the frame that makes
+    // it visible again is a frame that accumulates first.
+    if (group.current) group.current.visible = pulses.current.length > 0
+    if (pulses.current.length === 0) return
+
+    accumulatePulses(intensity, board, pulses.current, now)
+
+    for (let i = 0; i < squares.length; i += 1) {
+      const mesh = meshes.current[i]
+      if (!mesh) continue
+
+      const base = i * 3
+      mesh.color.setRGB(
+        intensity[base] ?? 0,
+        intensity[base + 1] ?? 0,
+        intensity[base + 2] ?? 0,
+      )
+    }
+  })
+
+  return (
+    <group ref={group}>
+      {/*
+       * `key` is load-bearing, not decoration — do not remove it. See the long
+       * comment in Board.tsx: drei's `Instances` sizes its buffers once from
+       * `limit`, and a later `limit` change moves `mesh.count` without
+       * resizing them, which is the Ace wedge.
+       *
+       * It is load-bearing here in a way it is not in `CoveragePreview`. That
+       * component unmounts whenever nothing is hovered, so it reallocates by
+       * accident. This one never unmounts, so an Ace really would grow `limit`
+       * past buffers allocated at the old size.
+       */}
+      <Instances key={squares.length} limit={squares.length} renderOrder={1}>
+        <boxGeometry args={[SQUARE_SIZE * 0.9, PULSE_HEIGHT, SQUARE_SIZE * 0.9]} />
+        {/*
+         * Additive so the pulse brightens whatever square it sits on. The rank
+         * palette has uneven contrast against the board's cream and slate —
+         * yellow rank 5 is weak on cream, grey rank 10 on slate — and additive
+         * removes that problem outright instead of correcting per rank.
+         *
+         * `toneMapped={false}` because App.tsx passes no `gl` override, so R3F
+         * applies its default ACES tone mapping, which rolls off precisely the
+         * bright end additive blending produces.
+         */}
+        <meshBasicMaterial
+          transparent
+          depthWrite={false}
+          blending={AdditiveBlending}
+          toneMapped={false}
+        />
+
+        {squares.map((square, index) => (
+          <Instance
+            key={squareKey(square)}
+            // Braces, and no implicit return: React 19 treats a value returned
+            // from a ref callback as a cleanup function.
+            //
+            // This fires far more often than mount and unmount. `GameScene`
+            // selects `core`, which `tick` rebuilds every tick, so `Board`
+            // re-renders on every publish — and drei's `Instance` reattaches
+            // its ref on each one. Harmless here only because no timing lives
+            // per-mesh: it is all on the `FirePulse` records, and a briefly
+            // null handle is absorbed by the guard in the frame loop. See the
+            // ghost ref comment in Towers.tsx for the version of this that
+            // bites. `memo` above stops the churn anyway, since `board`
+            // identity is stable between Aces.
+            ref={(mesh: PositionMesh | null) => {
+              meshes.current[index] = mesh
+            }}
+            // Black is invisible under additive blending, so an unlit square
+            // needs nothing special — and this is correct on the first frame,
+            // before useFrame has run once.
+            color="#000000"
+            position={[
+              fileToWorldX(board, square.file),
+              PULSE_Y,
+              rankToWorldZ(board, square.rank),
+            ]}
+          />
+        ))}
+      </Instances>
+    </group>
+  )
+})

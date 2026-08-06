@@ -7,6 +7,7 @@ import { useUiStore } from '../state/uiStore'
 import { resolveBoardAction } from './boardClick'
 import { SQUARE_SIZE, fileToWorldX, rankToWorldZ, worldXToFile, worldZToRank } from './coords'
 import { CoveragePreview } from './CoveragePreview'
+import { FirePulses } from './FirePulses'
 import { SelectionMarker } from './SelectionMarker'
 
 const LIGHT_SQUARE = '#e6e0cf'
@@ -56,6 +57,7 @@ export function Board({ board }: { board: BoardSpec }) {
 
       <CoveragePreview board={board} />
       <SelectionMarker board={board} />
+      <FirePulses board={board} />
       <PlacementSurface board={board} />
     </>
   )
