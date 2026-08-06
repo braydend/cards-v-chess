@@ -58,7 +58,7 @@ Every task's requirements implicitly include all of these.
 - Consumes: nothing from earlier tasks. From the existing engine: `isInBounds(board, square)` and `squaresEqual(a, b)` from `./board`; the `GameState` and `Square` types from `./types`.
 - Produces: `canBuildOn(state: GameState, square: Square): boolean`, exported from `src/game/placement.ts` and re-exported from `src/game/index.ts`. Task 2 calls exactly this signature, passing the published snapshot as `state`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Two files. First, in `src/game/step.test.ts`, add these to the **end of the existing `describe('step: buildTower')` block**, after the `'does not consume the Card when the play is refused'` test. `FIVE` is already declared at the top of that describe. Lines 2-3 of the file currently read:
 
@@ -123,13 +123,13 @@ Second, in `src/game/faceCards.test.ts`, add this to the **end of the existing `
   })
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `pnpm test:run src/game/step.test.ts src/game/faceCards.test.ts`
 
 Expected: FAIL. The two refusal tests fail because the build lands — `expect(state).toBe(initial)` reports the objects are not identical, and `towers` has length 1 where 0 was expected. `'allows the square once the Piece has hopped away'` should already PASS; it is a regression guard, and if it fails now, the hop assumption in it is wrong and needs fixing before continuing.
 
-- [ ] **Step 3: Create `src/game/placement.ts`**
+- [x] **Step 3: Create `src/game/placement.ts`**
 
 The whole file:
 
@@ -169,7 +169,7 @@ export function canBuildOn(state: GameState, square: Square): boolean {
 }
 ```
 
-- [ ] **Step 4: Wire it into `cardPlays.ts`**
+- [x] **Step 4: Wire it into `cardPlays.ts`**
 
 Delete the private `canBuildOn` function and its `/** Whether a square is free to build on. */` comment (lines 41-46), then import the new one. The two call sites — in `buildTower` and `echoTower` — do not change at all.
 
@@ -185,7 +185,7 @@ import type { BuildableRank, GameState, Square, Tower } from './types'
 
 Note the `./board` import is gone from that list. `isInBounds` and `squaresEqual` were used **only** inside `canBuildOn` (lines 41, 42 and 44 — verified, there are no other uses in the file), so `import { isInBounds, squaresEqual } from './board'` on line 10 must be **deleted**. An unused import fails `pnpm lint`.
 
-- [ ] **Step 5: Export it from the engine's public surface**
+- [x] **Step 5: Export it from the engine's public surface**
 
 In `src/game/index.ts`, add the export. Keep the existing alphabetical-by-module ordering — it goes between the `./movement` and `./state` lines:
 
@@ -193,13 +193,13 @@ In `src/game/index.ts`, add the export. Keep the existing alphabetical-by-module
 export { canBuildOn } from './placement'
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [x] **Step 6: Run the tests to verify they pass**
 
 Run: `pnpm test:run src/game/step.test.ts src/game/faceCards.test.ts`
 
 Expected: PASS, all of them — including the pre-existing refusals for out of bounds, the Core square, and an already-occupied Tower square, which now run through the moved function and must still hold.
 
-- [ ] **Step 7: Run the whole suite, the linter, and the type checker**
+- [x] **Step 7: Run the whole suite, the linter, and the type checker**
 
 Run: `pnpm test:run && pnpm lint && pnpm typecheck`
 
@@ -208,13 +208,13 @@ Expected: all green. Watch for two specific things:
 - **A test elsewhere that built a Tower on a Piece's square as arrangement** would now silently get a Tower-less state, or throw from `withTower`. If any test outside the two files above fails, read it before changing it: the fixture throwing `withTower: build was refused` means that test's arrangement was relying on the bug.
 - `pnpm lint` catching an unused `isInBounds` / `squaresEqual` import in `cardPlays.ts` (Step 4).
 
-- [ ] **Step 8: Check coverage still passes**
+- [x] **Step 8: Check coverage still passes**
 
 Run: `pnpm test:coverage`
 
 Expected: PASS. `src/game/placement.ts` is a new measured file — it is inside the `src/game/**` threshold, which is a ratchet just under current coverage, so a new file with an uncovered branch can push the directory under. Every branch in `canBuildOn` is exercised by the tests above plus the pre-existing bounds/Core/Tower refusals, so this should hold; if it does not, add the missing case as a test rather than moving the threshold.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add src/game/placement.ts src/game/cardPlays.ts src/game/index.ts src/game/step.test.ts src/game/faceCards.test.ts
@@ -243,14 +243,14 @@ Closes #15"
 - Consumes: `canBuildOn(state: GameState, square: Square): boolean` from `../game`, exported in Task 1.
 - Produces: nothing other tasks rely on. This is the last task.
 
-- [ ] **Step 1: Understand what is already there**
+- [x] **Step 1: Understand what is already there**
 
 Read `src/scene/CoveragePreview.tsx` in full first — it is about 60 lines. Today it subscribes to `snapshot.deck`, computes the footprint a selected build-mode Card would cover from the hovered square, and returns `null` when nothing is covered. Two details matter:
 
 - **`coversSquare` never covers its own square** (`src/game/coverage.ts` returns false at distance 0). So the hovered square is never in `covered`, and the red marker cannot collide with a teal one. No filtering is needed.
 - **The `key` on `Instances` is load-bearing** and its comment explains why. Leave both alone.
 
-- [ ] **Step 2: Replace the component body**
+- [x] **Step 2: Replace the component body**
 
 Three changes: subscribe to the whole snapshot rather than `snapshot.deck`, fold the legality answer into the memo, and render a red marker at the origin when the build is illegal.
 
@@ -358,19 +358,19 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
 
 Keep the file's existing top-of-file doc comment, and extend it with a sentence on the marker — the component now says two things, not one: this is the footprint, and this square will not accept it.
 
-- [ ] **Step 3: Verify the type checker and linter**
+- [x] **Step 3: Verify the type checker and linter**
 
 Run: `pnpm typecheck && pnpm lint`
 
 Expected: both PASS. `pnpm lint` is doing real work here — it is what catches an accidental deep import (`from '../game/placement'` instead of `from '../game'`).
 
-- [ ] **Step 4: Confirm the whole suite is still green**
+- [x] **Step 4: Confirm the whole suite is still green**
 
 Run: `pnpm test:run`
 
 Expected: PASS. Nothing in this task touches the engine, so a failure here means Step 2 changed more than the component.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/scene/CoveragePreview.tsx
@@ -385,7 +385,7 @@ occupied Tower square rather than keeping a narrower rule of its own that
 could drift from the refusal."
 ```
 
-- [ ] **Step 6: Mark the plan complete**
+- [x] **Step 6: Mark the plan complete**
 
 Tick every checkbox in this file, then commit it:
 
