@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BUILDABLE_RANKS } from './towerRanks'
 import { DECK_CAP, STARTING_DECK } from './deck'
-import { SUITS, supportMagnitude } from './cards'
+import { SUITS } from './cards'
 
 describe('the starting Deck', () => {
   it('is within the Deck cap', () => {
@@ -54,19 +54,5 @@ describe('the starting Deck', () => {
     }
 
     expect(STARTING_DECK.some((card) => card.kind === 'joker')).toBe(true)
-  })
-})
-
-describe('supportMagnitude', () => {
-  it('is the face value for numbered ranks', () => {
-    expect(supportMagnitude(2)).toBe(2)
-    expect(supportMagnitude(10)).toBe(10)
-  })
-
-  it('continues past 10 for the face ranks', () => {
-    expect(supportMagnitude('J')).toBe(11)
-    expect(supportMagnitude('Q')).toBe(12)
-    expect(supportMagnitude('K')).toBe(13)
-    expect(supportMagnitude('A')).toBe(14)
   })
 })

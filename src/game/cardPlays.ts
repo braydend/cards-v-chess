@@ -5,7 +5,7 @@
  * state unchanged — never throws, and never consumes the Card. The UI is
  * responsible for not offering illegal actions; the engine just refuses them.
  */
-import { ACE_BOARD_RANKS, JACK_SHIELD, KING_CORE_HEALTH, supportMagnitude } from '../data/cards'
+import { ACE_BOARD_RANKS, FACE_SUPPORT_PREMIUM, JACK_SHIELD, KING_CORE_HEALTH } from '../data/cards'
 import { towerRank } from '../data/towerRanks'
 import { isInBounds, squaresEqual } from './board'
 import { findCard, isBuildableRank, removeCard } from './cards'
@@ -86,12 +86,15 @@ export function supportTower(state: GameState, cardId: string, towerId: string):
   // exempt — see `canSupport`.
   if (!canSupport(card, target)) return state
 
-  const magnitude = supportMagnitude(card.rank)
+  // The only thing that varies between two plays of the same suit. `canSupport`
+  // has already guaranteed a numbered Card matches the Tower, so a face card is
+  // exactly the case that reached a Tower it does not share a rank with.
+  const multiplier = isBuildableRank(card.rank) ? 1 : FACE_SUPPORT_PREMIUM
 
   return {
     ...state,
     towers: state.towers.map((tower) =>
-      tower.id === towerId ? applySupport(tower, card.suit, magnitude) : tower,
+      tower.id === towerId ? applySupport(tower, card.suit, multiplier) : tower,
     ),
     deck: removeCard(state.deck, cardId),
   }

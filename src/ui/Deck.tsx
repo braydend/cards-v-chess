@@ -158,7 +158,10 @@ function targetHint(
   const noTowers = towerCount === 0 ? ' — you have none yet' : ''
 
   if (playMode === 'support' && card.kind === 'standard') {
-    return `Click a Tower to support${noTowers}`
+    // A numbered Card reaches only its own rank; a face card reaches anything.
+    return isBuildableRank(card.rank)
+      ? `Click a rank-${card.rank} Tower to support${noTowers}`
+      : `Click any Tower to support${noTowers}`
   }
 
   if (card.kind === 'standard' && card.rank === 'J') {
