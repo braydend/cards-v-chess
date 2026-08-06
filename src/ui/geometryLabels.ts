@@ -10,8 +10,10 @@ import type { TowerGeometry } from '../game'
  * replaced by the Deck. The Tower inspect panel is the consumer now.
  *
  * Every geometry on the 2–10 ladder in `src/data/towerRanks.ts` must appear
- * here. `horizontal` is currently unreachable — rank 2 was moved off it — but it
- * is still in the union, and `Record` will not let it be dropped.
+ * here. `horizontal` is currently unreachable — rank 2 was moved off it, and
+ * rank 10's toll gate is a `band` rather than a `horizontal` because it is
+ * bounded in board ranks but not in files. It is still in the union, and
+ * `Record` will not let it be dropped.
  */
 export const GEOMETRY_LABELS: Record<TowerGeometry, string> = {
   // "the eight squares around it" until the ladder grew: ranks 7, 9 and 10 are
