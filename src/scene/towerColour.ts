@@ -17,6 +17,10 @@ const DAMAGE_RAMP = 0.85
 const DAMAGED = new Color('#3b0d0d')
 const FLASH = new Color('#fff3d0')
 const CRITICAL = new Color('#ff5a4a')
+const OUT_OF_REACH = new Color('#15151a')
+
+/** How far toward `OUT_OF_REACH` a Tower the picked support Card cannot reach goes. */
+const OUT_OF_REACH_FADE = 0.7
 
 /**
  * The colour a Tower should be this frame.
@@ -30,6 +34,7 @@ const CRITICAL = new Color('#ff5a4a')
  * - `flashProgress` is 1 at the instant of a hit and 0 once the flash expires.
  * - `criticalPhase` is elapsed time in *cycles* (seconds × CRITICAL_PULSE_HZ).
  *   Ignored unless health is under CRITICAL_HEALTH_FRACTION.
+ * - `dimmed` fades the Tower to show a picked support Card cannot reach it.
  */
 export function towerColour(
   target: Color,
@@ -37,6 +42,7 @@ export function towerColour(
   healthFraction: number,
   flashProgress: number,
   criticalPhase: number,
+  dimmed = false,
 ): Color {
   const health = Math.min(1, Math.max(0, healthFraction))
 
@@ -52,6 +58,13 @@ export function towerColour(
 
   if (flashProgress > 0) {
     target.lerp(FLASH, Math.min(1, flashProgress))
+  }
+
+  // Last, so it survives the flash and the critical pulse: a Tower being hit
+  // while out of reach must still read as out of reach. Defaults to false, so
+  // every caller that does not know about support eligibility is unchanged.
+  if (dimmed) {
+    target.lerp(OUT_OF_REACH, OUT_OF_REACH_FADE)
   }
 
   return target

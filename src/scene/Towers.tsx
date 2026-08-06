@@ -2,8 +2,9 @@ import { Instance, Instances, type PositionMesh } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useRef, useState } from 'react'
 import { BUILDABLE_RANKS } from '../data/towerRanks'
-import type { BoardSpec, BuildableRank } from '../game'
+import { canSupport, findCard, type BoardSpec, type BuildableRank } from '../game'
 import { useGameStore } from '../state/store'
+import { useUiStore } from '../state/uiStore'
 import { fileToWorldX, rankToWorldZ } from './coords'
 import { RANK_COLOURS } from './rankColours'
 import { CRITICAL_PULSE_HZ, DEATH_FLARE_MS, HIT_FLASH_MS, towerColour } from './towerColour'
@@ -26,7 +27,7 @@ function towerHeight(cardRank: BuildableRank): number {
  * comment in `src/game/tick.ts` for why a Tower under sustained attack still
  * always eventually falls.
  *
- * Four signals, all achieved by mutating the existing instanced meshes — no new
+ * Five signals, all achieved by mutating the existing instanced meshes — no new
  * geometry, and no React render per frame:
  *
  * - **Health** darkens the Tower's rank colour (the long-standing behaviour,
@@ -35,6 +36,8 @@ function towerHeight(cardRank: BuildableRank): number {
  * - **Critical health** pulses it toward a warning red.
  * - **Destruction** flares and shrinks a short-lived ghost, so a Tower does not
  *   simply pop out of existence.
+ * - **Out of reach** fades a Tower while a picked support Card cannot reach it
+ *   — a numbered Card supports only its own rank. See `canSupport`.
  *
  * Hits and deaths are found by **diffing published snapshots**, not by engine
  * events: `advance()` runs up to five ticks per `emit()`, so anything the engine
@@ -43,7 +46,20 @@ function towerHeight(cardRank: BuildableRank): number {
  */
 export function Towers({ board }: { board: BoardSpec }) {
   const towers = useGameStore((store) => store.snapshot.towers)
+  const deck = useGameStore((store) => store.snapshot.deck)
+  const selectedCardId = useUiStore((store) => store.selectedCardId)
+  const playMode = useUiStore((store) => store.playMode)
   const [ghosts, setGhosts] = useState<readonly Ghost[]>([])
+
+  // The picked Card, but only while it is being played for its suit — null the
+  // rest of the time, which is what leaves every Tower at its normal colour.
+  //
+  // Subscribing to the Deck costs nothing per frame: the snapshot publishes on
+  // structural change only, and the Deck changes only when a Card is played.
+  const supportCard =
+    playMode === 'support' && selectedCardId !== null
+      ? (findCard(deck, selectedCardId) ?? null)
+      : null
 
   const animations = useRef(new Map<string, TowerAnimation>())
   const ghostStartedAt = useRef(new Map<string, number>())
@@ -157,6 +173,7 @@ export function Towers({ board }: { board: BoardSpec }) {
         tower.health / tower.maxHealth,
         flashProgress,
         now * CRITICAL_PULSE_HZ,
+        supportCard !== null && !canSupport(supportCard, tower),
       )
 
       // Squash and recover on impact. Scale rather than position, so the Tower

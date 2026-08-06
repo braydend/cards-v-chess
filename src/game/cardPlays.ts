@@ -5,12 +5,12 @@
  * state unchanged — never throws, and never consumes the Card. The UI is
  * responsible for not offering illegal actions; the engine just refuses them.
  */
-import { ACE_BOARD_RANKS, JACK_SHIELD, KING_CORE_HEALTH, supportMagnitude } from '../data/cards'
+import { ACE_BOARD_RANKS, FACE_SUPPORT_PREMIUM, JACK_SHIELD, KING_CORE_HEALTH } from '../data/cards'
 import { towerRank } from '../data/towerRanks'
 import { findCard, isBuildableRank, removeCard } from './cards'
 import { clearReward } from './ink'
 import { canBuildOn } from './placement'
-import { applySupport } from './support'
+import { applySupport, canSupport } from './support'
 import type { BuildableRank, GameState, Square, Tower } from './types'
 
 /**
@@ -62,7 +62,9 @@ export function buildTower(state: GameState, cardId: string, square: Square): Ga
 /**
  * Plays a Card for its SUIT, applying a support action to one existing Tower.
  *
- * A Joker is refused: it has no suit, so this play is not available to it.
+ * A numbered Card must match the Tower's rank; a face card may support any
+ * Tower. A Joker is refused: it has no suit, so this play is not available to
+ * it. See `canSupport`.
  */
 export function supportTower(state: GameState, cardId: string, towerId: string): GameState {
   if (state.phase === 'defeated') return state
@@ -73,12 +75,22 @@ export function supportTower(state: GameState, cardId: string, towerId: string):
   const target = state.towers.find((tower) => tower.id === towerId)
   if (!target) return state
 
-  const magnitude = supportMagnitude(card.rank)
+  // A numbered Card reaches only a Tower of its own rank. Face cards are
+  // exempt — see `canSupport`.
+  if (!canSupport(card, target)) return state
+
+  // The only thing that varies between two plays of the same suit. `canSupport`
+  // has already guaranteed a numbered Card matches the Tower, so a face card is
+  // exactly the case that reached a Tower it does not share a rank with. This
+  // re-derives that same numbered/face distinction, so if `canSupport`'s
+  // exemption is ever narrowed (say to J and Q only), this line must narrow
+  // with it or the untouched ranks would still pay the premium.
+  const multiplier = isBuildableRank(card.rank) ? 1 : FACE_SUPPORT_PREMIUM
 
   return {
     ...state,
     towers: state.towers.map((tower) =>
-      tower.id === towerId ? applySupport(tower, card.suit, magnitude) : tower,
+      tower.id === towerId ? applySupport(tower, card.suit, multiplier) : tower,
     ),
     deck: removeCard(state.deck, cardId),
   }

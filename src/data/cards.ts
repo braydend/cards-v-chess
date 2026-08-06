@@ -1,51 +1,52 @@
-import type { CardRank, Suit } from '../game/types'
+import type { Suit } from '../game/types'
 
 export const SUITS: readonly Suit[] = ['hearts', 'diamonds', 'spades', 'clubs']
-
-/**
- * How strong a suit's support action is when played from this rank.
- *
- * Support magnitude scales with rank, as Tower power does: a 9♠ is a large
- * buff, a 2♠ a small one. The face ranks continue the scale past 10, which is
- * why a K♠ is a top-of-scale buff.
- *
- * **♥ does not read this.** Repair restores to full whatever the rank — see
- * `applySupport` in `src/game/support.ts` for why — so a ♥'s rank matters only
- * when it is played to build.
- */
-export function supportMagnitude(rank: CardRank): number {
-  switch (rank) {
-    case 'J':
-      return 11
-    case 'Q':
-      return 12
-    case 'K':
-      return 13
-    case 'A':
-      return 14
-    default:
-      return rank
-  }
-}
 
 /**
  * Balance values for the card actions. PLACEHOLDERS, not design decisions —
  * they live here so tuning never touches logic.
  */
 
-/** Milliseconds shaved off a fire interval per point of magnitude (♦ Speed). */
-export const SPEED_MS_PER_MAGNITUDE = 10
+/**
+ * Health a ♠ adds, to both current and maximum.
+ *
+ * Flat, not rank-scaled: a 2♠ on a rank-2 Tower is worth exactly what a 10♠ is
+ * on a rank-10 Tower, so a Tower's power grows at a predictable rate however it
+ * was built. 6 is the midpoint of the 2–10 range rank scaling used to produce,
+ * so a mid-ladder Tower behaves as it always did.
+ */
+export const SPADE_HEALTH = 6
+
+/** Milliseconds a ♦ shaves off a Tower's fire interval. Midpoint of the old 20–100ms range. */
+export const DIAMOND_SPEED_MS = 60
+
+/** Damage a ♣ adds. Midpoint of the old +1–3 range. */
+export const CLUB_DAMAGE = 2
+
+/**
+ * What a face card's support is worth relative to a matched numbered Card.
+ *
+ * Face cards are the only Cards that can support a Tower of any rank (see
+ * `canSupport`), and they carry a premium on top of that reach. It is **flat
+ * across J, Q, K and A** — a J♠ and an A♠ are identical as supports, and the
+ * choice between them is which action you would rather give up.
+ *
+ * The three values above are even so that this premium lands on whole numbers.
+ * Changing one without the other reintroduces rounding the design deliberately
+ * has none of.
+ */
+export const FACE_SUPPORT_PREMIUM = 1.5
 
 /**
  * The floor a fire interval can never go below, however many ♦ are stacked.
  *
- * Not a balance value — a guard. `fireTowers` loops `while (cooldown >=
- * fireIntervalMs)`, so an interval of zero would never terminate.
+ * Not a balance value — a guard, and load-bearing. `fireTowers` loops
+ * `while (cooldown >= fireIntervalMs)`, so an interval of zero would never
+ * terminate, and a flat per-♦ subtraction genuinely reaches zero. (A
+ * proportional one would only ever approach it, which is part of why flat
+ * values need this and the rejected proportional design did not.)
  */
 export const MIN_FIRE_INTERVAL_MS = 100
-
-/** Magnitude needed per point of added damage (♣ Damage). */
-export const MAGNITUDE_PER_DAMAGE = 3
 
 /**
  * A Jack's shield, flat rather than rank-scaled.

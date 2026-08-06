@@ -10,7 +10,6 @@
  * packs sees exactly what they are removing.
  */
 import { describe, expect, it } from 'vitest'
-import { supportMagnitude } from '../data/cards'
 import { BLOCKED_ATTACK_MULTIPLIER, PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { coversSquare } from './coverage'
@@ -22,6 +21,18 @@ const DT = 1000 / 60
 const TOWER_SQUARE = { file: 3, rank: 4 }
 const GRINDER_SQUARE = { file: 3, rank: 5 }
 
+/**
+ * How large a health deficit these tests let build up before repairing.
+ *
+ * ♥ restores to FULL, so a repair is worth exactly the deficit at the moment it
+ * lands — not anything about the Card. Waiting for a fixed deficit is what keeps
+ * the arithmetic below valid: each ♥ is then worth precisely this much. Healing
+ * the instant health dips by 1 would buy almost nothing, which is what let a
+ * no-op repair hide behind these tests before. Must divide evenly into the
+ * Tower's 20 max health at 1 damage per hop.
+ */
+const HEAL_DEFICIT = 10
+
 function runFor(state: GameState, durationMs: number): GameState {
   let current = state
   for (let elapsed = 0; elapsed < durationMs; elapsed += DT) {
@@ -32,7 +43,8 @@ function runFor(state: GameState, durationMs: number): GameState {
 
 /** A rank-5 diagonal Tower with a Pawn grinding it from directly up-file. */
 function grind(hearts: number): GameState {
-  const deck = Array.from({ length: hearts }, (_, i) => standardCard(`h${i}`, 10, 'hearts'))
+  // Rank 5, matching the Tower: a numbered Card supports only its own rank.
+  const deck = Array.from({ length: hearts }, (_, i) => standardCard(`h${i}`, 5, 'hearts'))
   const built = withDeck(deck, withTower(5, TOWER_SQUARE))
 
   return liveRound(built, [pawnAt('grinder', GRINDER_SQUARE)])
@@ -77,7 +89,6 @@ describe('the wall is bounded by card scarcity', () => {
     const maxHealth = TOWER_RANKS[5].maxHealth
     const dpsPerHop = PIECE_TYPES.pawn.attackDamage * BLOCKED_ATTACK_MULTIPLIER
     const hopIntervalMs = PIECE_TYPES.pawn.moveIntervalMs
-    const healMagnitude = supportMagnitude(10)
     const heartsAvailable = 2
 
     // How long the grind takes with no repair at all, versus with both hearts
@@ -85,7 +96,7 @@ describe('the wall is bounded by card scarcity', () => {
     // at `unaidedResolveMs` — it could never reach the checkpoint below.
     const unaidedResolveMs = (maxHealth / dpsPerHop) * hopIntervalMs
     const aidedResolveMs =
-      ((maxHealth + heartsAvailable * healMagnitude) / dpsPerHop) * hopIntervalMs
+      ((maxHealth + heartsAvailable * HEAL_DEFICIT) / dpsPerHop) * hopIntervalMs
     const checkpointMs = unaidedResolveMs + (aidedResolveMs - unaidedResolveMs) / 2
 
     let state = grind(heartsAvailable)
@@ -98,12 +109,12 @@ describe('the wall is bounded by card scarcity', () => {
       const heart = state.deck[0]
       // ♥ restores to FULL, so what a heal is worth is the deficit when it
       // lands, not the Card's magnitude. Waiting for a deficit of exactly
-      // `healMagnitude` is what keeps the arithmetic above valid: damage
-      // arrives in 0.5 steps, so the deficit is exactly `healMagnitude` at the
-      // moment this fires and each ♥ is worth precisely that much. Healing the
-      // instant health dips by 1 would buy almost nothing, which is what let a
-      // no-op repair hide behind this test before.
-      if (tower && heart && tower.maxHealth - tower.health >= healMagnitude) {
+      // `HEAL_DEFICIT` is what keeps the arithmetic above valid: damage
+      // arrives in whole steps of 1, so the deficit is exactly `HEAL_DEFICIT`
+      // at the moment this fires and each ♥ is worth precisely that much.
+      // Healing the instant health dips by 1 would buy almost nothing, which
+      // is what let a no-op repair hide behind this test before.
+      if (tower && heart && tower.maxHealth - tower.health >= HEAL_DEFICIT) {
         state = step(state, { kind: 'supportTower', cardId: heart.id, towerId: tower.id })
       }
 
@@ -132,7 +143,6 @@ describe('the wall is bounded by card scarcity', () => {
     const maxHealth = TOWER_RANKS[5].maxHealth
     const dpsPerHop = PIECE_TYPES.pawn.attackDamage * BLOCKED_ATTACK_MULTIPLIER
     const hopIntervalMs = PIECE_TYPES.pawn.moveIntervalMs
-    const healMagnitude = supportMagnitude(10)
     const unaidedResolveMs = (maxHealth / dpsPerHop) * hopIntervalMs
 
     let state = grind(5)
@@ -142,7 +152,7 @@ describe('the wall is bounded by card scarcity', () => {
 
       const tower = state.towers[0]
       const heart = state.deck[0]
-      if (tower && heart && tower.maxHealth - tower.health >= healMagnitude) {
+      if (tower && heart && tower.maxHealth - tower.health >= HEAL_DEFICIT) {
         state = step(state, { kind: 'supportTower', cardId: heart.id, towerId: tower.id })
       }
     }

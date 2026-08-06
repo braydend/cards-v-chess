@@ -1,4 +1,5 @@
 import {
+  canSupport,
   commandFor,
   squaresEqual,
   type Card,
@@ -81,6 +82,8 @@ export type BoardAction =
  * card system existed, and a Card that cannot be played at what was clicked
  * (a rank Card clicked onto an occupied square, a King, which takes no board
  * target at all) does not consume the click either — the panel opens instead.
+ * A support Card aimed at a Tower of the wrong rank is the same case: it cannot
+ * act on what was clicked, so the panel gets the click.
  *
  * Which Command a target produces is `commandFor`'s job, not this function's.
  * All that is decided here is *which* target the click is, and whether the card
@@ -100,6 +103,12 @@ export function resolveBoardAction(context: BoardClickContext): BoardAction {
   if (!card) return panel
 
   const clickedTower = towers.find((tower) => squaresEqual(tower.square, square))
+
+  // A support Card that cannot reach this Tower must not consume the click.
+  // `commandFor` does not validate — it would still return a supportTower
+  // command, which the engine then refuses — so the player would get neither a
+  // play nor the inspect panel. This is the check that keeps the panel.
+  if (playMode === 'support' && clickedTower && !canSupport(card, clickedTower)) return panel
 
   // Echo is the only play needing two board targets: a source Tower to copy,
   // then a square to build the copy on. Sequencing those two clicks is UX and
