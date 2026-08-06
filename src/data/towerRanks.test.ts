@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { coversSquare } from '../game/coverage'
 import { PIECE_TYPES } from './pieceTypes'
 import { BUILDABLE_RANKS, TOWER_RANKS, towerRank } from './towerRanks'
 
@@ -109,5 +110,84 @@ describe('the rank ladder', () => {
       [8, 'amplify'],
       [9, 'freeze'],
     ])
+  })
+})
+
+/**
+ * The measured answer to issue #19: "towers 6-10 may be overpowered".
+ *
+ * Before the rebalance a rank-10 Tower on a central 8x8 square covered ALL 63
+ * other squares and hit every Piece on them, and a single rank 6 carried
+ * auto-rounds for 45+ rounds unattended. A ceiling on footprint is what keeps
+ * placement a decision, so it is asserted rather than eyeballed.
+ *
+ * Measured on a literal 8x8 even though an Ace grows the board. Growth only
+ * ever DILUTES a footprint's share — a `band` covers the same absolute squares
+ * on a taller board, and no other geometry gains reach — so 8x8 is the tightest
+ * case and passing it here means passing it everywhere.
+ */
+const FILES = 8
+const RANKS = 8
+const OTHER_SQUARES = FILES * RANKS - 1
+
+/** The most squares this rank can cover from any one square of an 8x8 board. */
+function peakCoverage(rank: (typeof BUILDABLE_RANKS)[number]): number {
+  const def = towerRank(rank)
+  let peak = 0
+
+  for (let file = 0; file < FILES; file += 1) {
+    for (let boardRank = 0; boardRank < RANKS; boardRank += 1) {
+      let covered = 0
+
+      for (let targetFile = 0; targetFile < FILES; targetFile += 1) {
+        for (let targetRank = 0; targetRank < RANKS; targetRank += 1) {
+          const hit = coversSquare(
+            def.geometry,
+            def.range,
+            { file, rank: boardRank },
+            { file: targetFile, rank: targetRank },
+          )
+          if (hit) covered += 1
+        }
+      }
+
+      peak = Math.max(peak, covered)
+    }
+  }
+
+  return peak
+}
+
+describe('the coverage ceiling', () => {
+  /**
+   * 39 of 63 squares — 61.9% — is the ring at rank 8 placed centrally, and it
+   * is the widest footprint on the ladder. Asserted as a SQUARE COUNT rather
+   * than a percentage so the threshold is exact rather than a rounded float.
+   */
+  const CEILING = 39
+
+  it('never lets any rank cover more than 39 of the other 63 squares', () => {
+    for (const rank of BUILDABLE_RANKS) {
+      expect(peakCoverage(rank)).toBeLessThanOrEqual(CEILING)
+    }
+  })
+
+  it('never lets any rank cover the whole board', () => {
+    // The specific failure #19 reported. Kept separate from the ceiling above
+    // because it is the property that matters even if the ceiling is retuned.
+    for (const rank of BUILDABLE_RANKS) {
+      expect(peakCoverage(rank)).toBeLessThan(OTHER_SQUARES)
+    }
+  })
+
+  it('gives the Wall no footprint at all', () => {
+    expect(peakCoverage(7)).toBe(0)
+  })
+
+  it('leaves every firing rank somewhere it is not', () => {
+    for (const rank of FIRING_RANKS) {
+      expect(peakCoverage(rank)).toBeGreaterThan(0)
+      expect(peakCoverage(rank)).toBeLessThan(OTHER_SQUARES)
+    }
   })
 })
