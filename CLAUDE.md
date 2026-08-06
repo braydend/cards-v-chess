@@ -208,6 +208,7 @@ These are the failure modes that cause every R3F performance horror story:
 - **Toggle `visible`** rather than conditionally mounting, where mounting would recompile materials.
 - Load assets with `useLoader` / `useGLTF` so they are cached scene-wide.
 - **Resetting state when a prop flips wants render-phase adjustment, not an effect.** `setState` inside `useEffect` trips `react-hooks/set-state-in-effect`. Compare the current value against a tracked previous one and set during render, updating the tracker in the same guarded block so the guard flips and the render converges — the pattern React documents for adjusting state when a prop changes. `src/ui/PackShop.tsx` does this to clear a stale selection when the shop reopens.
+- **A ref passed down as a prop must be bound to a local name ending in `Ref` before you write through it.** `react-hooks/immutability` rejects `someProp.current = x` with `` `someProp` cannot be modified `` — the rule's analysis treats everything reached through a prop as immutable, and cannot tell a forwarded ref from ordinary data. It exempts ref-*named* identifiers, so `const { flash: flashRef } = props` and writing `flashRef.current` satisfies it, while an `eslint-disable` would only hide the check. `src/scene/PieceExits.tsx` does exactly this, and says why in place: it stamps the Core's flash through a ref `GameScene` owns and `Core` reads. Sharing per-frame data between sibling components is the case that hits this, since state is not an option in a frame loop.
 
 ## Domain vocabulary
 
