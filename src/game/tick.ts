@@ -6,7 +6,35 @@ import { coversSquare } from './coverage'
 import { roundIncome, totalKillReward } from './ink'
 import { isStuck, nextMove } from './movement'
 import { step } from './step'
-import type { BoardSpec, GameState, Piece, Square, Tower } from './types'
+import type { BoardSpec, ExitRecord, GameState, Piece, Square, Tower } from './types'
+
+/**
+ * How many exit records `GameState.recentExits` keeps.
+ *
+ * Sized against the observation window, not by feel. A publish observes at most
+ * one frame of simulation, so overflowing before the renderer reads the ring
+ * would take 32 exits inside one frame — which needs 32 Pieces simultaneously
+ * one hop from the Core, a board state that would have ended the run several
+ * times over.
+ */
+export const EXIT_RING_SIZE = 32
+
+/**
+ * Appends to the exit ring, dropping the oldest past `EXIT_RING_SIZE`.
+ *
+ * Returns the SAME array when there is nothing to append, so the overwhelming
+ * majority of ticks allocate nothing here.
+ */
+function appendExits(
+  current: readonly ExitRecord[],
+  added: readonly ExitRecord[],
+): readonly ExitRecord[] {
+  if (added.length === 0) return current
+
+  const next = [...current, ...added]
+
+  return next.length > EXIT_RING_SIZE ? next.slice(next.length - EXIT_RING_SIZE) : next
+}
 
 /**
  * Advances the simulation by one fixed timestep.
@@ -88,6 +116,7 @@ export function tick(state: GameState, dtMs: number): GameState {
   const coreHealth = Math.max(0, state.core.health - moved.leaked)
   const core = { ...state.core, health: coreHealth }
   const leaks = state.leaks + moved.leaked
+  const recentExits = appendExits(state.recentExits, moved.exits)
 
   // Within this function, Tower fire is the ONLY thing that pays a kill
   // reward — a Joker's Clear pays its own quarter share in cardPlays.ts. A
@@ -103,6 +132,7 @@ export function tick(state: GameState, dtMs: number): GameState {
       phase: 'defeated',
       core,
       leaks,
+      recentExits,
       ink,
       roundElapsedMs,
       pieces: healed,
@@ -153,6 +183,7 @@ export function tick(state: GameState, dtMs: number): GameState {
       roundElapsedMs: 0,
       core,
       leaks,
+      recentExits,
       // `state.roundNumber`, NOT the incremented value on the next line: this
       // pays for the round just played, not the one about to start.
       ink: ink + roundIncome(state.roundNumber),
@@ -167,6 +198,7 @@ export function tick(state: GameState, dtMs: number): GameState {
     ...state,
     core,
     leaks,
+    recentExits,
     ink,
     roundElapsedMs,
     pieces: healed,
@@ -331,10 +363,17 @@ function movePieces(
   towerBySquare: ReadonlyMap<string, Tower>,
   dtMs: number,
   buffed: ReadonlySet<string>,
-): { pieces: Piece[]; leaked: number; towerDamage: Map<string, number>; promoted: Square[] } {
+): {
+  pieces: Piece[]
+  leaked: number
+  towerDamage: Map<string, number>
+  promoted: Square[]
+  exits: ExitRecord[]
+} {
   const survivors: Piece[] = []
   const towerDamage = new Map<string, number>()
   const promoted: Square[] = []
+  const exits: ExitRecord[] = []
   let leaked = 0
 
   for (const piece of pieces) {
@@ -418,6 +457,10 @@ function movePieces(
 
     if (reachedCore) {
       leaked += 1
+      // `square`, not `piece.square`: the hop loop above can have advanced the
+      // Piece more than once within this tick, and the renderer must lunge from
+      // where it actually was, not where it started the tick.
+      exits.push({ pieceId: piece.id, typeId: piece.typeId, reason: 'leak', from: square })
       continue
     }
     if (isPromoted) continue
@@ -434,7 +477,7 @@ function movePieces(
     })
   }
 
-  return { pieces: survivors, leaked, towerDamage, promoted }
+  return { pieces: survivors, leaked, towerDamage, promoted, exits }
 }
 
 /**
