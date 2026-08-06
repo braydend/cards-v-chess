@@ -4,6 +4,7 @@ import { memo, useMemo, useRef } from 'react'
 import { AdditiveBlending, type Group } from 'three'
 import { allSquares, squareKey, type BoardSpec } from '../game'
 import { getState } from '../state/simulation'
+import { accumulateBoardFlash, isFlashLive, type BoardFlash } from './boardFlash'
 import { SQUARE_SIZE, fileToWorldX, rankToWorldZ } from './coords'
 import { accumulatePulses, detectShots, isPulseLive, type FirePulse } from './firePulse'
 
@@ -37,6 +38,12 @@ const PULSE_HEIGHT = 0.01
  * overlapping pulses sum into something brighter for free. The alternative —
  * an instance per lit square per pulse — would need a `limit` guessed from a
  * concurrent pulse count that nothing bounds.
+ *
+ * It also carries the board-wide flash a Joker's Clear produces. That shares
+ * this layer rather than mounting a second full-board additive one: the
+ * alternative doubles the permanent instance count to serve the rarest effect
+ * in the game. The maths lives in `boardFlash.ts`, kept out of `firePulse.ts`
+ * because that module's whole contract is about shots.
  */
 export const FirePulses = memo(function FirePulses({ board }: { board: BoardSpec }) {
   const squares = useMemo(() => allSquares(board), [board])
@@ -49,6 +56,8 @@ export const FirePulses = memo(function FirePulses({ board }: { board: BoardSpec
   const pulses = useRef<FirePulse[]>([])
   const lastCooldownMs = useRef(new Map<string, number>())
   const lastEntityId = useRef(0)
+  const flash = useRef<BoardFlash | null>(null)
+  const lastClears = useRef(0)
   const group = useRef<Group>(null)
 
   // Reallocated only when the board grows, never per frame.
@@ -65,8 +74,21 @@ export const FirePulses = memo(function FirePulses({ board }: { board: BoardSpec
     if (liveState.nextEntityId < lastEntityId.current) {
       pulses.current.length = 0
       lastCooldownMs.current.clear()
+      // `reset()` rewinds `clears` to 0 too, and a remembered higher count
+      // would swallow the new run's first Clear.
+      flash.current = null
+      lastClears.current = 0
     }
     lastEntityId.current = liveState.nextEntityId
+
+    // Monotonic, so reading it per frame cannot miss one — unlike a per-tick
+    // flag, which `advance` would lose when it runs five ticks per emit. Two
+    // Clears between frames draw one flash, which is right: they are 300ms
+    // apart at worst and the board is empty either way.
+    if (liveState.clears > lastClears.current) {
+      flash.current = { startedAt: now }
+    }
+    lastClears.current = liveState.clears
 
     // Compacted in place rather than with `filter`, which allocates a fresh
     // array on every frame — including the idle ones, where there is nothing
@@ -93,10 +115,17 @@ export const FirePulses = memo(function FirePulses({ board }: { board: BoardSpec
     // last pulse's final (near-zero, by construction) colours for ~16ms
     // before this callback overwrites them — visually negligible, and not
     // worth reordering the component to avoid.
-    if (group.current) group.current.visible = pulses.current.length > 0
-    if (pulses.current.length === 0) return
+    const currentFlash = flash.current
+    const flashLive = currentFlash !== null && isFlashLive(currentFlash, now)
+    if (!flashLive) flash.current = null
 
+    if (group.current) group.current.visible = pulses.current.length > 0 || flashLive
+    if (pulses.current.length === 0 && !flashLive) return
+
+    // Zeroes the board's region first, which is why it runs even with no pulses
+    // in flight. `accumulateBoardFlash` adds on top and never zeroes.
     accumulatePulses(intensity, board, pulses.current, now)
+    accumulateBoardFlash(intensity, board, flashLive ? currentFlash : null, now)
 
     for (let i = 0; i < squares.length; i += 1) {
       const mesh = meshes.current[i]
