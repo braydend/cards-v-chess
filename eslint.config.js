@@ -17,6 +17,9 @@ const RENDERER_PACKAGES = [
 const BOUNDARY_MESSAGE =
   'src/game and src/data must stay renderer-agnostic — no React, no three.js, no view state. See CLAUDE.md.'
 
+const BARREL_MESSAGE =
+  'Import engine code through the src/game barrel (../game), not a module inside it — see src/game/index.ts. A deep import reaches past the public surface and can see something the barrel deliberately does not export.'
+
 export default tseslint.config(
   { ignores: ['dist', 'coverage'] },
   js.configs.recommended,
@@ -58,6 +61,33 @@ export default tseslint.config(
             {
               group: ['three/**', '@react-three/**', '**/scene/**', '**/ui/**', '**/state/**'],
               message: BOUNDARY_MESSAGE,
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // The previous block restricts what src/game may import (outbound). This
+    // one restricts what may import INTO src/game (inbound): the renderer must
+    // go through the public surface at `src/game/index.ts`, never reach past it
+    // into a module inside. A deep import can see something the barrel
+    // deliberately does not export, and it is how the marker in
+    // `CoveragePreview.tsx` could quietly drift from the refusal in
+    // `cardPlays.ts` if someone imported `placement.ts` directly instead.
+    files: ['src/scene/**/*.{ts,tsx}', 'src/ui/**/*.{ts,tsx}', 'src/state/**/*.{ts,tsx}'],
+    // Test files are exempt: `structuralKey.test.ts` imports `../game/fixtures`,
+    // a test-only builder module that is deliberately not on the public surface
+    // and has no reason to be — production code never needs it.
+    ignores: ['**/*.test.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/game/*'],
+              message: BARREL_MESSAGE,
             },
           ],
         },

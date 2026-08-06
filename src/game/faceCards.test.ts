@@ -160,6 +160,24 @@ describe('Queen — Echo', () => {
       step(state, { kind: 'echoTower', cardId: 'five', sourceTowerId: firstTowerId(state), square: ELSEWHERE }),
     ).toBe(state)
   })
+
+  it('refuses a square a Piece is standing on', () => {
+    // Echo goes through the same placement rule as a rank build, so this is
+    // the second half of the same fix, not a separate one.
+    const state = liveRound(withQueen(), [pawnAt('p', ELSEWHERE)])
+    const refused = step(state, {
+      kind: 'echoTower',
+      cardId: 'q',
+      sourceTowerId: firstTowerId(state),
+      square: ELSEWHERE,
+    })
+
+    expect(refused).toBe(state)
+    // The Echo source Tower is unchanged — asserted on `refused`, the play's
+    // own outcome, not on `state`, which this holds true of only because the
+    // refusal returned it unchanged.
+    expect(refused.towers).toHaveLength(1)
+  })
 })
 
 describe('King — Reinforce', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { firstTowerId, jokerCard, standardCard, withDeck, withTower } from './fixtures'
-import { createInitialState, step } from './index'
+import { firstTowerId, jokerCard, liveRound, pawnAt, standardCard, withDeck, withTower } from './fixtures'
+import { createInitialState, squaresEqual, step, tick } from './index'
 import type { Command, GameState } from './types'
 
 describe('step: startRound', () => {
@@ -131,6 +131,38 @@ describe('step: buildTower', () => {
     const state = step(initial, { kind: 'buildTower', cardId: 'five', square: initial.core.square })
 
     expect(state.deck).toHaveLength(1)
+  })
+
+  it('refuses a square a Piece is standing on', () => {
+    // Towers block movement, so a Tower and a Piece cannot share a square —
+    // building under a Piece manufactures the state blocking exists to prevent.
+    const occupied = { file: 2, rank: 2 }
+    const initial = liveRound(withDeck([FIVE]), [pawnAt('p', occupied)])
+    const refused = step(initial, { kind: 'buildTower', cardId: 'five', square: occupied })
+
+    expect(refused).toBe(initial)
+    // Asserted on `refused`, the play's own outcome, not on `initial` — it
+    // only holds of `initial` too because the refusal returned it unchanged.
+    expect(refused.towers).toHaveLength(0)
+    expect(refused.deck).toHaveLength(1)
+  })
+
+  it('allows the square once the Piece has hopped away', () => {
+    // Occupancy is read live from state, not latched on the square: the rule
+    // has to stop refusing the moment the Piece leaves.
+    const occupied = { file: 2, rank: 2 }
+    let state = liveRound(withDeck([FIVE]), [pawnAt('p', occupied)])
+
+    // A Pawn hops every 900ms (data/pieceTypes.ts), so 1000ms is one hop.
+    for (let elapsed = 0; elapsed < 1000; elapsed += 1000 / 60) {
+      state = tick(state, 1000 / 60)
+    }
+    expect(state.pieces.some((piece) => squaresEqual(piece.square, occupied))).toBe(false)
+
+    const built = step(state, { kind: 'buildTower', cardId: 'five', square: occupied })
+
+    expect(built.towers).toHaveLength(1)
+    expect(built.towers[0]?.square).toEqual(occupied)
   })
 })
 
