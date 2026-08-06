@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
+import { TOWER_RANKS } from '../data/towerRanks'
+import { BISHOP_HEAL_INTERVAL_MS, KING_SPEED_MULTIPLIER } from './auras'
+import { withTower } from './fixtures'
 import { createInitialState, step, tick } from './index'
-import type { GameState } from './types'
+import type { GameState, Handedness, Piece, PieceTypeId, Square, Tower } from './types'
 
 /** The fixed timestep the app runs at. Tests drive time; nothing reads a clock. */
 const DT = 1000 / 60
@@ -16,6 +19,62 @@ function runFor(state: GameState, durationMs: number): GameState {
 
 function startedRound(): GameState {
   return step(createInitialState(), { kind: 'startRound' })
+}
+
+/**
+ * A single Rook placed directly on the back rank, bypassing the spawn
+ * pipeline entirely. `startedRound()` always drives round 1, which spawns
+ * Pawns exclusively, so this is the only way to get a sliding, reflecting
+ * Piece under test — a Pawn's `move` outcome never carries a `handedness`,
+ * so it cannot exercise the handedness-threading fix on its own.
+ */
+function rookOnBackRank(file: number, handedness: Handedness): GameState {
+  return {
+    ...createInitialState(),
+    phase: 'inProgress',
+    pieces: [
+      {
+        id: 'test-rook',
+        typeId: 'rook',
+        square: { file, rank: 0 },
+        prevSquare: { file, rank: 0 },
+        health: PIECE_TYPES.rook.maxHealth,
+        moveCooldownMs: 0,
+        moveCount: 0,
+        handedness,
+        auraCooldownMs: 0,
+        buffed: false,
+        hunting: false,
+      },
+    ],
+  }
+}
+
+/**
+ * A Piece placed directly, bypassing the spawn pipeline, with just the square
+ * and any overrides spelled out — everything else defaulted the way a fresh
+ * spawn would have it.
+ */
+function pieceAt(
+  id: string,
+  typeId: PieceTypeId,
+  square: Square,
+  overrides: Partial<Piece> = {},
+): Piece {
+  return {
+    id,
+    typeId,
+    square,
+    prevSquare: square,
+    health: PIECE_TYPES[typeId].maxHealth,
+    moveCooldownMs: 0,
+    moveCount: 0,
+    handedness: 1,
+    auraCooldownMs: 0,
+    buffed: false,
+    hunting: false,
+    ...overrides,
+  }
 }
 
 describe('tick: phase handling', () => {
@@ -141,15 +200,26 @@ describe('tick: round completion', () => {
     expect(state.roundElapsedMs).toBe(0)
   })
 
-  it('completes once nothing can act, not once the board is empty', () => {
-    // Chess pawns are confined to their file, so those off the Core's file reach
-    // the back rank and strand. They are left standing on purpose — deleting
-    // them would hide the gap that Pawn promotion is meant to fill.
-    const state = runFor(startedRound(), 60_000)
+  it('completes the round once a hunting Knight leaks, not merely when the board looks stalled', () => {
+    // A Knight on the back rank used to have no legal move ever again, and
+    // this test proved the round still completed with that Piece left
+    // standing. It hunts to the Core instead now, so the same starting
+    // position demonstrates the same underlying rule — completion tracks
+    // "can anything still act", not the board's contents — through a
+    // different route: the Piece disappears by leaking rather than by being
+    // left behind stuck. Placed directly rather than spawned, since
+    // `startedRound()` always drives round 1, which schedules Pawns
+    // exclusively.
+    const huntingKnight: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      pieces: [pieceAt('knight', 'knight', { file: 5, rank: 0 })],
+    }
+    const state = runFor(huntingKnight, 60_000)
 
     expect(state.phase).toBe('gap')
-    expect(state.pieces.length).toBeGreaterThan(0)
-    expect(state.pieces.every((piece) => piece.square.rank === 0)).toBe(true)
+    expect(state.pieces).toHaveLength(0)
+    expect(state.leaks).toBe(1)
   })
 
   it('scales the next round up', () => {
@@ -157,6 +227,266 @@ describe('tick: round completion', () => {
     const second = step(runFor(first, 60_000), { kind: 'startRound' })
 
     expect(second.pendingSpawns.length).toBeGreaterThan(first.pendingSpawns.length)
+  })
+})
+
+describe('tick: hunting Knight latch', () => {
+  it('latches hunting even when the very first hunt hop lands on a Tower', () => {
+    // (5,0) has no legal forward hop, so it hunts immediately, and (4,2) is
+    // its one distance-1 neighbour (see knightDistance.ts). A Tower there
+    // forces the Knight's very first hunting decision down the attackTower
+    // branch — exactly the path that used to leave `hunting` unpersisted on
+    // the surviving Piece, because `movePieces`' attackTower branch never
+    // touched it.
+    const state: GameState = {
+      ...withTower(2, { file: 4, rank: 2 }),
+      phase: 'inProgress',
+      pendingSpawns: [],
+      pieces: [pieceAt('n', 'knight', { file: 5, rank: 0 })],
+    }
+
+    const after = runFor(state, PIECE_TYPES.knight.moveIntervalMs + DT)
+
+    // Attacked rather than moved, proving this hop actually took the
+    // Tower-blocked path rather than some other candidate.
+    expect(after.pieces[0]?.square).toEqual({ file: 5, rank: 0 })
+    expect(after.towers[0]?.health).toBeLessThan(TOWER_RANKS[2].maxHealth)
+    expect(after.pieces[0]?.hunting).toBe(true)
+  })
+})
+
+describe('tick: motion state', () => {
+  it('counts a Piece hops so zig-zag and alternation advance', () => {
+    const started = startedRound()
+    const state = runFor(started, PIECE_TYPES.pawn.moveIntervalMs * 2 + DT)
+
+    expect(state.pieces[0]?.moveCount).toBeGreaterThan(0)
+  })
+
+  it('gives consecutively spawned Pieces opposite handedness', () => {
+    const state = runFor(startedRound(), 1200 + DT)
+    const sides = state.pieces.map((piece) => piece.handedness)
+
+    expect(new Set(sides).size).toBe(2)
+  })
+
+  // A Pawn's `move` outcome never carries a `handedness` (it isn't a slider),
+  // so the tests above never actually exercise threading the *returned*
+  // handedness forward — they pass on spawn-parity alone, which predates this
+  // fix. A Rook does: it reflects off a file edge, which is the one place a
+  // move outcome returns a handedness that differs from the one it was given.
+  it('carries the handedness a slide reflection returns, not just the spawned value', () => {
+    const rook = rookOnBackRank(6, 1)
+    const state = runFor(rook, PIECE_TYPES.rook.moveIntervalMs * 2 + DT)
+
+    // Hop 1: (6,0) -> (7,0), sideways move stays in bounds, handedness stays +1.
+    // Hop 2: (7,0) has nowhere further sideways to go at +1, so it reflects
+    // back to (6,0) and the returned handedness flips to -1. Discarding that
+    // return (the bug this task fixes) would leave handedness at +1 forever.
+    expect(state.pieces[0]?.square).toEqual({ file: 6, rank: 0 })
+    expect(state.pieces[0]?.handedness).toBe(-1)
+  })
+
+  // Task 11 adds a dedicated termination.test.ts covering every Piece type.
+  // This test narrows that down to the one case this task's fix addresses —
+  // deliberately redundant with that future coverage, not duplication to
+  // prune, because a permanent round hang is severe enough to guard twice.
+  it('lets a sweeping Rook cross the Core file and leak instead of oscillating forever', () => {
+    const rook = rookOnBackRank(6, 1)
+    // Five hops: (6,0) -> (7,0) -> (6,0) -> (5,0) -> (4,0) -> Core. Without
+    // the fix the Rook oscillates 6<->7 forever and the round never ends.
+    const state = runFor(rook, PIECE_TYPES.rook.moveIntervalMs * 5 + DT)
+
+    expect(state.phase).not.toBe('inProgress')
+    expect(state.leaks).toBeGreaterThan(0)
+  })
+})
+
+describe('tick: the King aura', () => {
+  it('speeds up a Piece standing beside a King', () => {
+    const state: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      pieces: [pieceAt('king', 'king', { file: 0, rank: 7 }), pieceAt('pawn', 'pawn', { file: 1, rank: 7 })],
+    }
+
+    // Buffed, the Pawn's 900ms interval becomes 900 * KING_SPEED_MULTIPLIER =
+    // 630ms (exact in IEEE754). Unbuffed it would need the full 900ms and
+    // would still be standing on rank 7 at this mark.
+    const buffedIntervalMs = PIECE_TYPES.pawn.moveIntervalMs * KING_SPEED_MULTIPLIER
+    const after = runFor(state, buffedIntervalMs + DT)
+
+    expect(after.pieces.find((piece) => piece.id === 'pawn')?.square.rank).toBe(6)
+  })
+
+  it('grants extra slide distance to a buffed slider but not a buffed non-slider, and records both', () => {
+    // A single tick, not runFor: the buffed threshold is crossed on this one
+    // tick for both the Rook and the Pawn, and both slide away from the King
+    // in that same hop. Running longer would let the Rook's own movement carry
+    // it out of adjacency before the assertion runs, making `buffed` correctly
+    // read false again on some later tick for an unrelated reason — a single
+    // tick pins the flag to the moment the buffed hop actually happens.
+    const rookBuffedMs = PIECE_TYPES.rook.moveIntervalMs * KING_SPEED_MULTIPLIER
+    const pawnBuffedMs = PIECE_TYPES.pawn.moveIntervalMs * KING_SPEED_MULTIPLIER
+
+    const state: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      pieces: [
+        pieceAt('king', 'king', { file: 0, rank: 7 }),
+        pieceAt('rook', 'rook', { file: 1, rank: 7 }, { moveCooldownMs: rookBuffedMs }),
+        pieceAt('pawn', 'pawn', { file: 1, rank: 6 }, { moveCooldownMs: pawnBuffedMs }),
+      ],
+    }
+
+    const after = tick(state, DT)
+
+    const king = after.pieces.find((piece) => piece.id === 'king')
+    const rook = after.pieces.find((piece) => piece.id === 'rook')
+    const pawn = after.pieces.find((piece) => piece.id === 'pawn')
+
+    // The Rook's hop covers 1 + KING_SLIDE_BONUS squares. The Pawn is buffed
+    // too — equally adjacent to the King — but is not a slider, so
+    // slideBonusFor returns 0 for it regardless: it covers only one square.
+    // That contrast is what pins "sliders only".
+    expect(rook?.square).toEqual({ file: 1, rank: 5 })
+    expect(pawn?.square).toEqual({ file: 1, rank: 5 })
+    expect(rook?.buffed).toBe(true)
+    expect(king?.buffed).toBe(false)
+  })
+
+  it('computes the aura once per tick, from tick-start positions, not per Piece mid-loop', () => {
+    // The King is listed first, so it is processed first. Its moveCooldownMs
+    // starts at exactly its own 1800ms interval, so it hops this very tick —
+    // from (4,6) to (4,5). At tick start King and Pawn are Chebyshev distance
+    // 1 apart (buffed, 630ms threshold); after the King's hop they would be
+    // distance 2 apart (unbuffed, 900ms threshold). The Pawn's moveCooldownMs
+    // starts at 630, so +DT clears 630 but not 900 (630 + DT ≈ 646.67).
+    // The Pawn hops this tick if and only if its buff was decided from
+    // tick-start positions rather than recomputed after the King had already
+    // moved — which is the property under test. Recomputing it per Piece
+    // mid-loop would see the King's post-move square and leave the Pawn
+    // unbuffed, so it would not hop at all this tick.
+    const state: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      pieces: [
+        pieceAt('king', 'king', { file: 4, rank: 6 }, { moveCooldownMs: PIECE_TYPES.king.moveIntervalMs }),
+        pieceAt('pawn', 'pawn', { file: 5, rank: 7 }, { moveCooldownMs: 630 }),
+      ],
+    }
+
+    const after = tick(state, DT)
+
+    expect(after.pieces.find((piece) => piece.id === 'pawn')?.square.rank).toBe(6)
+  })
+
+  it('does not stack — a Pawn beside two Kings moves at exactly the cadence of one', () => {
+    // Comparing "did it move" alone couldn't tell stacking apart from not: a
+    // stacked interval would still complete this hop, just with a different
+    // leftover cooldown. Starting cooldown at exactly the buffed threshold and
+    // comparing the post-tick remainder pins the actual interval used, not
+    // just whether *a* hop happened — this is what would fail if the King
+    // aura were ever reworked into something additive.
+    const buffedIntervalMs = PIECE_TYPES.pawn.moveIntervalMs * KING_SPEED_MULTIPLIER
+
+    const oneKing: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      pieces: [
+        pieceAt('king1', 'king', { file: 0, rank: 7 }),
+        pieceAt('pawn', 'pawn', { file: 1, rank: 7 }, { moveCooldownMs: buffedIntervalMs }),
+      ],
+    }
+
+    const twoKings: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      pieces: [
+        pieceAt('king1', 'king', { file: 0, rank: 7 }),
+        pieceAt('king2', 'king', { file: 2, rank: 7 }),
+        pieceAt('pawn', 'pawn', { file: 1, rank: 7 }, { moveCooldownMs: buffedIntervalMs }),
+      ],
+    }
+
+    const afterOne = tick(oneKing, DT).pieces.find((piece) => piece.id === 'pawn')
+    const afterTwo = tick(twoKings, DT).pieces.find((piece) => piece.id === 'pawn')
+
+    expect(afterOne?.square.rank).toBe(6)
+    expect(afterTwo?.square.rank).toBe(6)
+    expect(afterTwo?.moveCooldownMs).toBe(afterOne?.moveCooldownMs)
+  })
+})
+
+describe('tick: the Bishop healing aura', () => {
+  it('heals a damaged Piece in range as part of a tick, not just the standalone aura function', () => {
+    // Task 7 and 8 each shipped a new aura module whose `tick.ts` wiring stayed
+    // completely inert under the suite — revert the `applyHealing` call below
+    // and this is the test that would still catch it, since `auras.test.ts`
+    // only exercises `applyHealing` directly and never goes through `tick`.
+    const state: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      pieces: [
+        pieceAt('bishop', 'bishop', { file: 4, rank: 4 }),
+        pieceAt('king', 'king', { file: 4, rank: 4 }, { health: 1 }),
+      ],
+    }
+
+    // Long enough for the Bishop's first pulse to land, with a margin tick so
+    // floating-point summation across many small steps cannot undershoot the
+    // threshold. The King's own 1800ms move interval keeps it from hopping
+    // away within this window, and its 12 max health means the pulse's +2
+    // cannot be mistaken for a cap effect.
+    const after = runFor(state, BISHOP_HEAL_INTERVAL_MS + DT)
+
+    expect(after.pieces.find((piece) => piece.id === 'king')?.health).toBeGreaterThan(1)
+  })
+
+  it('leaves a Piece dead even when a Bishop pulse comes due on the same tick that kills it', () => {
+    // Both cooldowns are primed to cross their threshold on this exact tick.
+    // `600 - DT + DT` and `1500 - DT + DT` round-trip to exactly 600 and 1500
+    // in IEEE754 for this DT, so both the Tower's shot and the Bishop's pulse
+    // land on the very same `tick` call — the one scenario where getting the
+    // call order backwards in `tick.ts` would actually show up as a survivor.
+    const rank2 = TOWER_RANKS[2]
+    const tower: Tower = {
+      id: 'tower',
+      square: { file: 4, rank: 4 },
+      cardRank: 2,
+      fireCooldownMs: rank2.fireIntervalMs - DT,
+      health: rank2.maxHealth,
+      maxHealth: rank2.maxHealth,
+      damageTaken: 0,
+      damage: rank2.damage,
+      fireIntervalMs: rank2.fireIntervalMs,
+      shield: 0,
+    }
+
+    const state: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      towers: [tower],
+      pieces: [
+        // Adjacent to the Tower (distance 1, within its range-1 coverage) and
+        // already hurt, so the Tower's 1 damage is exactly lethal.
+        pieceAt('target', 'pawn', { file: 4, rank: 5 }, { health: 1 }),
+        // Within the Bishop's healing radius of the target (distance 1) but
+        // outside the Tower's adjacent coverage (distance 2), so the Tower
+        // can only ever target the Pawn, never the Bishop.
+        pieceAt('bishop', 'bishop', { file: 5, rank: 6 }, { auraCooldownMs: BISHOP_HEAL_INTERVAL_MS - DT }),
+      ],
+    }
+
+    const after = tick(state, DT)
+
+    // Correct order — fire, then heal — means fireTowers has already dropped
+    // the dead Pawn from the list before applyHealing ever runs, so there is
+    // nothing left for the Bishop's same-tick pulse to top up. Swap the order
+    // and the Bishop heals the Pawn from 1 to 3 (capped at its max of 3)
+    // before the Tower's damage lands, so it would survive this tick at
+    // health 2 instead of being gone.
+    expect(after.pieces.find((piece) => piece.id === 'target')).toBeUndefined()
   })
 })
 

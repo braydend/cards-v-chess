@@ -5,7 +5,7 @@ A web-based 3D tower defense game with trading-card-game mechanics.
 Two factions, and the name is literal:
 
 - **Cards** — the player. A **standard 54-card deck** is your arsenal. Cards are modal: **rank builds** a Tower (a face card acts instead), **suit supports** an existing one.
-- **Chess** — the AI opponent. Waves of chess pieces invade the board, each type mapping a real chess trait onto a tower-defense threat, trying to reach the **Core**.
+- **Chess** — the AI opponent. Chess pieces invade the board in Rounds, each type mapping a real chess trait onto a tower-defense threat, trying to reach the **Core**.
 
 It is a **one-sided defense**. The player is always Cards; Chess is always the attacker. There is no mode where the player commands chess pieces.
 
@@ -13,26 +13,26 @@ It is a **one-sided defense**. The player is always Cards; Chess is always the a
 
 ## Current state
 
-`pnpm dev` gives a playable loop: the board renders, rounds start manually or automatically, pawns hop toward the Core, Towers fire, blocked Pieces grind Towers down, cards are played from the Deck, and the run ends when the Core falls.
+`pnpm dev` gives a playable loop: the board renders, rounds start manually or automatically, the full Chess roster advances on chess rules, Towers fire, blocked Pieces grind Towers down, cards are played from the Deck, and the run ends when the Core falls.
 
 What exists:
 
 - The rules engine (`src/game/`) with `step` / `tick`, driven by a fixed-timestep accumulator.
 - **The card system.** The Deck, modality (rank builds / suit supports), the rank ladder 2–10, the four suit supports, and all five card actions — Jack Shield, Queen Echo, King Reinforce, Ace Expand, Joker Clear. Playing a card consumes it.
+- **The full Chess roster** — Pawn, Knight, Bishop, Rook, Queen, King — each with its own movement, Pawn promotion on the back rank, hunting Knights, the King's move-speed/slide aura, and the Bishop's healing aura.
 - **Tower combat.** Firing geometry per rank, Tower health, shields, damage from blocked Pieces, and destruction.
 - **Tower legibility.** A Tower darkens as it loses health, flashes on a hit, pulses at critical health, and flares as it dies; clicking one opens an inspect panel with the exact figures, including lifetime `damageTaken`.
-- The renderer (`src/scene/`), and the HUD, the Deck UI and the Tower panel (`src/ui/`).
+- The renderer (`src/scene/`), with distinct per-type rendering for each Piece, and the HUD, the Deck UI and the Tower panel (`src/ui/`).
 - **CI.** `lint`, `typecheck`, `test:coverage` with per-directory thresholds, and `build` — see "CI" below.
-- 292 tests across 19 files, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
+- 392 tests across 25 files, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
 
 What does **not** exist yet:
 
 - **Ink and packs.** No currency, no pack opening, no cull flow, and no seeded PRNG. The Deck is a fixed authored list in `src/data/deck.ts` — see the file's own comment before touching it.
-- **The piece roster.** One placeholder `pawn` exists with placeholder stats. None of the other five agreed threats are implemented — no promotion, no colour vulnerability, no healing.
 
-Towers fire and can kill Pieces outright, so a round does not resolve by leaking out — it ends when nothing on the board can still act, whether that means every Piece destroyed, stranded, or through the Core.
+Towers fire and can kill Pieces outright, so a round does not resolve by leaking out — it ends when nothing on the board can still act, whether that means every Piece destroyed or through the Core. No Piece type can end a round genuinely stranded any more: every type has a designed way off `stuck`.
 
-The design still runs ahead of the code on the economy and the roster, so read `docs/design/game-design.md` for the intended design rather than inferring it from what is built. The largest unbuilt pieces are Ink and packs (with the cull flow and the PRNG) and the rest of the Chess roster.
+The design still runs ahead of the code on the economy, so read `docs/design/game-design.md` for the intended design rather than inferring it from what is built. The largest unbuilt piece is Ink and packs, with the cull flow and the PRNG.
 
 **Known bug, cause unconfirmed.** Playing an Ace produces a visible shadow artifact — a black wedge across the scene. `src/scene/GameScene.tsx` casts shadows from a `directionalLight` using three.js's default directional-light shadow frustum, which the board's footprint in light space outgrows. A fixed frustum on a growable board is a real problem, but it does **not** account for the symptom: three.js renders receivers outside the shadow frustum as fully **lit**, not black, and the light-space half-extent already exceeds the default box at 8×8, before any Ace is played. So the mechanism is unknown. Reproduce and bisect before changing the lighting — an earlier confident diagnosis of this was wrong.
 
@@ -97,9 +97,10 @@ Design facts with hard implementation consequences. Breaking one of these is a b
 - **Towers block movement, and blocked Pieces attack them at half damage.** A Piece whose next square holds a Tower does not advance.
 - **Never add pathfinding.** A blocked Piece grinds; it must never route around. Routing would let the player steer Pieces by placing Towers — that is mazing, and it is rejected. Walling is allowed; herding is not.
 - **Pieces move by chess rules, not toward the Core.** `src/game/movement.ts` owns this. There is no goal-seeking: a Piece reaches the Core only if chess movement happens to take it there.
-- **A round ends only when no Piece can still act, not when the board is empty.** Chess movement strands Pieces — a pawn on the back rank off the Core's file has no legal move ever again. Waiting for an empty board hangs the round forever.
+- **A round ends when nothing can still act, not when the board is empty.** Every Piece type that could once run out of legal moves for good now has a designed way off `stuck` — Pawns promote, sliders and the King sweep sideways, and a Knight that exhausts its forward hops hunts the Core with knight moves rather than stranding on the back rank (see the hunting carve-out below) — but `stillActive` still checks every Piece, rather than assuming a designed answer always applies.
 - **A Piece blocked by a Tower counts as acting.** `nextMove` returns `attackTower`, not `stuck`, so the round cannot end while it grinds. That terminates only because repair is bounded by a finite Deck: ♥ runs out, the Tower falls, the round resumes. **Adding packs removes the bound** — see `src/game/roundTermination.test.ts`, which pins it, and "Repair versus the wall" in the design doc.
-- **Square colour is mechanically load-bearing**, not decoration — the Knight is only damageable on light squares.
+- **Pieces are forward-biased and deterministic.** Direction is a pure function of Piece type, `moveCount`, and `handedness`. Never choose a line because the Core is on it — that is goal-seeking, and it makes Tower placement steer Pieces. **Narrow carve-out:** once a Knight's forward hops run out, it hunts the Core directly, guided by a knight-move distance field computed on an empty board (`src/game/knightDistance.ts`). The field never sees Towers, so Tower placement cannot change what it returns, and a hunting Knight blocked by a Tower grinds on it exactly like every other blocked Piece rather than trying another square. What the invariant actually guards against — Tower placement steering a Piece around an obstacle — still cannot happen; only the *source* of direction changes, and only for a Knight that would otherwise have nothing left to do.
+- **Sliders and the King sweep laterally when forward is off the board, reflecting off the file edges and flipping `handedness`.** Round termination depends on this: without the flip a Piece oscillates between two files forever. Knights take a different answer to the same problem — once a Knight's forward hops run out it hunts the Core with knight moves instead of sweeping sideways, per the carve-out above.
 - **No path manipulation.** No walls, no blockers, no herding. Defense is coverage, not maze geometry.
 - **Ink is never spent to play a card.** It buys packs only.
 

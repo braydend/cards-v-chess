@@ -16,12 +16,8 @@ export interface BoardSpec {
   readonly ranks: number
 }
 
-/**
- * Only the placeholder Pawn is implemented. The full roster is designed —
- * pawn, knight, bishop, rook, queen, king — with a distinct threat each.
- * See the card system spec before widening this union.
- */
-export type PieceTypeId = 'pawn'
+/** The full Chess roster. Each type maps a real chess trait onto a threat. */
+export type PieceTypeId = 'pawn' | 'knight' | 'bishop' | 'rook' | 'queen' | 'king'
 
 export interface PieceTypeDef {
   readonly id: PieceTypeId
@@ -35,7 +31,18 @@ export interface PieceTypeDef {
    * demolition, which is what makes a Tower a real obstacle.
    */
   readonly attackDamage: number
+  /**
+   * Whether this Piece slides along a line. Sliders move one square per hop
+   * and gain +1 from a King aura; everything else has a fixed hop.
+   */
+  readonly slides: boolean
 }
+
+/**
+ * Which way sideways. Drives the Knight's zig-zag, the Bishop's and Queen's
+ * diagonal side, and the direction of a lateral sweep along a rank.
+ */
+export type Handedness = 1 | -1
 
 export interface Piece {
   readonly id: string
@@ -49,6 +56,35 @@ export interface Piece {
   readonly health: number
   /** Milliseconds accumulated toward this piece's next hop. */
   readonly moveCooldownMs: number
+  /** Hops completed. Drives the Knight's zig-zag and the Queen's alternation. */
+  readonly moveCount: number
+  /**
+   * Which way sideways. Set at spawn from entity-id parity so consecutively
+   * spawned Pieces weave opposite ways, and flipped when a Piece reflects off
+   * a file edge.
+   */
+  readonly handedness: Handedness
+  /** Milliseconds toward this Piece's next aura pulse. Bishops only. */
+  readonly auraCooldownMs: number
+  /** Whether a King aura reached this Piece on the last tick. Renderer-facing. */
+  readonly buffed: boolean
+  /**
+   * Whether this Knight has started hunting the Core with knight moves aimed
+   * at a distance field, instead of its forward zig-zag. See `knightMove` in
+   * movement.ts.
+   *
+   * Latches true and never reverts. A hunting Knight's first hop necessarily
+   * goes backwards — every knight move off rank 0 does — and landing further
+   * up the board it would have a legal forward hop again. Without the latch
+   * it would revert to zig-zagging, march back down to rank 0, strand there,
+   * start hunting backwards again, and repeat forever; the round would never
+   * end. The latch is what breaks that cycle.
+   *
+   * Always false for every other Piece type, and for a Pawn promoted into a
+   * Queen — a Queen's movement never reads this field — kept false rather
+   * than omitted so every Piece has the same shape.
+   */
+  readonly hunting: boolean
 }
 
 /**

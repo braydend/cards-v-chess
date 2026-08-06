@@ -56,6 +56,11 @@ export function pawnAt(id: string, square: Square): Piece {
     prevSquare: square,
     health: PIECE_TYPES.pawn.maxHealth,
     moveCooldownMs: 0,
+    moveCount: 0,
+    handedness: 1,
+    auraCooldownMs: 0,
+    buffed: false,
+    hunting: false,
   }
 }
 

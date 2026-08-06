@@ -1,5 +1,6 @@
 import { BLOCKED_ATTACK_MULTIPLIER, pieceType } from '../data/pieceTypes'
 import { towerRank, type TowerRankDef } from '../data/towerRanks'
+import { KING_SPEED_MULTIPLIER, applyHealing, buffedPieceIds, slideBonusFor } from './auras'
 import { squareKey } from './board'
 import { coversSquare } from './coverage'
 import { isStuck, nextMove } from './movement'
@@ -13,8 +14,9 @@ import type { BoardSpec, GameState, Piece, Square, Tower } from './types'
  * delta. That is what makes the simulation deterministic and refresh-rate
  * independent, and it is why tests can drive time by calling this directly.
  *
- * Towers fire, take damage from the Pieces they block, and are destroyed when
- * their health runs out — see `applyTowerDamage` below. Shields absorb before
+ * Towers fire, take damage from the Pieces they block — a Piece whose next
+ * square holds a Tower attacks it instead of advancing — and are destroyed when
+ * their health runs out; see `applyTowerDamage` below. Shields absorb before
  * health. See `roundTermination.test.ts` for the invariant that makes round
  * completion safe.
  */
@@ -36,20 +38,51 @@ export function tick(state: GameState, dtMs: number): GameState {
   // depend on the order Pieces are processed in.
   const towerBySquare = new Map(state.towers.map((tower) => [squareKey(tower.square), tower]))
 
-  const moved = movePieces(
-    [...state.pieces, ...spawned],
-    state.board,
-    state.core.square,
-    towerBySquare,
-    dtMs,
-  )
+  // Auras are derived once, from tick-start positions, for the same reason the
+  // Tower map is: so no Piece's outcome depends on processing order.
+  const allPieces = [...state.pieces, ...spawned]
+  const buffed = buffedPieceIds(allPieces)
+
+  const moved = movePieces(allPieces, state.board, state.core.square, towerBySquare, dtMs, buffed)
+
+  // Minted after movePieces has decided which Pawns reached the back rank, and
+  // numbered starting after drainDueSpawns's own ids, so a Pawn and a spawn in
+  // the same tick can never collide over the same id.
+  const promotedQueens: Piece[] = moved.promoted.map((square, index) => ({
+    id: `piece-${nextEntityId + index}`,
+    typeId: 'queen',
+    square,
+    prevSquare: square,
+    health: pieceType('queen').maxHealth,
+    moveCooldownMs: 0,
+    moveCount: 0,
+    // Entity-id parity, same rule as drainDueSpawns, so promoted Queens weave
+    // opposite ways from one another too.
+    handedness: (nextEntityId + index) % 2 === 0 ? 1 : -1,
+    auraCooldownMs: 0,
+    buffed: false,
+    // A promoted Queen never hunts — that field only ever means anything for
+    // a Knight, and this Piece is not one any more.
+    hunting: false,
+  }))
+  const entityIdAfterPromotion = nextEntityId + moved.promoted.length
 
   // Damage from blocked Pieces lands before Towers shoot, so a Tower destroyed
   // this tick does not get a parting shot.
   const standingTowers = applyTowerDamage(state.towers, moved.towerDamage)
 
-  // Fire after movement, so Towers shoot at where Pieces actually are now.
-  const fired = fireTowers(standingTowers, moved.pieces, state.core.square, dtMs)
+  // Fire after movement, so Towers shoot at where Pieces actually are now. The
+  // freshly promoted Queens are included so a Tower can hit one the instant it
+  // appears, rather than getting a free tick of immunity the Pawn never had.
+  const fired = fireTowers(
+    standingTowers,
+    [...moved.pieces, ...promotedQueens],
+    state.core.square,
+    dtMs,
+  )
+
+  // After firing, so a Bishop can top up survivors but never resurrect the dead.
+  const healed = applyHealing(fired.pieces, dtMs)
 
   const coreHealth = Math.max(0, state.core.health - moved.leaked)
   const core = { ...state.core, health: coreHealth }
@@ -62,21 +95,27 @@ export function tick(state: GameState, dtMs: number): GameState {
       core,
       leaks,
       roundElapsedMs,
-      pieces: fired.pieces,
+      pieces: healed,
       towers: fired.towers,
       pendingSpawns,
-      nextEntityId,
+      nextEntityId: entityIdAfterPromotion,
     }
   }
 
-  // A round ends when nothing on the board can still act — not when the board is
-  // empty. Chess movement leaves Pieces genuinely stranded: a pawn that reaches
-  // the back rank off the Core's file has no legal move for the rest of the run.
-  // Waiting for an empty board would hang the round forever.
+  // A round ends when nothing on the board can still act — not when the board
+  // is empty. That distinction still matters even though no Piece type
+  // deliberately strands any more: a Piece blocked by a Tower it cannot break
+  // grinds there forever rather than vanishing, so `stillActive` has to ask
+  // "can anything still act", never "is the board empty" — waiting for an
+  // empty board would hang the round in that case regardless.
   //
-  // Stranded Pieces are deliberately left standing rather than quietly deleted,
-  // so the gap is visible. The designed answer is Pawn promotion, which is not
-  // implemented. See the design doc's open questions.
+  // Every Piece type that could once run out of legal moves for good now has
+  // a designed way off `stuck`: a Pawn promotes into a Queen, sliders and the
+  // King sweep sideways, and a Knight that exhausts its forward hops hunts
+  // the Core with knight moves instead of stranding on the back rank — see
+  // `knightMove` in movement.ts. `stillActive` still checks every Piece for
+  // `stuck` rather than assuming that, though: a designed answer is not a
+  // proof, and the check is what actually guards the invariant.
   //
   // LOAD-BEARING INVARIANT: a Piece blocked by a Tower returns `attackTower`,
   // not `stuck`, so it counts as active and this round cannot end while it
@@ -92,7 +131,7 @@ export function tick(state: GameState, dtMs: number): GameState {
   const standingBySquare = new Map(
     fired.towers.map((tower) => [squareKey(tower.square), tower]),
   )
-  const stillActive = fired.pieces.some(
+  const stillActive = healed.some(
     (piece) => !isStuck(piece, state.board, state.core.square, standingBySquare),
   )
 
@@ -104,10 +143,10 @@ export function tick(state: GameState, dtMs: number): GameState {
       roundElapsedMs: 0,
       core,
       leaks,
-      pieces: fired.pieces,
+      pieces: healed,
       towers: fired.towers,
       pendingSpawns: [],
-      nextEntityId,
+      nextEntityId: entityIdAfterPromotion,
     }
   }
 
@@ -116,10 +155,10 @@ export function tick(state: GameState, dtMs: number): GameState {
     core,
     leaks,
     roundElapsedMs,
-    pieces: fired.pieces,
+    pieces: healed,
     towers: fired.towers,
     pendingSpawns,
-    nextEntityId,
+    nextEntityId: entityIdAfterPromotion,
   }
 }
 
@@ -236,6 +275,12 @@ function drainDueSpawns(
       prevSquare: square,
       health: pieceType(spawn.typeId).maxHealth,
       moveCooldownMs: 0,
+      moveCount: 0,
+      // Entity-id parity, so consecutively spawned Pieces weave opposite ways.
+      handedness: nextEntityId % 2 === 0 ? 1 : -1,
+      auraCooldownMs: 0,
+      buffed: false,
+      hunting: false,
     })
     nextEntityId += 1
   }
@@ -262,25 +307,44 @@ function movePieces(
   coreSquare: Square,
   towerBySquare: ReadonlyMap<string, Tower>,
   dtMs: number,
-): { pieces: Piece[]; leaked: number; towerDamage: Map<string, number> } {
+  buffed: ReadonlySet<string>,
+): { pieces: Piece[]; leaked: number; towerDamage: Map<string, number>; promoted: Square[] } {
   const survivors: Piece[] = []
   const towerDamage = new Map<string, number>()
+  const promoted: Square[] = []
   let leaked = 0
 
   for (const piece of pieces) {
-    const { moveIntervalMs, attackDamage } = pieceType(piece.typeId)
+    const { moveIntervalMs: baseInterval, attackDamage } = pieceType(piece.typeId)
+    const isBuffed = buffed.has(piece.id)
+    const moveIntervalMs = isBuffed ? baseInterval * KING_SPEED_MULTIPLIER : baseInterval
+    const slideBonus = slideBonusFor(piece, buffed)
 
     let cooldown = piece.moveCooldownMs + dtMs
     let square = piece.square
     let prevSquare = piece.prevSquare
+    let moveCount = piece.moveCount
+    let handedness = piece.handedness
+    let hunting = piece.hunting
     let reachedCore = false
+    let isPromoted = false
 
     // A loop rather than a single hop so that a slow frame or a fast piece can
     // resolve more than one move in a step without silently dropping movement.
     while (cooldown >= moveIntervalMs) {
       cooldown -= moveIntervalMs
 
-      const outcome = nextMove(piece.typeId, square, board, coreSquare, towerBySquare)
+      // moveCount, handedness, and hunting carry the Piece's own motion state
+      // forward hop by hop, which is what makes the Knight's zig-zag, the
+      // Queen's rook/bishop alternation, and a hunting Knight's permanent
+      // switch away from zig-zagging actually stick rather than repeating or
+      // reverting.
+      const outcome = nextMove(
+        { typeId: piece.typeId, from: square, moveCount, handedness, slideBonus, hunting },
+        board,
+        coreSquare,
+        towerBySquare,
+      )
 
       if (outcome.kind === 'reachCore') {
         reachedCore = true
@@ -292,14 +356,28 @@ function movePieces(
           outcome.towerId,
           (towerDamage.get(outcome.towerId) ?? 0) + attackDamage * BLOCKED_ATTACK_MULTIPLIER,
         )
-        // Stay put, and leave nothing for the renderer to interpolate.
+        // Stay put, and leave nothing for the renderer to interpolate. The
+        // latch still has to persist here exactly as it does on a real move
+        // below: a Knight's first hunting hop can land on a Tower just as
+        // easily as an open square, and `hunting` is documented to go true
+        // the moment a Knight starts hunting, not only the moment it moves.
         prevSquare = square
+        hunting = outcome.hunting ?? hunting
         continue
       }
 
+      if (outcome.kind === 'promote') {
+        promoted.push(square)
+        isPromoted = true
+        break
+      }
+
       if (outcome.kind === 'stuck') {
-        // No legal move now and none later. Drop the cooldown so the Piece is
-        // not burning simulation work every tick for the rest of the run.
+        // No legal move this hop. For every Piece type on the current board
+        // this is also permanent — Pawns promote, sliders and the King sweep
+        // sideways, and a Knight that runs out of forward hops hunts instead
+        // of stranding — so drop the cooldown rather than let a genuinely
+        // immobile Piece burn simulation work every tick for nothing.
         prevSquare = square
         cooldown = 0
         break
@@ -307,17 +385,33 @@ function movePieces(
 
       prevSquare = square
       square = outcome.to
+      // Only a real move advances the count. A blocked Piece must grind the
+      // same Tower rather than weave to a different square next interval —
+      // that would be routing around, which the design forbids.
+      moveCount += 1
+      handedness = outcome.handedness ?? handedness
+      hunting = outcome.hunting ?? hunting
     }
 
     if (reachedCore) {
       leaked += 1
       continue
     }
+    if (isPromoted) continue
 
-    survivors.push({ ...piece, square, prevSquare, moveCooldownMs: cooldown })
+    survivors.push({
+      ...piece,
+      square,
+      prevSquare,
+      moveCooldownMs: cooldown,
+      moveCount,
+      handedness,
+      hunting,
+      buffed: isBuffed,
+    })
   }
 
-  return { pieces: survivors, leaked, towerDamage }
+  return { pieces: survivors, leaked, towerDamage, promoted }
 }
 
 /**
