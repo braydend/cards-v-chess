@@ -169,3 +169,26 @@ describe('the wall is bounded by card scarcity', () => {
     expect(after.phase).toBe('gap')
   })
 })
+
+describe('packs cannot lengthen the wall', () => {
+  /**
+   * The bound this whole file pins is "♥ runs out". Packs are the thing that
+   * could remove it — a player with Ink could buy ♥ forever and hold a blocked
+   * Piece against an unkillable Tower with no round end in sight.
+   *
+   * Gap-only purchasing is what prevents it. This test is the invariant; without
+   * it, the rule is only a comment.
+   */
+  it('refuses a purchase while a round is live, so the ♥ supply is fixed for its duration', () => {
+    const grinding: GameState = { ...grind(0), ink: 10_000 }
+
+    expect(grinding.phase).toBe('inProgress')
+    expect(step(grinding, { kind: 'buyPack', pack: 'base', cullCardIds: [] })).toBe(grinding)
+  })
+
+  it('allows the same purchase in the gap', () => {
+    const between: GameState = { ...grind(0), phase: 'gap', ink: 10_000 }
+
+    expect(step(between, { kind: 'buyPack', pack: 'base', cullCardIds: [] })).not.toBe(between)
+  })
+})

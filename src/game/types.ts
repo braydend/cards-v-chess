@@ -6,6 +6,7 @@
  * mutating, which is what keeps the simulation deterministic and testable.
  */
 
+import type { PackType } from '../data/packs'
 import type { Rng } from './rng'
 
 export interface Square {
@@ -297,3 +298,22 @@ export type Command =
   | { readonly kind: 'reinforceCore'; readonly cardId: string }
   | { readonly kind: 'expandBoard'; readonly cardId: string }
   | { readonly kind: 'clearPieces'; readonly cardId: string }
+  | {
+      /**
+       * Buy a pack, culling to the cap in the same step.
+       *
+       * Atomic on purpose: cull and open commit together, so `GameState` never
+       * holds a half-finished purchase and Cancel needs no rollback. The
+       * in-progress cull selection is view state — see `src/state/uiStore.ts`.
+       *
+       * Valid only in the `gap` phase. That is the one exception to "commands
+       * are valid both between rounds and mid-round", and it is what keeps round
+       * termination bounded — see `src/game/roundTermination.test.ts`.
+       */
+      readonly kind: 'buyPack'
+      readonly pack: PackType
+      /** Required for a Suited pack, and forbidden for every other type. */
+      readonly suit?: Suit
+      /** Exactly `cullCountFor(deck.length, pack)` ids, no more and no fewer. */
+      readonly cullCardIds: readonly string[]
+    }
