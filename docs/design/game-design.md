@@ -173,8 +173,8 @@ This requires a **seeded PRNG carried in `GameState`**. `Math.random` must never
 
 Earned three ways:
 
-- **Round income** — a lump sum when a round completes.
-- **Kill rewards** — each destroyed Piece pays out, scaled by type. A Pawn trickles; a Queen pays properly.
+- **Round income** — a lump sum when a round completes, **scaling with the round number**. Rounds grow, so a flat payout would shrink in real terms exactly as the pressure rises. A lost run pays nothing: the Core falling ends the round without completing it.
+- **Kill rewards** — each destroyed Piece pays out, scaled by type. A Pawn trickles; a Queen pays properly. **Only a kill pays.** A Piece that leaks was not killed — it already cost Core health — and a Pawn that promotes was not destroyed but transformed, so the Queen it becomes pays when the Queen dies.
 - **Clear share** — a Joker's Clear pays a quarter share of the kill rewards for the Pieces it destroys, while the round-completion lump sum stays whole. Keeps the safety valve paying something without ever out-earning shooting the board down.
 
 Unspent Ink carries between rounds.
