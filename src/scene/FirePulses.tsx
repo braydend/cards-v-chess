@@ -98,7 +98,7 @@ export const FirePulses = memo(function FirePulses({ board }: { board: BoardSpec
     let write = 0
     for (let read = 0; read < live.length; read += 1) {
       const pulse = live[read]
-      if (pulse && isPulseLive(pulse, now)) {
+      if (pulse && isPulseLive(pulse, now, board)) {
         live[write] = pulse
         write += 1
       }

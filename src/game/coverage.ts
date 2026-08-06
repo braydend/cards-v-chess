@@ -22,6 +22,23 @@ export function coversSquare(
   // A Tower never covers its own square. Nothing can stand there anyway: a
   // Piece that would land on a Tower attacks it instead of moving.
   if (distance === 0) return false
+
+  // Handled before the shared range guard below, because neither one is a
+  // function of Chebyshev distance in the way the rest of the ladder is.
+  switch (geometry) {
+    // Rank 7, the Wall. It blocks and soaks and never shoots, so there is no
+    // square it covers — including at a generous range.
+    case 'none':
+      return false
+    // Rank 10, the toll gate. The FULL file width, bounded only in board
+    // ranks, so nothing can flank it. Files never grow (only board ranks do),
+    // so a band spans the whole board for an entire run.
+    case 'band':
+      return rankDistance <= range
+    default:
+      break
+  }
+
   if (distance > range) return false
 
   switch (geometry) {
@@ -42,5 +59,17 @@ export function coversSquare(
     // 2 and 3 together; 6 being 4 and 5 together reads the same way.
     case 'star':
       return rankDistance === 0 || fileDistance === 0 || fileDistance === rankDistance
+    // Rank 8, the Amplifier. The outer two squares of its reach only — it is
+    // blind at its own feet, which is what makes its hollow core a socket for
+    // a short-range Tower rather than a flaw.
+    case 'ring':
+      return distance >= range - 1
+    // 'none' and 'band' are not cases here — they are returned above, before
+    // the range guard, and TypeScript's control-flow analysis has already
+    // narrowed them out of `geometry`'s type by this point. Listing them
+    // would be a "not comparable" type error, not a no-op: the narrowed type
+    // is exactly this switch's case list, so the switch stays exhaustive —
+    // and adding a geometry without a case here still fails to typecheck —
+    // without them.
   }
 }

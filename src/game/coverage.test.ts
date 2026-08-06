@@ -205,3 +205,68 @@ describe('coversSquare: adjacent as a disc', () => {
     expect(coversSquare('adjacent', 3, ORIGIN, { file: 0, rank: 4 })).toBe(false)
   })
 })
+
+describe('coversSquare: none', () => {
+  it('covers nothing at any range', () => {
+    expect(coversSquare('none', 0, ORIGIN, { file: 4, rank: 5 })).toBe(false)
+    expect(coversSquare('none', 8, ORIGIN, { file: 4, rank: 5 })).toBe(false)
+    expect(coversSquare('none', 8, ORIGIN, { file: 5, rank: 5 })).toBe(false)
+  })
+
+  it('does not cover its own square either', () => {
+    expect(coversSquare('none', 8, ORIGIN, ORIGIN)).toBe(false)
+  })
+})
+
+describe('coversSquare: ring', () => {
+  it('covers the outer band at exactly its range', () => {
+    expect(coversSquare('ring', 3, ORIGIN, { file: 7, rank: 4 })).toBe(true)
+  })
+
+  it('covers one square inside its range, so the band is two deep', () => {
+    expect(coversSquare('ring', 3, ORIGIN, { file: 6, rank: 4 })).toBe(true)
+  })
+
+  it('is blind at its own feet', () => {
+    expect(coversSquare('ring', 3, ORIGIN, { file: 5, rank: 4 })).toBe(false)
+    expect(coversSquare('ring', 3, ORIGIN, { file: 5, rank: 5 })).toBe(false)
+  })
+
+  it('does not cover its own square', () => {
+    expect(coversSquare('ring', 3, ORIGIN, ORIGIN)).toBe(false)
+  })
+
+  it('does not cover beyond its range', () => {
+    expect(coversSquare('ring', 3, ORIGIN, { file: 0, rank: 4 })).toBe(false)
+  })
+
+  it('measures the band by Chebyshev distance, so corners are in it', () => {
+    expect(coversSquare('ring', 3, ORIGIN, { file: 7, rank: 7 })).toBe(true)
+  })
+})
+
+describe('coversSquare: band', () => {
+  it('covers the full file width at its own board rank', () => {
+    expect(coversSquare('band', 1, ORIGIN, { file: 0, rank: 4 })).toBe(true)
+    expect(coversSquare('band', 1, ORIGIN, { file: 15, rank: 4 })).toBe(true)
+  })
+
+  it('covers the board ranks either side, within range', () => {
+    expect(coversSquare('band', 1, ORIGIN, { file: 0, rank: 3 })).toBe(true)
+    expect(coversSquare('band', 1, ORIGIN, { file: 0, rank: 5 })).toBe(true)
+  })
+
+  it('does not cover beyond its range in board ranks', () => {
+    expect(coversSquare('band', 1, ORIGIN, { file: 4, rank: 6 })).toBe(false)
+  })
+
+  it('does not cover its own square', () => {
+    expect(coversSquare('band', 1, ORIGIN, ORIGIN)).toBe(false)
+  })
+
+  it('ignores file distance entirely — a Piece can never flank it', () => {
+    // The whole point of the rank-10 toll gate. A file distance of 40 is
+    // still covered; only the board-rank distance is bounded.
+    expect(coversSquare('band', 1, ORIGIN, { file: 44, rank: 4 })).toBe(true)
+  })
+})

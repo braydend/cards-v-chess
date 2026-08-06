@@ -6,6 +6,12 @@ import { coversSquare } from './coverage'
 import { roundIncome, totalKillReward } from './ink'
 import { isStuck, nextMove } from './movement'
 import { step } from './step'
+import {
+  FREEZE_MULTIPLIER,
+  amplificationFor,
+  amplifierIdsByPiece,
+  frozenPieceIds,
+} from './towerAuras'
 import type { BoardSpec, ExitRecord, GameState, Piece, Square, Tower } from './types'
 
 /**
@@ -71,8 +77,20 @@ export function tick(state: GameState, dtMs: number): GameState {
   // Tower map is: so no Piece's outcome depends on processing order.
   const allPieces = [...state.pieces, ...spawned]
   const buffed = buffedPieceIds(allPieces)
+  // Derived from tick-start Tower and Piece positions for the same reason
+  // `buffed` and `towerBySquare` are: so no Piece's outcome depends on the
+  // order Pieces are processed in.
+  const frozen = frozenPieceIds(state.towers, allPieces)
 
-  const moved = movePieces(allPieces, state.board, state.core.square, towerBySquare, dtMs, buffed)
+  const moved = movePieces(
+    allPieces,
+    state.board,
+    state.core.square,
+    towerBySquare,
+    dtMs,
+    buffed,
+    frozen,
+  )
 
   // Minted after movePieces has decided which Pawns reached the back rank, and
   // numbered starting after drainDueSpawns's own ids, so a Pawn and a spawn in
@@ -229,8 +247,22 @@ function fireTowers(
   const remainingHealth = new Map(pieces.map((piece) => [piece.id, piece.health]))
   const nextTowers: Tower[] = []
 
+  // Derived once, from the Piece and Tower lists as passed in, so no Piece's
+  // damage depends on which Tower fired first.
+  const amplifiers = amplifierIdsByPiece(towers, pieces)
+
   for (const tower of towers) {
     const def = towerRank(tower.cardRank)
+
+    // The Wall never fires. Skipping before the cooldown loop rather than
+    // relying on `selectTargets` returning nothing keeps a gunless Tower out
+    // of the firing path entirely — and means its inert `fireIntervalMs` is
+    // never read, so it can never gate a loop.
+    if (def.geometry === 'none') {
+      nextTowers.push(tower)
+      continue
+    }
+
     let cooldown = tower.fireCooldownMs + dtMs
 
     while (cooldown >= tower.fireIntervalMs) {
@@ -247,7 +279,11 @@ function fireTowers(
       cooldown -= tower.fireIntervalMs
 
       for (const target of targets) {
-        remainingHealth.set(target.id, (remainingHealth.get(target.id) ?? 0) - tower.damage)
+        const multiplier = amplificationFor(tower.id, target.id, amplifiers)
+        remainingHealth.set(
+          target.id,
+          (remainingHealth.get(target.id) ?? 0) - tower.damage * multiplier,
+        )
       }
     }
 
@@ -366,6 +402,7 @@ function movePieces(
   towerBySquare: ReadonlyMap<string, Tower>,
   dtMs: number,
   buffed: ReadonlySet<string>,
+  frozen: ReadonlySet<string>,
 ): {
   pieces: Piece[]
   leaked: number
@@ -382,7 +419,15 @@ function movePieces(
   for (const piece of pieces) {
     const { moveIntervalMs: baseInterval, attackDamage } = pieceType(piece.typeId)
     const isBuffed = buffed.has(piece.id)
-    const moveIntervalMs = isBuffed ? baseInterval * KING_SPEED_MULTIPLIER : baseInterval
+    const buffedInterval = isBuffed ? baseInterval * KING_SPEED_MULTIPLIER : baseInterval
+    // A King's buff and a Freezer's slow COMPOSE rather than override: 0.7 x
+    // 1.5 = 1.05, so a PIECE STANDING BESIDE A KING that is also inside a
+    // Freezer's coverage is barely slowed at all. That does NOT extend to the
+    // King itself: `buffedPieceIds` excludes a King from its own aura, so a
+    // King caught alone in a Freezer's coverage takes the full 1.5x slow,
+    // with no buff of its own to compose against. The King is the Chess
+    // faction's answer to the Freezer for its neighbours, not for itself.
+    const moveIntervalMs = frozen.has(piece.id) ? buffedInterval * FREEZE_MULTIPLIER : buffedInterval
     const slideBonus = slideBonusFor(piece, buffed)
 
     let cooldown = piece.moveCooldownMs + dtMs
