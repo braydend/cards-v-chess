@@ -1,7 +1,16 @@
+import { Color } from 'three'
 import { describe, expect, it } from 'vitest'
-import { tick, type Tower } from '../game'
+import { tick, type BoardSpec, type BuildableRank, type Tower } from '../game'
 import { liveRound, pawnAt, withTower } from '../game/fixtures'
-import { detectShots, type FirePulse } from './firePulse'
+import {
+  accumulatePulses,
+  detectShots,
+  isPulseLive,
+  PULSE_FADE_MS,
+  PULSE_SQUARES_PER_SECOND,
+  type FirePulse,
+} from './firePulse'
+import { RANK_COLOURS } from './rankColours'
 
 /** The fixed timestep `src/state/simulation.ts` drives the engine with. */
 const FIXED_DT_MS = 1000 / 60
@@ -132,5 +141,126 @@ describe('detectShots', () => {
     }
 
     expect(pulses).toEqual([])
+  })
+})
+
+/** Local, not `BOARD` from data/ — a balance tweak must not break these. */
+const board: BoardSpec = { files: 8, ranks: 8 }
+
+/**
+ * The red channel written for a square — a proxy for "lit", enough to assert
+ * direction and ratios on. `?? 0` because `noUncheckedIndexedAccess` makes a
+ * Float32Array read `number | undefined`, and this codebase has no `!`.
+ */
+function channel(out: Float32Array, file: number, boardRank: number): number {
+  return out[(boardRank * board.files + file) * 3] ?? 0
+}
+
+function pulseAt(cardRank: BuildableRank, file = 3, boardRank = 3): FirePulse {
+  return { file, boardRank, cardRank, startedAt: 0 }
+}
+
+describe('accumulatePulses', () => {
+  it('lights nothing outside the footprint', () => {
+    const out = new Float32Array(board.files * board.ranks * 3)
+    // Rank 4 is `cross`. The square directly up-file is covered; its diagonal
+    // neighbour, at the same Chebyshev distance, is not.
+    accumulatePulses(out, board, [pulseAt(4)], 1 / PULSE_SQUARES_PER_SECOND)
+
+    expect(channel(out, 3, 4)).toBeGreaterThan(0)
+    expect(channel(out, 4, 4)).toBe(0)
+  })
+
+  it('lights nothing the wave has not reached yet', () => {
+    const out = new Float32Array(board.files * board.ranks * 3)
+    // Rank 4 reaches 4 squares. At 50ms the ring has passed d=1 (45ms) but is
+    // nowhere near d=4 (182ms).
+    accumulatePulses(out, board, [pulseAt(4)], 0.05)
+
+    expect(channel(out, 3, 4)).toBeGreaterThan(0)
+    expect(channel(out, 3, 7)).toBe(0)
+  })
+
+  it('fades a square from full to nothing over PULSE_FADE_MS', () => {
+    const out = new Float32Array(board.files * board.ranks * 3)
+    const pulse = pulseAt(4)
+    const arrival = 1 / PULSE_SQUARES_PER_SECOND
+    const fadeSec = PULSE_FADE_MS / 1000
+
+    accumulatePulses(out, board, [pulse], arrival)
+    const full = channel(out, 3, 4)
+
+    accumulatePulses(out, board, [pulse], arrival + fadeSec / 2)
+    const half = channel(out, 3, 4)
+
+    // Sampled clearly past the fade, not exactly on it. `(arrival + fadeSec)`
+    // minus `arrival` in doubles is 0.15999999999999998, a hair under the
+    // threshold, which leaves an intensity of 2.2e-16 rather than 0 and would
+    // fail the assertion below for no behavioural reason.
+    accumulatePulses(out, board, [pulse], arrival + fadeSec + 0.01)
+
+    // Compared against the rank colour rather than a hard-coded float, so a
+    // palette change does not break this. `new Color(hex)` converts sRGB into
+    // the renderer's working space, which is what the implementation stores.
+    expect(full).toBeCloseTo(new Color(RANK_COLOURS[4]).r, 5)
+    expect(half).toBeCloseTo(full / 2, 5)
+    expect(channel(out, 3, 4)).toBe(0)
+  })
+
+  it('zeroes the buffer before summing, so a departed pulse leaves no residue', () => {
+    const out = new Float32Array(board.files * board.ranks * 3)
+    accumulatePulses(out, board, [pulseAt(4)], 1 / PULSE_SQUARES_PER_SECOND)
+    expect(channel(out, 3, 4)).toBeGreaterThan(0)
+
+    accumulatePulses(out, board, [], 1 / PULSE_SQUARES_PER_SECOND)
+
+    expect(channel(out, 3, 4)).toBe(0)
+  })
+
+  it('sums two pulses covering the same square', () => {
+    const out = new Float32Array(board.files * board.ranks * 3)
+    const below = pulseAt(4, 3, 3)
+    const above = pulseAt(4, 3, 5)
+    const arrival = 1 / PULSE_SQUARES_PER_SECOND
+
+    accumulatePulses(out, board, [below], arrival)
+    const single = channel(out, 3, 4)
+
+    // {3,4} sits one square from each origin along the file, so both rings
+    // reach it at the same instant.
+    accumulatePulses(out, board, [below, above], arrival)
+
+    expect(channel(out, 3, 4)).toBeCloseTo(single * 2, 5)
+  })
+
+  it('never writes past the squares the board actually has', () => {
+    const squareFloats = board.files * board.ranks * 3
+    const out = new Float32Array(squareFloats + 12)
+    out.fill(-1, squareFloats)
+
+    // Rank 8 is `star` at range 6, so from the corner its footprint runs well
+    // past two edges of an 8x8 board.
+    accumulatePulses(out, board, [pulseAt(8, 0, 0)], 0.2)
+
+    expect(channel(out, 1, 1)).toBeGreaterThan(0)
+    expect(out[squareFloats]).toBe(-1)
+    expect(out[squareFloats + 11]).toBe(-1)
+  })
+})
+
+describe('isPulseLive', () => {
+  it('stays live while the ring travels and through the outermost fade', () => {
+    // Rank 4, range 4: sweep 182ms, plus 160ms of fade, so 342ms of life.
+    const pulse = pulseAt(4)
+
+    expect(isPulseLive(pulse, 0.1)).toBe(true)
+    expect(isPulseLive(pulse, 0.3)).toBe(true)
+    expect(isPulseLive(pulse, 0.35)).toBe(false)
+  })
+
+  it('gives a short-range Tower a shorter life than a long-range one', () => {
+    // Rank 2 reaches 1 square (205ms of life); rank 8 reaches 6 (433ms).
+    expect(isPulseLive(pulseAt(2), 0.25)).toBe(false)
+    expect(isPulseLive(pulseAt(8), 0.25)).toBe(true)
   })
 })
