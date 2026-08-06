@@ -16,8 +16,9 @@ import type { TowerGeometry } from '../game'
  * `Record` will not let it be dropped.
  */
 export const GEOMETRY_LABELS: Record<TowerGeometry, string> = {
-  // "the eight squares around it" until the ladder grew: ranks 7, 9 and 10 are
-  // adjacent at range 3–4, which is a disc, not a ring of eight.
+  // "the eight squares around it" is only literally true at range 1: rank 2
+  // covers exactly the ring of eight. Rank 9 also builds `adjacent`, but at
+  // range 2 — a 5x5 disc of 24 squares, not a ring of eight.
   adjacent: 'Hits every square around it',
   horizontal: 'Fires along its rank',
   vertical: 'Fires along its file',

@@ -421,9 +421,12 @@ function movePieces(
     const isBuffed = buffed.has(piece.id)
     const buffedInterval = isBuffed ? baseInterval * KING_SPEED_MULTIPLIER : baseInterval
     // A King's buff and a Freezer's slow COMPOSE rather than override: 0.7 x
-    // 1.5 = 1.05, so a King almost exactly cancels a freeze. That is the
-    // intended reading — the King is the Chess faction's answer to the
-    // Freezer, not immune to it.
+    // 1.5 = 1.05, so a PIECE STANDING BESIDE A KING that is also inside a
+    // Freezer's coverage is barely slowed at all. That does NOT extend to the
+    // King itself: `buffedPieceIds` excludes a King from its own aura, so a
+    // King caught alone in a Freezer's coverage takes the full 1.5x slow,
+    // with no buff of its own to compose against. The King is the Chess
+    // faction's answer to the Freezer for its neighbours, not for itself.
     const moveIntervalMs = frozen.has(piece.id) ? buffedInterval * FREEZE_MULTIPLIER : buffedInterval
     const slideBonus = slideBonusFor(piece, buffed)
 
