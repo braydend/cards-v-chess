@@ -9,7 +9,7 @@ import { ACE_BOARD_RANKS, JACK_SHIELD, KING_CORE_HEALTH, supportMagnitude } from
 import { towerRank } from '../data/towerRanks'
 import { isInBounds, squaresEqual } from './board'
 import { findCard, isBuildableRank, removeCard } from './cards'
-import { applySupport } from './support'
+import { applySupport, canSupport } from './support'
 import type { BuildableRank, GameState, Square, Tower } from './types'
 
 /**
@@ -69,7 +69,9 @@ export function buildTower(state: GameState, cardId: string, square: Square): Ga
 /**
  * Plays a Card for its SUIT, applying a support action to one existing Tower.
  *
- * A Joker is refused: it has no suit, so this play is not available to it.
+ * A numbered Card must match the Tower's rank; a face card may support any
+ * Tower. A Joker is refused: it has no suit, so this play is not available to
+ * it. See `canSupport`.
  */
 export function supportTower(state: GameState, cardId: string, towerId: string): GameState {
   if (state.phase === 'defeated') return state
@@ -79,6 +81,10 @@ export function supportTower(state: GameState, cardId: string, towerId: string):
 
   const target = state.towers.find((tower) => tower.id === towerId)
   if (!target) return state
+
+  // A numbered Card reaches only a Tower of its own rank. Face cards are
+  // exempt — see `canSupport`.
+  if (!canSupport(card, target)) return state
 
   const magnitude = supportMagnitude(card.rank)
 

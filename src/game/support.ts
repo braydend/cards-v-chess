@@ -3,7 +3,29 @@ import {
   MIN_FIRE_INTERVAL_MS,
   SPEED_MS_PER_MAGNITUDE,
 } from '../data/cards'
-import type { Suit, Tower } from './types'
+import { isBuildableRank } from './cards'
+import type { Card, Suit, Tower } from './types'
+
+/**
+ * Whether this Card may be played for its suit onto this Tower.
+ *
+ * A numbered Card supports only a Tower of its own rank: a 5♥ repairs a rank-5
+ * Tower and nothing else. That is what makes the ranks in a Deck mean something
+ * after build time — without it, rank is inert the moment a Tower exists.
+ *
+ * **Face cards are exempt** and support any Tower. A Tower's `cardRank` is
+ * always a `BuildableRank`, so strict equality would make J♠, Q♦, K♣ and A♥
+ * unplayable for their suit entirely, and a face card is meant to be worth
+ * weighing for its suit as well as for its action.
+ *
+ * A Joker has no suit, so support was never available to it.
+ */
+export function canSupport(card: Card, tower: Tower): boolean {
+  if (card.kind !== 'standard') return false
+  if (!isBuildableRank(card.rank)) return true
+
+  return card.rank === tower.cardRank
+}
 
 /**
  * Applies one suit's support action to a Tower.

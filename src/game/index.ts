@@ -12,7 +12,7 @@ export { coversSquare } from './coverage'
 export { isStuck, nextMove, type MoveOutcome, type MoveRequest } from './movement'
 export { createInitialState } from './state'
 export { step } from './step'
-export { applySupport } from './support'
+export { applySupport, canSupport } from './support'
 export { tick } from './tick'
 export type {
   BoardSpec,
