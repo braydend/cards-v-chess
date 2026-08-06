@@ -9,6 +9,7 @@ describe('commitState', () => {
     const state = commitState({ deckSize: 5, ink: 999, pack: null, suit: null, markedIds: [] })
 
     expect(state.enabled).toBe(false)
+    expect(state.label).toBe('Open pack')
     expect(state.reason).toBe('Pick a pack.')
   })
 
@@ -68,6 +69,19 @@ describe('commitState', () => {
 
     expect(state.enabled).toBe(false)
     expect(state.reason).toBe('Unmark 1 card — a Cull only makes room, it never thins the Deck.')
+  })
+
+  it('uses the plural for several excess marks', () => {
+    const state = commitState({
+      deckSize: 30,
+      ink: 999,
+      pack: 'scrap',
+      suit: null,
+      markedIds: ['a', 'b', 'c', 'd', 'e'],
+    })
+
+    expect(state.enabled).toBe(false)
+    expect(state.reason).toBe('Unmark 2 cards — a Cull only makes room, it never thins the Deck.')
   })
 
   it('enables a purchase that needs no cull, and prices it in the label', () => {
