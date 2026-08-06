@@ -90,6 +90,12 @@ const RENDER_ORDER = 1
  * orbited, read against the Pieces walking into it, and compared with a build
  * preview. Hover would also fight the build preview, which is hover-driven too.
  *
+ * **Showing coverage is reserved for a selected Tower, as a design decision and
+ * not just an implementation convenience.** Hovering an unselected Tower shows
+ * nothing, deliberately — the footprint is something the player asks for, not
+ * something the board throws up whenever the pointer crosses a Tower. Adding a
+ * hover preview would reopen a settled call; see the design doc.
+ *
  * Both overlays draw at once, with no suppression rule. "Where is my coverage
  * thin?" is answered by seeing a new teal footprint against the existing amber
  * one, and hiding either would make the comparison impossible.

@@ -65,8 +65,13 @@ Hover was considered and rejected. Selection wins on three counts:
   off as the pointer crosses the board, competing with the build preview which
   is *also* driven by hover.
 
-Nothing about this precludes adding hover later. It is deliberately not in this
-change.
+**Hover is ruled out, not merely deferred.** This was raised for review as an
+open question — whether hovering an unselected Tower should preview its
+footprint too — and answered: it should not. Showing coverage is **reserved for
+a selected Tower**. That makes the gesture mean one thing, and keeps the
+footprint something the player asks for rather than something the board throws
+at them whenever the pointer crosses a Tower. Treat a future "preview on hover"
+proposal as reopening a settled decision, not as filling a gap.
 
 ### 2. The highlight is coverage, not targeting
 

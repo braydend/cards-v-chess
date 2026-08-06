@@ -367,6 +367,8 @@ Every Piece therefore contributes anti-Tower pressure, so repair reliably has a 
 
 **Selecting a Tower lights every square it covers.** Click a Tower and its footprint appears on the board in **amber**, alongside the inspect panel. Since defense is coverage, a footprint the player cannot see is a decision they cannot make: placement is a one-off, but living with the placement is the rest of the run, and every later question — which file is uncovered, which Tower is worth a ♠, where the next Tower goes — is a question about footprints.
 
+**Selection is the only trigger. Hovering a Tower deliberately shows nothing.** Coverage is reserved for a Tower the player has actually picked, so the footprint is something asked for rather than something the board throws up whenever the pointer crosses a Tower. This is settled, not pending: a proposal to preview coverage on hover is reopening it.
+
 **Amber is a Tower you own; teal is a Card you have not played.** The build preview that follows the pointer while a rank Card is picked keeps teal, and both are shown at once rather than one hiding the other — comparing a proposed footprint against the coverage already on the board is how a gap gets found.
 
 **The highlight is coverage, not targeting.** It shows every square the Tower *can* hit, not the Pieces a shot *will* hit — a shot is capped at the rank's targets per shot and picks the Pieces nearest the Core. The panel carries that figure beside range and damage, which is what stops a wide disc at the top of the ladder from over-promising: it can light dozens of squares and reach only a handful of the Pieces on them. The moment of a shot is already shown separately, as a pulse over the same footprint.
