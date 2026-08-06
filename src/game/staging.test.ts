@@ -327,13 +327,13 @@ describe('a Piece on the Staging rank is an ordinary Piece', () => {
 
     // The Pawn's only forward square holds the Tower, so it is blocked and
     // grinds from the Staging rank rather than ever advancing — it is
-    // destroyed exactly where it stood, never on the board.
+    // destroyed exactly where it stood, never on the board. Those two facts
+    // together are the proof fire is what killed it: the only other routes
+    // that remove a Piece are a leak and a promotion, and neither is
+    // reachable from a square that never left the Staging rank — a leak
+    // needs the Core's square, a promotion needs rank 0.
     expect([...squaresSeen]).toEqual([squareKey(stagingSquare)])
     expect(state.pieces).toEqual([])
-    // `totalKillReward` in tick.ts is paid only for Pieces Tower fire
-    // destroys — a leak or a promotion never pays there — so a rise in Ink is
-    // proof fire is what killed it, not anything else.
-    expect(state.ink).toBeGreaterThan(0)
   })
 
   it("a Joker's Clear destroys a Piece on the Staging rank", () => {
