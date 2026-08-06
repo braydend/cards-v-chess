@@ -4,6 +4,19 @@
 **Status:** Agreed
 **Issue:** [#22](https://github.com/braydend/cards-v-chess/issues/22)
 
+**Revised 2026-08-07, after the repo owner's review of PR #34.** This spec
+originally recorded "a Piece in the Staging rank is an ordinary Piece" as the
+chosen design and rejected making the rank safe from damage. The repo owner
+reversed that during review, before this branch merged: the Staging rank
+should be "safe from all damage except from a joker's clear," and it "should
+only allow pieces to leave it — pieces cannot return to it once they've
+entered the true board." The section below now records the shipped design; the
+original reasoning is kept as the rejected alternative, because it is genuine
+design context a future reader should see both sides of. (Normally a decision
+record is frozen and never updated once written — this one is edited in place
+because it was still unmerged, and had shipped, briefly, arguing for the
+opposite of what the code now does.)
+
 A frozen decision record. For current state, read
 [`docs/design/game-design.md`](../../design/game-design.md).
 
@@ -94,7 +107,55 @@ is why this fix is small:
   files one of `file ± zig` is in bounds. A Tower on the chosen square yields
   `attackTower`, which is acting, not `stuck`.
 
-### A Piece in the Staging rank is an ordinary Piece
+### Damage cannot reach the Staging rank, and it is one-way
+
+**This is the design the repo owner chose on review of PR #34**, reversing the
+"ordinary Piece" decision this spec originally recorded — preserved below as
+the rejected alternative. Framed as one rule, not two carve-outs: **damage
+cannot reach the Staging rank, and a Joker's Clear is not damage** — it is a
+board wipe, and the designed safety valve for the repair-versus-the-wall
+stall. Auras are not damage either, and were never in question either way — a
+King's buff still speeds a Piece's entry, and a Bishop's heal on a Piece
+nothing can hurt is simply a harmless no-op.
+
+`selectTargets` in `src/game/tick.ts` is the entire mechanism: it skips any
+Piece that fails `isInBounds` before it ever asks whether a Tower's geometry
+covers the square, and `fireTowers` is the only place in the engine that
+reduces a Piece's health — so that one clause is the whole immunity rule, and
+it holds regardless of a Tower's range or shape. `clearPieces` in
+`src/game/cardPlays.ts` gets no equivalent clause, deliberately: it wipes
+`state.pieces` wholesale, staged Pieces included, which is exactly what keeps
+it the safety valve. `auras.ts` is untouched too — neither aura function
+consults `isInBounds`.
+
+**The rank is also one-way.** Once a Piece has entered the true board, no
+movement rule can put it back on the Staging rank. `rookStep`, `bishopStep`,
+and `lateralStep` (`movement.ts`) only ever decrease or hold a Piece's rank;
+the Knight's zig-zag candidates are `rank − 2` or `rank − 1`; and `huntCore`'s
+rank-increasing candidates are bounds-checked before one is ever committed to.
+Nothing had to change in `movement.ts` to make this true — it already held
+structurally, as a side effect of how forward-bias was built, not as a rule
+written for this purpose. What is new is a test that pins it exhaustively
+rather than leaving it to be trusted from reading the code — see Testing,
+below.
+
+**The objection that killed the safe-zone option, under the reasoning this
+spec originally gave, no longer applies.** It was rejected below for needing
+"two carve-outs pointing opposite ways" — Tower fire excluded, Clear included
+— each to be remembered and kept in sync forever. Under the owner's framing
+there is only one carve-out, not two: nothing that counts as *damage* reaches
+the Staging rank, full stop, and Clear was never subject to it because Clear
+was never damage in the first place. What reads as two exceptions to "ordinary
+Piece" is one exception to "nothing reaches the Staging rank" — the same shape
+the rest of the engine already uses, where Tower fire and Clear have never
+shared a code path or a rule.
+
+### Rejected: a Piece in the Staging rank is an ordinary Piece
+
+This was the design this spec originally recorded and briefly shipped with,
+before the repo owner's review reversed it. Kept here because the reasoning is
+genuine design context — a future reader should see why this looked right
+before seeing why it was wrong.
 
 No combat carve-outs. A Tower whose geometry reaches into the Staging rank may
 fire at a Piece standing there. A Joker's Clear destroys it. A Bishop's aura
@@ -107,25 +168,24 @@ Tower may stand, because that is what `isInBounds` is asked in `canBuildOn`. It
 says nothing about what a Tower may shoot, because nothing asks `isInBounds`
 there.
 
-**Rejected: making the Staging rank a safe zone**, excluded from Tower fire. It
-costs a bounds clause in `selectTargets`, and — this is the part that kills it —
-to be coherent it would have to exclude Clear too. Clear is documented as the one
-card that can always break a grind, and it is the safety valve for the
-repair-versus-the-wall stall. A fully walled far rank with Pieces grinding it
-from the Staging rank is precisely the stall that valve exists to break. Buying a
-tidier boundary by disarming it is the wrong trade. Splitting the difference —
-Towers cannot reach in, Clear can — is worse still: two carve-outs pointing
-opposite ways, to be remembered and kept in sync forever, in place of none.
+The argument against the alternative, at the time, was: making the Staging
+rank a safe zone excluded from Tower fire costs a bounds clause in
+`selectTargets`, and — this was the part that was thought to kill it — to be
+coherent it would have to exclude Clear too, which reads as two carve-outs
+pointing opposite ways (Towers cannot reach in, Clear can) rather than none.
+The owner's review is what dissolved that objection: see the section above.
 
-**Accepted cost:** `accumulatePulses` in `src/scene/firePulse.ts` paints board
-tiles and clamps its writes to the board, so the fire-pulse glow stops at the
-board's edge while a shot into the Staging rank still lands. The pulse already
-lights a Tower's footprint rather than tracing a shot to its target, so the
-asymmetry is faint. **Rejected fix:** extending the pulse grid by a rank. That
-grid's length feeds an `Instances` `limit` and its matching `key`, which is the
-exact hazard that produced the Ace wedge — not worth re-opening for decoration,
-and it would give the strip board-square glow tiles, contradicting the point of
-drawing it as something other than the board.
+**Cost that no longer applies:** `accumulatePulses` in `src/scene/firePulse.ts`
+paints board tiles and clamps its writes to the board, so the fire-pulse glow
+stops at the board's edge. Under the "ordinary Piece" design above, a shot into
+the Staging rank still landed despite the glow stopping short of it — a real
+but faint asymmetry, since the pulse already lights a Tower's footprint rather
+than tracing a shot to its target. That asymmetry is now moot rather than
+merely small: nothing is shootable on the Staging rank any more, so a shot
+never lands there to be under-drawn, and the clamp to the board is simply
+correct. No change to `firePulse.ts` was needed to arrive at that; the
+reversal made the existing code right by removing the case it used to fall
+short on.
 
 ### The wait is the telegraph
 
@@ -134,16 +194,25 @@ intervals in the Staging rank before entering. That wait is the feature: the
 player sees what is coming and which file it will enter on, for a beat, before it
 can be blocked or shot at close range.
 
-Two consequences, both deliberate and both small:
+One consequence, deliberate and small:
 
 - Every Piece's journey to the Core is one hop longer. Knights excepted — a
   Knight's hop crosses two ranks, so it enters at `ranks − 2` and loses nothing.
-- Towers get marginally more time on each Piece, and a far-rank Tower whose
-  geometry reaches up gets a rank of extra reach it did not have.
 
-Both make the game slightly easier, and neither is a regression against an
-authored number: round pacing, Piece move intervals, and every Ink value are
-placeholders, and the joint Ink-and-packs tuning pass is already open. Setting a
+That makes the game marginally easier — one extra hop of build time before a
+Piece is even shootable — and is not a regression against an authored number:
+round pacing, Piece move intervals, and every Ink value are placeholders, and
+the joint Ink-and-packs tuning pass is already open.
+
+**A second consequence this spec originally claimed no longer holds.** This
+section used to also list "a far-rank Tower whose geometry reaches up gets a
+rank of extra reach it did not have" as a second, deliberate easing. That was
+true only under the "ordinary Piece" design rejected above: since damage
+cannot reach the Staging rank at all under the shipped design, no Tower's
+geometry reaches it either, extra or otherwise. Net against `main`, the only
+change left is that a Piece arrives one hop later, at full health — more build
+time for the player, no change to combat once the Piece is on the board.
+Setting a
 spawn's cooldown to a full interval so a Piece stepped onto the board on the very
 next tick was considered and rejected — it would preserve the old timing exactly
 and reduce the Staging rank to a single-tick flicker, which is to build the thing
@@ -230,6 +299,39 @@ of `src/scene/` — there is no jsdom, and it is one mesh with no branching.
   Tower afterwards, because the new rank is new space no Tower could have been
   built on.
 
+**Added for the reversal above, all in `src/game/staging.test.ts`:**
+
+- **Immunity.** A rank-3 (vertical) Tower on the far rank, whose geometry is
+  first confirmed to genuinely cover the Staging square directly up-file,
+  cannot kill a Pawn grinding it from there — the Pawn survives at full
+  health for far longer than its `maxHealth` would allow if any of that fire
+  landed, while the Tower visibly takes damage from the Pawn's own blocked
+  attacks in return, proving the grind is real and one-sided.
+- **Clear's exception.** A Joker's Clear destroys Pieces standing on the
+  Staging rank and pays its usual quarter-share Ink reward for them — using
+  four Pawns rather than one so the reward floors to a non-zero number,
+  proving Clear actually processed them rather than the array merely ending
+  up empty for an unrelated reason.
+- **Auras still reach.** A King's aura still buffs a Pawn waiting on the
+  Staging rank, kept passing on purpose so the immunity rule above never
+  grows a second carve-out to exclude auras too.
+- **The wall-falls case is now load-bearing, not incidental.** A second
+  round-termination test uses a rank-3 Tower — geometry that genuinely
+  reaches the Staging square, unlike the rank-5 diagonal the walled tests
+  elsewhere in this file use — and the round still only ends once the grind
+  wears the Tower down. Under the design this spec now records, a Tower's
+  fire can never break this stall from the Piece's side; the earlier
+  rank-5 version of this test no longer proves that on its own, because no
+  Tower's geometry could reach the Staging rank regardless of which rank
+  built the wall.
+- **The Staging rank is one-way, pinned exhaustively.** Every square, Piece
+  type, handedness, `moveCount`, `hunting` state, and `slideBonus` — 6,144
+  combinations — is fed through `nextMove`, and every resulting `move`
+  outcome's destination is asserted in bounds. Zero violations, confirming
+  the property already held structurally in `movement.ts` before this test
+  existed; no runtime guard was added, per this project's preference for a
+  build-time guarantee over defensive code.
+
 ## Out of scope
 
 - **The fixed shadow frustum** in `src/scene/GameScene.tsx`, which a board
@@ -238,5 +340,6 @@ of `src/scene/` — there is no jsdom, and it is one mesh with no branching.
   and unrelated — see the Ace wedge note in CLAUDE.md for why this problem
   should not be allowed to absorb blame for anything else.
 - **Caps on King and Ace accumulation**, still open, still uncapped.
-- **The Ink and pack pricing pass.** The two balance consequences above land in
-  its lap rather than being pre-empted here.
+- **The Ink and pack pricing pass.** The one balance consequence remaining
+  above — a Piece's journey to the Core being one hop longer — lands in its
+  lap rather than being pre-empted here.
