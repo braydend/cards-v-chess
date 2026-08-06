@@ -24,9 +24,18 @@ What exists:
 - **The full Chess roster** — Pawn, Knight, Bishop, Rook, Queen, King — each with its own movement, Pawn promotion on the back rank, hunting Knights, the King's move-speed/slide aura, and the Bishop's healing aura.
 - **Tower combat.** Firing geometry per rank, Tower health, shields, damage from blocked Pieces, and destruction.
 - **Tower legibility.** A Tower darkens as it loses health, flashes on a hit, pulses at critical health, and flares as it dies; clicking one opens an inspect panel with the exact figures, including lifetime `damageTaken`.
+- **Piece exit legibility.** A Piece that leaks lunges onto the Core's square
+  and flashes it on contact; one killed by a Tower bursts where it stood; a
+  Joker's Clear flashes the whole board instead of bursting each Piece; and a
+  promoted Queen pops as she appears. The engine records only the exits that
+  cannot be inferred — leaks and promotions, in a never-cleared 32-entry ring on
+  `GameState.recentExits`, plus a monotonic `clears` count — and
+  `src/scene/pieceExit.ts` infers a Tower kill as the only case left. The ring
+  is never cleared on purpose: `tick` auto-starts from inside itself, so
+  clearing at `startRound` can wipe a record before the frame's only publish.
 - The renderer (`src/scene/`), with distinct per-type rendering for each Piece, and the HUD, the Deck UI and the Tower panel (`src/ui/`).
 - **CI.** `lint`, `typecheck`, `test:coverage` with per-directory thresholds, and `build` — see "CI" below.
-- 560 tests across 34 files, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
+- 613 tests across 38 files, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
 
 What does **not** exist yet:
 
