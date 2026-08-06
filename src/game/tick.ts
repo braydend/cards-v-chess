@@ -1,4 +1,3 @@
-import { SPAWN_RANK } from '../data/board'
 import { BLOCKED_ATTACK_MULTIPLIER, pieceType } from '../data/pieceTypes'
 import { towerRank, type TowerRankDef } from '../data/towerRanks'
 import { squareKey } from './board'
@@ -14,9 +13,10 @@ import type { BoardSpec, GameState, Piece, Square, Tower } from './types'
  * delta. That is what makes the simulation deterministic and refresh-rate
  * independent, and it is why tests can drive time by calling this directly.
  *
- * Towers fire, have health, and are damaged by the Pieces they block — see
- * `applyTowerDamage` below. ♥ repair is the part that does not exist yet.
- * See CLAUDE.md.
+ * Towers fire, take damage from the Pieces they block, and are destroyed when
+ * their health runs out — see `applyTowerDamage` below. Shields absorb before
+ * health. See `roundTermination.test.ts` for the invariant that makes round
+ * completion safe.
  */
 export function tick(state: GameState, dtMs: number): GameState {
   if (state.phase === 'defeated') return state
@@ -77,6 +77,18 @@ export function tick(state: GameState, dtMs: number): GameState {
   // Stranded Pieces are deliberately left standing rather than quietly deleted,
   // so the gap is visible. The designed answer is Pawn promotion, which is not
   // implemented. See the design doc's open questions.
+  //
+  // LOAD-BEARING INVARIANT: a Piece blocked by a Tower returns `attackTower`,
+  // not `stuck`, so it counts as active and this round cannot end while it
+  // grinds. That terminates only because Towers can be healed no more than the
+  // Deck allows — cards are consumed and nothing replenishes them, so repair is
+  // finite and the Tower always eventually falls.
+  //
+  // ADDING PACKS REMOVES THAT BOUND. Unlimited ♥ means an unbreakable Tower and
+  // a round that never ends — worst against a diagonal Tower, which cannot even
+  // shoot a Piece attacking from directly up-file. `roundTermination.test.ts`
+  // pins the bound; see "Repair versus the wall" in the design docs before
+  // changing anything here.
   const standingBySquare = new Map(
     fired.towers.map((tower) => [squareKey(tower.square), tower]),
   )
@@ -114,8 +126,8 @@ export function tick(state: GameState, dtMs: number): GameState {
 /**
  * Advances every Tower's cooldown and resolves the shots that come due.
  *
- * A Tower fires at most one shot per elapsed interval, at a single target —
- * nothing blocks line of fire and nothing pierces.
+ * A Tower fires at most one shot per elapsed interval, hitting up to its rank's
+ * `targetsPerShot` Pieces. Nothing blocks line of fire and nothing pierces.
  */
 function fireTowers(
   towers: readonly Tower[],
@@ -134,19 +146,22 @@ function fireTowers(
     const def = towerRank(tower.cardRank)
     let cooldown = tower.fireCooldownMs + dtMs
 
-    while (cooldown >= def.fireIntervalMs) {
-      const target = selectTarget(tower, def, pieces, remainingHealth, coreSquare)
+    while (cooldown >= tower.fireIntervalMs) {
+      const targets = selectTargets(tower, def, pieces, remainingHealth, coreSquare)
 
-      if (!target) {
+      if (targets.length === 0) {
         // Hold at "ready" rather than banking shots. Without this, a Tower idle
         // for ten seconds would unload every stored shot the instant a Piece
         // walked into range.
-        cooldown = def.fireIntervalMs
+        cooldown = tower.fireIntervalMs
         break
       }
 
-      cooldown -= def.fireIntervalMs
-      remainingHealth.set(target.id, (remainingHealth.get(target.id) ?? 0) - def.damage)
+      cooldown -= tower.fireIntervalMs
+
+      for (const target of targets) {
+        remainingHealth.set(target.id, (remainingHealth.get(target.id) ?? 0) - tower.damage)
+      }
     }
 
     nextTowers.push({ ...tower, fireCooldownMs: cooldown })
@@ -160,36 +175,44 @@ function fireTowers(
 }
 
 /**
- * The covered, still-living Piece nearest the Core — the most urgent threat.
+ * The covered, still-living Pieces nearest the Core — the most urgent threats,
+ * capped at the Tower's `targetsPerShot`.
  *
  * Distance is measured in hops rather than straight-line, because Pieces move
  * one square along one axis at a time. Ties break on id so the simulation stays
  * deterministic and seed-reproducible.
  */
-function selectTarget(
+function selectTargets(
   tower: Tower,
   def: TowerRankDef,
   pieces: readonly Piece[],
   remainingHealth: Map<string, number>,
   coreSquare: Square,
-): Piece | undefined {
-  let best: Piece | undefined
-  let bestDistance = Number.POSITIVE_INFINITY
+): Piece[] {
+  const candidates: { piece: Piece; distance: number }[] = []
 
   for (const piece of pieces) {
     if ((remainingHealth.get(piece.id) ?? piece.health) <= 0) continue
     if (!coversSquare(def.geometry, def.range, tower.square, piece.square)) continue
 
-    const distance =
-      Math.abs(piece.square.file - coreSquare.file) + Math.abs(piece.square.rank - coreSquare.rank)
-
-    if (distance < bestDistance || (distance === bestDistance && best && piece.id < best.id)) {
-      best = piece
-      bestDistance = distance
-    }
+    candidates.push({
+      piece,
+      distance:
+        Math.abs(piece.square.file - coreSquare.file) +
+        Math.abs(piece.square.rank - coreSquare.rank),
+    })
   }
 
-  return best
+  candidates.sort((a, b) =>
+    a.distance === b.distance
+      ? a.piece.id < b.piece.id
+        ? -1
+        : 1
+      : a.distance - b.distance,
+  )
+
+  // `slice` handles POSITIVE_INFINITY correctly: it returns every candidate.
+  return candidates.slice(0, def.targetsPerShot).map((candidate) => candidate.piece)
 }
 
 function drainDueSpawns(
@@ -203,7 +226,9 @@ function drainDueSpawns(
   for (const spawn of state.pendingSpawns) {
     if (spawn.atMs > roundElapsedMs) continue
 
-    const square: Square = { file: spawn.file, rank: SPAWN_RANK }
+    // Read from state, not a constant: an Ace grows the board and Pieces must
+    // then enter from the new far rank.
+    const square: Square = { file: spawn.file, rank: state.board.ranks - 1 }
     spawned.push({
       id: `piece-${nextEntityId}`,
       typeId: spawn.typeId,
@@ -295,16 +320,33 @@ function movePieces(
   return { pieces: survivors, leaked, towerDamage }
 }
 
-/** Applies damage dealt by blocked Pieces and drops Towers that fall. */
+/**
+ * Applies damage dealt by blocked Pieces and drops Towers that fall.
+ *
+ * A shield absorbs first, and overflow carries into health — a shield of 2
+ * taking a 5-damage hit leaves 0 shield and costs 3 health. No hit is wasted,
+ * and a shield never blocks more than it is worth.
+ *
+ * `damageTaken` accrues the FULL incoming amount, including the part a shield
+ * soaked. It records what the Tower has weathered, not what reached its health,
+ * and a shield absorbing a hit is still weathering it.
+ */
 function applyTowerDamage(towers: readonly Tower[], damage: Map<string, number>): Tower[] {
   if (damage.size === 0) return [...towers]
 
   return towers
     .map((tower) => {
       const dealt = damage.get(tower.id)
-      return dealt === undefined
-        ? tower
-        : { ...tower, health: tower.health - dealt, damageTaken: tower.damageTaken + dealt }
+      if (dealt === undefined) return tower
+
+      const absorbed = Math.min(tower.shield, dealt)
+
+      return {
+        ...tower,
+        shield: tower.shield - absorbed,
+        health: tower.health - (dealt - absorbed),
+        damageTaken: tower.damageTaken + dealt,
+      }
     })
     .filter((tower) => tower.health > 0)
 }

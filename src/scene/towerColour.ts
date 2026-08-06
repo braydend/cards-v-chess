@@ -1,5 +1,5 @@
 import { Color } from 'three'
-import type { CardRank } from '../game'
+import type { BuildableRank } from '../game'
 import { RANK_COLOURS } from './rankColours'
 
 /**
@@ -33,7 +33,7 @@ const CRITICAL = new Color('#ff5a4a')
  */
 export function towerColour(
   target: Color,
-  cardRank: CardRank,
+  cardRank: BuildableRank,
   healthFraction: number,
   flashProgress: number,
   criticalPhase: number,

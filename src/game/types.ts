@@ -55,33 +55,79 @@ export interface Piece {
  * A Tower's firing geometry, set by the rank of the Card that built it.
  * Towers are generic — this is NOT chess-piece movement.
  */
-export type TowerGeometry = 'adjacent' | 'horizontal' | 'vertical' | 'cross' | 'diagonal'
+export type TowerGeometry =
+  | 'adjacent'
+  | 'horizontal'
+  | 'vertical'
+  | 'cross'
+  | 'diagonal'
+  | 'star'
 
 /**
- * Only ranks 2–5 are designed. Ranks 6–10 and the face cards, Ace, and Jokers
- * are deliberately absent from this union so that inventing them is a type
- * error rather than a silent guess. See the design doc's open questions.
+ * Ranks that build a Tower. 2–10 carry the geometry ladder.
+ *
+ * The face ranks (J, Q, K, A) act instead of building, so they are deliberately
+ * absent here — passing `'K'` where geometry is expected is a type error rather
+ * than a runtime surprise. See `CardRank` for every rank a Card can carry.
  */
-export type CardRank = 2 | 3 | 4 | 5
+export type BuildableRank = 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
+
+export type Suit = 'hearts' | 'diamonds' | 'spades' | 'clubs'
+
+/** Ranks that act instead of building. See the card mechanics spec. */
+export type FaceRank = 'J' | 'Q' | 'K' | 'A'
+
+export type CardRank = BuildableRank | FaceRank
+
+/**
+ * One unplayed item in the Deck.
+ *
+ * A Joker is a separate variant because it has neither rank nor suit, so
+ * "play a Joker for its suit" is not expressible. That is the point.
+ *
+ * `id` is independent of rank and suit. The Deck is a MULTISET — cards are
+ * gained from random packs, so holding three 5♦ is normal, and playing one must
+ * consume that instance and leave the others. Identifying a card by rank+suit
+ * would be a bug the moment a duplicate exists.
+ */
+export type Card =
+  | {
+      readonly id: string
+      readonly kind: 'standard'
+      readonly rank: CardRank
+      readonly suit: Suit
+    }
+  | { readonly id: string; readonly kind: 'joker' }
 
 export interface Tower {
   readonly id: string
   readonly square: Square
-  readonly cardRank: CardRank
+  readonly cardRank: BuildableRank
   /** Milliseconds accumulated toward this Tower's next shot. */
   readonly fireCooldownMs: number
   readonly health: number
-  /** Separate from the rank's base value so ♠ can raise it later. */
+  /** Separate from the rank's base value so ♠ can raise it. */
   readonly maxHealth: number
+  /** Seeded from the rank, raised by ♣ Damage. */
+  readonly damage: number
+  /** Seeded from the rank, lowered by ♦ Speed, floored at MIN_FIRE_INTERVAL_MS. */
+  readonly fireIntervalMs: number
+  /**
+   * Granted by a Jack. Absorbed before health, with overflow carrying into it.
+   * Never regenerates.
+   */
+  readonly shield: number
   /**
    * Lifetime damage this Tower has absorbed. Never reduced.
    *
    * Deliberately NOT derived as `maxHealth - health`. ♥ repair and ♠ maximum
-   * health are both designed, and each breaks that identity: a Tower repaired
-   * to full must still report what it has weathered.
+   * health both break that identity: a Tower repaired to full must still report
+   * what it has weathered. A Jack's shield breaks it in the other direction —
+   * damage a shield soaked never touched health at all, and it still counts
+   * here, because absorbing a hit is still weathering it.
    *
    * Kept out of `structuralKey` on purpose — it only ever changes in the same
-   * breath as `health`, which is already in the key.
+   * breath as `health` or `shield`, both of which are already in the key.
    */
   readonly damageTaken: number
 }
@@ -109,6 +155,12 @@ export interface GameState {
   readonly core: {
     readonly square: Square
     readonly health: number
+    /**
+     * Raised by a King, the only card that touches the Core and the only Core
+     * recovery in the game. Split from `health` so the HUD can show a ceiling
+     * that grows.
+     */
+    readonly maxHealth: number
   }
   readonly phase: RoundPhase
   readonly roundNumber: number
@@ -123,9 +175,26 @@ export interface GameState {
   readonly pendingSpawns: readonly Spawn[]
   /** Monotonic counter so entity ids are deterministic, never random. */
   readonly nextEntityId: number
+  /**
+   * Every Card held for this run, always fully visible and playable. Capped at
+   * `DECK_CAP`. There is no hand and no draw pile — playing consumes a card and
+   * nothing returns.
+   */
+  readonly deck: readonly Card[]
 }
 
 export type Command =
   | { readonly kind: 'startRound' }
   | { readonly kind: 'setAutoStart'; readonly enabled: boolean }
-  | { readonly kind: 'placeTower'; readonly square: Square; readonly cardRank: CardRank }
+  | { readonly kind: 'buildTower'; readonly cardId: string; readonly square: Square }
+  | { readonly kind: 'supportTower'; readonly cardId: string; readonly towerId: string }
+  | { readonly kind: 'shieldTower'; readonly cardId: string; readonly towerId: string }
+  | {
+      readonly kind: 'echoTower'
+      readonly cardId: string
+      readonly sourceTowerId: string
+      readonly square: Square
+    }
+  | { readonly kind: 'reinforceCore'; readonly cardId: string }
+  | { readonly kind: 'expandBoard'; readonly cardId: string }
+  | { readonly kind: 'clearPieces'; readonly cardId: string }

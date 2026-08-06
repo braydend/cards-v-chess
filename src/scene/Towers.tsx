@@ -2,19 +2,29 @@ import { Instance, Instances, type PositionMesh } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useRef, useState } from 'react'
 import { BUILDABLE_RANKS } from '../data/towerRanks'
-import type { BoardSpec, CardRank } from '../game'
+import type { BoardSpec, BuildableRank } from '../game'
 import { useGameStore } from '../state/store'
 import { fileToWorldX, rankToWorldZ } from './coords'
 import { RANK_COLOURS } from './rankColours'
 import { CRITICAL_PULSE_HZ, DEATH_FLARE_MS, HIT_FLASH_MS, towerColour } from './towerColour'
 import { diffTowers, type Ghost, type TowerAnimation } from './towerDiff'
 
-function towerHeight(cardRank: CardRank): number {
+/**
+ * `BuildableRank`, not `CardRank`: this is arithmetic on the rank, and a Tower
+ * is only ever built from 2–10. A face rank here would be a string in a
+ * multiplication.
+ */
+function towerHeight(cardRank: BuildableRank): number {
   return 0.55 + cardRank * 0.06
 }
 
 /**
  * Towers, and everything a player can read off them without opening a panel.
+ *
+ * They block movement and take damage from the Pieces they block. ♥ repair
+ * exists, but it is bounded by a finite Deck — see the load-bearing invariant
+ * comment in `src/game/tick.ts` for why a Tower under sustained attack still
+ * always eventually falls.
  *
  * Four signals, all achieved by mutating the existing instanced meshes — no new
  * geometry, and no React render per frame:

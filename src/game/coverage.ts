@@ -38,5 +38,9 @@ export function coversSquare(
       return rankDistance === 0 || fileDistance === 0
     case 'diagonal':
       return fileDistance === rankDistance
+    // Rank 6: cross and diagonal combined. Rank 4 taught the player that 4 is
+    // 2 and 3 together; 6 being 4 and 5 together reads the same way.
+    case 'star':
+      return rankDistance === 0 || fileDistance === 0 || fileDistance === rankDistance
   }
 }

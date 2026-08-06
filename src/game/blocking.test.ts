@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { JACK_SHIELD } from '../data/cards'
 import { BLOCKED_ATTACK_MULTIPLIER, PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
-import { createInitialState, step, tick } from './index'
-import type { CardRank, GameState, Square } from './types'
+import { firstTower, firstTowerId, liveRound, pawnAt, standardCard, withDeck, withTower } from './fixtures'
+import { step, tick } from './index'
+import type { BuildableRank, GameState, Square } from './types'
 
 const DT = 1000 / 60
 const PAWN = PIECE_TYPES.pawn
@@ -22,39 +24,16 @@ function runFor(state: GameState, durationMs: number): GameState {
  * The Piece sits one square up-file from the Tower, and the Core is straight
  * down the same file, so its next step lands on the Tower.
  */
-function blockedApproach(cardRank: CardRank, towerSquare: Square): GameState {
-  const placed = step(createInitialState(), {
-    kind: 'placeTower',
-    square: towerSquare,
-    cardRank,
-  })
-
+function blockedApproach(cardRank: BuildableRank, towerSquare: Square): GameState {
+  const placed = withTower(cardRank, towerSquare)
   const pieceSquare = { file: towerSquare.file, rank: towerSquare.rank + 1 }
 
-  return {
-    ...placed,
-    phase: 'inProgress',
-    pendingSpawns: [],
-    pieces: [
-      {
-        id: 'blocked',
-        typeId: 'pawn',
-        square: pieceSquare,
-        prevSquare: pieceSquare,
-        health: PAWN.maxHealth,
-        moveCooldownMs: 0,
-      },
-    ],
-  }
+  return liveRound(placed, [pawnAt('blocked', pieceSquare)])
 }
 
-describe('placeTower: health', () => {
+describe('buildTower: health', () => {
   it('starts a Tower at the full health of its rank', () => {
-    const state = step(createInitialState(), {
-      kind: 'placeTower',
-      square: { file: 1, rank: 1 },
-      cardRank: 4,
-    })
+    const state = withTower(4, { file: 1, rank: 1 })
 
     expect(state.towers[0]?.health).toBe(TOWER_RANKS[4].maxHealth)
     expect(state.towers[0]?.maxHealth).toBe(TOWER_RANKS[4].maxHealth)
@@ -117,26 +96,7 @@ describe('blocked Pieces attack at half strength', () => {
 
   it('does not damage a Tower it is not blocked by', () => {
     // Tower off to the side, not on the Piece's path.
-    const placed = step(createInitialState(), {
-      kind: 'placeTower',
-      square: { file: 7, rank: 7 },
-      cardRank: 3,
-    })
-    const state: GameState = {
-      ...placed,
-      phase: 'inProgress',
-      pendingSpawns: [],
-      pieces: [
-        {
-          id: 'passer',
-          typeId: 'pawn',
-          square: { file: 0, rank: 5 },
-          prevSquare: { file: 0, rank: 5 },
-          health: PAWN.maxHealth,
-          moveCooldownMs: 0,
-        },
-      ],
-    }
+    const state = liveRound(withTower(3, { file: 7, rank: 7 }), [pawnAt('passer', { file: 0, rank: 5 })])
 
     const after = runFor(state, 3000)
 
@@ -155,11 +115,17 @@ describe('destroyed Towers', () => {
   })
 
   it('do not take Tower health below zero in the reported state', () => {
-    const state = blockedApproach(5, { file: 3, rank: 4 })
+    // The claim is about every reported state, not just the final one — a
+    // Tower dies partway through this run, so sampling only the end (where
+    // `after.towers` is already `[]`) would make `.every(...)` vacuously true
+    // no matter what health value was reported on the way down. Stepping one
+    // tick at a time and asserting after each closes that gap.
+    let state = blockedApproach(5, { file: 3, rank: 4 })
 
-    const after = runFor(state, 30_000)
-
-    expect(after.towers.every((tower) => tower.health > 0)).toBe(true)
+    for (let elapsed = 0; elapsed < 30_000; elapsed += DT) {
+      state = tick(state, DT)
+      expect(state.towers.every((tower) => tower.health > 0)).toBe(true)
+    }
   })
 })
 
@@ -172,15 +138,128 @@ describe('blocking: determinism', () => {
   })
 })
 
-describe('damage taken', () => {
-  it('starts at zero on a newly placed Tower', () => {
-    const state = step(createInitialState(), {
-      kind: 'placeTower',
-      square: { file: 1, rank: 1 },
-      cardRank: 4,
+describe('Tower shields', () => {
+  it('seeds a new Tower with no shield', () => {
+    const state = blockedApproach(3, { file: 3, rank: 4 })
+
+    expect(state.towers[0]?.shield).toBe(0)
+  })
+
+  it('absorbs damage before health', () => {
+    const shielded = blockedApproach(3, { file: 3, rank: 4 })
+    const state: GameState = {
+      ...shielded,
+      towers: shielded.towers.map((tower) => ({ ...tower, shield: 4 })),
+    }
+
+    const after = runFor(state, PAWN.moveIntervalMs + DT)
+
+    expect(after.towers[0]?.health).toBe(TOWER_RANKS[3].maxHealth)
+    expect(after.towers[0]?.shield).toBe(4 - BLOCKED_DAMAGE)
+  })
+
+  it('splits a single hit across shield and health', () => {
+    // Rank 5's diagonal geometry cannot cover the square directly up-file, so
+    // the Piece is never shot and the hits land on schedule.
+    const shielded = blockedApproach(5, { file: 3, rank: 4 })
+    const partial = BLOCKED_DAMAGE / 2
+    const state: GameState = {
+      ...shielded,
+      towers: shielded.towers.map((tower) => ({ ...tower, shield: partial })),
+    }
+
+    const after = runFor(state, PAWN.moveIntervalMs + DT)
+
+    expect(after.towers[0]?.shield).toBe(0)
+    expect(after.towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth - partial)
+  })
+
+  it('carries overflow into health once the shield is gone', () => {
+    // Shield equal to exactly one hit: the first hop is fully absorbed, the
+    // second lands on health.
+    const shielded = blockedApproach(5, { file: 3, rank: 4 })
+    const state: GameState = {
+      ...shielded,
+      towers: shielded.towers.map((tower) => ({ ...tower, shield: BLOCKED_DAMAGE })),
+    }
+
+    const after = runFor(state, PAWN.moveIntervalMs * 2 + DT)
+
+    expect(after.towers[0]?.shield).toBe(0)
+    expect(after.towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth - BLOCKED_DAMAGE)
+  })
+
+  it('absorbs damage before health when the shield comes from a real played Jack', () => {
+    // Every other shield test in this file hand-mutates `shield` into state,
+    // so a Jack played through `step`/`shieldTower` is never actually the
+    // thing under attack — JACK_SHIELD and applyTowerDamage are never
+    // composed. This test plays a real Jack, then grinds the Tower under
+    // attack for real.
+    //
+    // Rank 5's diagonal geometry cannot cover the square directly up-file
+    // (fileDistance 0, rankDistance 1 never satisfies fileDistance ===
+    // rankDistance), so the blocking Piece here is never shot back and the
+    // hit schedule is exactly one BLOCKED_DAMAGE per move interval.
+    const built = withTower(5, { file: 3, rank: 4 })
+    const withJackInDeck = withDeck([standardCard('jack', 'J', 'hearts')], built)
+    const shielded = step(withJackInDeck, {
+      kind: 'shieldTower',
+      cardId: 'jack',
+      towerId: firstTowerId(withJackInDeck),
     })
 
-    expect(state.towers[0]?.damageTaken).toBe(0)
+    expect(shielded.towers[0]?.shield).toBe(JACK_SHIELD)
+    expect(shielded.deck).toHaveLength(0)
+
+    const state = liveRound(shielded, [pawnAt('blocked', { file: 3, rank: 5 })])
+
+    // JACK_SHIELD (10) divides evenly by BLOCKED_DAMAGE (1): exactly ten hits
+    // exhaust the shield with health untouched.
+    const shieldHits = JACK_SHIELD / BLOCKED_DAMAGE
+    const shieldGone = runFor(state, PAWN.moveIntervalMs * shieldHits + DT)
+
+    expect(shieldGone.towers[0]?.shield).toBe(0)
+    expect(shieldGone.towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth)
+
+    // The next hit has nothing left to absorb it, so it lands on health.
+    const afterOneMore = runFor(shieldGone, PAWN.moveIntervalMs + DT)
+
+    expect(afterOneMore.towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth - BLOCKED_DAMAGE)
+  })
+})
+
+describe('Tower stats are per-Tower', () => {
+  it('seeds damage and fire interval from the rank', () => {
+    const state = blockedApproach(5, { file: 3, rank: 4 })
+
+    expect(state.towers[0]?.damage).toBe(TOWER_RANKS[5].damage)
+    expect(state.towers[0]?.fireIntervalMs).toBe(TOWER_RANKS[5].fireIntervalMs)
+  })
+
+  it('fires using the Tower’s own damage, not its rank’s', () => {
+    // A Tower whose damage has been raised kills faster than its rank would.
+    const base = blockedApproach(3, { file: 3, rank: 6 })
+    const boosted: GameState = {
+      ...base,
+      towers: base.towers.map((tower) => ({ ...tower, damage: PAWN.maxHealth })),
+      pieces: base.pieces.map((piece) => ({
+        ...piece,
+        square: { file: 3, rank: 2 },
+        prevSquare: { file: 3, rank: 2 },
+      })),
+    }
+
+    const after = runFor(boosted, TOWER_RANKS[3].fireIntervalMs + DT)
+
+    expect(after.pieces).toHaveLength(0)
+  })
+})
+
+describe('damage taken', () => {
+  it('starts at zero on a newly built Tower', () => {
+    const state = withTower(4, { file: 1, rank: 1 })
+
+    expect(firstTower(state).damageTaken).toBe(0)
   })
 
   it('accumulates every attack the Tower absorbs', () => {
@@ -194,14 +273,40 @@ describe('damage taken', () => {
   })
 
   it('stays at zero for a Tower nothing attacks', () => {
-    const placed = step(createInitialState(), {
-      kind: 'placeTower',
-      square: { file: 7, rank: 7 },
-      cardRank: 3,
-    })
+    const placed = withTower(3, { file: 7, rank: 7 })
 
-    const after = runFor({ ...placed, phase: 'inProgress', pendingSpawns: [] }, 3000)
+    const after = runFor(liveRound(placed, []), 3000)
 
     expect(after.towers[0]?.damageTaken).toBe(0)
+  })
+
+  it('counts damage a shield absorbed, not just what reached health', () => {
+    // A shield large enough to soak every hit in this window: health never
+    // moves, and `damageTaken` must still climb. `damageTaken` records what the
+    // Tower weathered, and absorbing a hit is weathering it.
+    const shielded = blockedApproach(5, { file: 3, rank: 4 })
+    const state: GameState = {
+      ...shielded,
+      towers: shielded.towers.map((tower) => ({ ...tower, shield: BLOCKED_DAMAGE * 10 })),
+    }
+
+    const after = runFor(state, PAWN.moveIntervalMs * 2 + DT)
+
+    expect(after.towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth)
+    expect(after.towers[0]?.damageTaken).toBe(BLOCKED_DAMAGE * 2)
+  })
+
+  it('counts the whole of a hit that a shield only partly absorbed', () => {
+    const shielded = blockedApproach(5, { file: 3, rank: 4 })
+    const partial = BLOCKED_DAMAGE / 2
+    const state: GameState = {
+      ...shielded,
+      towers: shielded.towers.map((tower) => ({ ...tower, shield: partial })),
+    }
+
+    const after = runFor(state, PAWN.moveIntervalMs + DT)
+
+    expect(after.towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth - partial)
+    expect(after.towers[0]?.damageTaken).toBe(BLOCKED_DAMAGE)
   })
 })

@@ -1,4 +1,13 @@
-import { squaresEqual, type Square, type Tower } from '../game'
+import {
+  commandFor,
+  squaresEqual,
+  type Card,
+  type Command,
+  type PlayMode,
+  type PlayTarget,
+  type Square,
+  type Tower,
+} from '../game'
 
 export type BoardClick =
   | { readonly kind: 'select'; readonly towerId: string }
@@ -6,16 +15,20 @@ export type BoardClick =
   | { readonly kind: 'build' }
 
 /**
- * What a click on a board square means.
+ * What a click on a board square means with no Card picked from the Deck.
  *
  * Extracted from the component so the rules are testable — this project has no
  * jsdom and no component tests, so logic left inside a `.tsx` file is logic that
  * cannot be tested at all.
  *
- * Clicking a Tower selects it, clicking the selected Tower deselects it, and
- * clicking anywhere else builds as it always has. The gesture is free of
- * ambiguity because `placeTower` already refuses an occupied square, so
- * selecting could never have collided with building.
+ * Clicking a Tower selects it for the inspect panel, clicking the selected Tower
+ * deselects it, and clicking anywhere else is `build`.
+ *
+ * `build` no longer means "place a Tower here for free": `placeTower` is gone,
+ * and a Tower is built by playing a Card for its rank. It now means only "this
+ * click was not aimed at a Tower", which is why `resolveBoardAction` is the
+ * function the renderer calls — it is the one that knows about the selected
+ * Card and can turn that into an actual play.
  */
 export function resolveBoardClick(
   square: Square,
@@ -28,4 +41,82 @@ export function resolveBoardClick(
   return tower.id === selectedTowerId
     ? { kind: 'deselect' }
     : { kind: 'select', towerId: tower.id }
+}
+
+/** Everything a board click has to weigh up. */
+export interface BoardClickContext {
+  readonly square: Square
+  /** Live Towers, not a published snapshot — a click acts on the board as it is now. */
+  readonly towers: readonly Tower[]
+  /** The Tower whose inspect panel is open. */
+  readonly selectedTowerId: string | null
+  /** The Card picked from the Deck, or null when none is. */
+  readonly card: Card | null
+  readonly playMode: PlayMode
+  /** The Tower a Queen will copy, once its first click has picked one. */
+  readonly echoSourceTowerId: string | null
+}
+
+export type BoardAction =
+  /** Open the inspect panel on this Tower. */
+  | { readonly kind: 'select'; readonly towerId: string }
+  /** Close the inspect panel. */
+  | { readonly kind: 'deselect' }
+  /** Remember this Tower as the Queen's Echo source; the next click picks the square. */
+  | { readonly kind: 'pickEchoSource'; readonly towerId: string }
+  /** Play the picked Card. */
+  | { readonly kind: 'play'; readonly command: Command }
+
+/**
+ * What a click on a board square does — the whole decision, in one pure
+ * function, for the same reason `resolveBoardClick` exists: there are no
+ * component tests, so this cannot live in `Board.tsx`.
+ *
+ * Two features meet on this gesture. The Tower inspect panel wants a click on a
+ * Tower to select it; the card system wants a click on a Tower to be the target
+ * of a ♥ repair, a Jack's shield, or a Queen's Echo source.
+ *
+ * **A Card that can act on the clicked target wins.** That is the whole rule:
+ * with no Card picked the inspect panel behaves exactly as it did before the
+ * card system existed, and a Card that cannot be played at what was clicked
+ * (a rank Card clicked onto an occupied square, a King, which takes no board
+ * target at all) does not consume the click either — the panel opens instead.
+ *
+ * Which Command a target produces is `commandFor`'s job, not this function's.
+ * All that is decided here is *which* target the click is, and whether the card
+ * play or the panel gets it.
+ */
+export function resolveBoardAction(context: BoardClickContext): BoardAction {
+  const { square, towers, selectedTowerId, card, playMode, echoSourceTowerId } = context
+
+  const inspect = resolveBoardClick(square, towers, selectedTowerId)
+
+  // `build` is only reachable on an empty square, and on its own it now means
+  // the player clicked past whatever they were inspecting — so it closes the
+  // panel. A play deliberately leaves the panel alone: repairing the Tower on
+  // screen and watching its health climb is the point of having a panel.
+  const panel: BoardAction = inspect.kind === 'build' ? { kind: 'deselect' } : inspect
+
+  if (!card) return panel
+
+  const clickedTower = towers.find((tower) => squaresEqual(tower.square, square))
+
+  // Echo is the only play needing two board targets: a source Tower to copy,
+  // then a square to build the copy on. Sequencing those two clicks is UX and
+  // belongs here; what the resulting target means does not, and comes from
+  // `commandFor` below.
+  if (playMode === 'build' && card.kind === 'standard' && card.rank === 'Q' && !echoSourceTowerId) {
+    return clickedTower ? { kind: 'pickEchoSource', towerId: clickedTower.id } : panel
+  }
+
+  const target: PlayTarget =
+    playMode === 'build' && echoSourceTowerId !== null
+      ? { kind: 'echo', sourceTowerId: echoSourceTowerId, square }
+      : clickedTower
+        ? { kind: 'tower', towerId: clickedTower.id }
+        : { kind: 'square', square }
+
+  const command = commandFor(card, playMode, target)
+
+  return command ? { kind: 'play', command } : panel
 }

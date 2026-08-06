@@ -36,12 +36,21 @@ function emit(): void {
   for (const listener of listeners) listener()
 }
 
-export function dispatch(command: Command): void {
+/**
+ * Applies a command to the live state.
+ *
+ * Returns whether the state actually changed. `step` returns the exact same
+ * object on a refusal, so identity comparison is an exact test — callers use
+ * this to tell a successful play apart from a refused one, since neither
+ * throws.
+ */
+export function dispatch(command: Command): boolean {
   const next = step(current, command)
-  if (next === current) return
+  if (next === current) return false
 
   current = next
   emit()
+  return true
 }
 
 /** Feed this the raw frame delta. The accumulator converts it to fixed steps. */

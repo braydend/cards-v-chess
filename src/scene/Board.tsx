@@ -1,10 +1,10 @@
 import { Instance, Instances } from '@react-three/drei'
 import { useMemo } from 'react'
-import { allSquares, squareKey, type BoardSpec } from '../game'
+import { allSquares, findCard, squareKey, type BoardSpec } from '../game'
 import { getState } from '../state/simulation'
 import { dispatch } from '../state/store'
 import { useUiStore } from '../state/uiStore'
-import { resolveBoardClick } from './boardClick'
+import { resolveBoardAction } from './boardClick'
 import { SQUARE_SIZE, fileToWorldX, rankToWorldZ, worldXToFile, worldZToRank } from './coords'
 import { CoveragePreview } from './CoveragePreview'
 import { SelectionMarker } from './SelectionMarker'
@@ -76,24 +76,56 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
           rank: worldZToRank(board, event.point.z),
         }
 
-        // Live state rather than a store subscription. Subscribing Board to the
-        // snapshot would re-render all 64 square instances on every Tower hit;
-        // a click is rare enough to read state on demand.
-        const { selectedTowerId, setSelectedTowerId, selectedRank } = useUiStore.getState()
-        const outcome = resolveBoardClick(square, getState().towers, selectedTowerId)
+        const {
+          selectedCardId,
+          setSelectedCardId,
+          playMode,
+          echoSourceTowerId,
+          setEchoSourceTowerId,
+          selectedTowerId,
+          setSelectedTowerId,
+        } = useUiStore.getState()
 
-        if (outcome.kind === 'select') {
-          setSelectedTowerId(outcome.towerId)
+        // Live state, not the published snapshot: a click must act on the board
+        // as it is now, not as it was at the last structural publish. Reading on
+        // demand also keeps Board out of the snapshot subscription — subscribing
+        // would re-render all 64 square instances on every Tower hit.
+        const state = getState()
+
+        // Every branch below is decided by `resolveBoardAction`, which is pure
+        // and unit-tested. Nothing but plumbing lives in this handler.
+        const action = resolveBoardAction({
+          square,
+          towers: state.towers,
+          selectedTowerId,
+          card: selectedCardId === null ? null : (findCard(state.deck, selectedCardId) ?? null),
+          playMode,
+          echoSourceTowerId,
+        })
+
+        if (action.kind === 'select') {
+          setSelectedTowerId(action.towerId)
           return
         }
 
-        if (outcome.kind === 'deselect') {
+        if (action.kind === 'deselect') {
           setSelectedTowerId(null)
           return
         }
 
-        setSelectedTowerId(null)
-        dispatch({ kind: 'placeTower', square, cardRank: selectedRank })
+        if (action.kind === 'pickEchoSource') {
+          setEchoSourceTowerId(action.towerId)
+          return
+        }
+
+        // `dispatch` reports whether the play actually landed. A refusal (an
+        // occupied square, the Core square, an Echo source Tower that died
+        // between the two clicks, ...) must not clear the selection — the
+        // Card was not consumed, so the player should not have to re-pick it.
+        if (!dispatch(action.command)) return
+
+        if (action.command.kind === 'echoTower') setEchoSourceTowerId(null)
+        setSelectedCardId(null)
       }}
     >
       <planeGeometry args={[board.files * SQUARE_SIZE, board.ranks * SQUARE_SIZE]} />

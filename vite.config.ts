@@ -33,9 +33,12 @@ export default defineConfig(({ command, isPreview }) => ({
         'src/ui/**',
         'src/App.tsx',
         'src/main.tsx',
-        // uiStore.ts is view-only state (selectedRank, hoveredSquare) — same
-        // category as scene/ and ui/, just living in state/ because it's a
-        // zustand store. store.ts and structuralKey.ts stay measured: they are
+        // uiStore.ts is view-only state — the picked Card, its play mode, the
+        // hovered square, the selected Tower — same category as scene/ and ui/,
+        // just living in state/ because it's a zustand store. It holds nothing
+        // the simulation reads, and every decision taken off it lives in a pure,
+        // separately tested module (game/commandFor.ts, scene/boardClick.ts)
+        // rather than in the store. store.ts and structuralKey.ts stay measured: they are
         // the simulation bridge, not view state. A new file in state/ belongs
         // here only if, like uiStore.ts, it holds UI-facing selection/pointer
         // state rather than mirroring the simulation.

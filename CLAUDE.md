@@ -4,7 +4,7 @@ A web-based 3D tower defense game with trading-card-game mechanics.
 
 Two factions, and the name is literal:
 
-- **Cards** — the player. A **standard 54-card deck** is your arsenal. Cards are modal: **rank builds** a Tower, **suit supports** an existing one.
+- **Cards** — the player. A **standard 54-card deck** is your arsenal. Cards are modal: **rank builds** a Tower (a face card acts instead), **suit supports** an existing one.
 - **Chess** — the AI opponent. Waves of chess pieces invade the board, each type mapping a real chess trait onto a tower-defense threat, trying to reach the **Core**.
 
 It is a **one-sided defense**. The player is always Cards; Chess is always the attacker. There is no mode where the player commands chess pieces.
@@ -13,25 +13,28 @@ It is a **one-sided defense**. The player is always Cards; Chess is always the a
 
 ## Current state
 
-Scaffolded and running. `pnpm dev` gives a playable loop: a board renders, rounds start manually or automatically, pawns hop toward the Core, leaks damage it, and the game ends when it falls.
+`pnpm dev` gives a playable loop: the board renders, rounds start manually or automatically, pawns hop toward the Core, Towers fire, blocked Pieces grind Towers down, cards are played from the Deck, and the run ends when the Core falls.
 
 What exists:
 
 - The rules engine (`src/game/`) with `step` / `tick`, driven by a fixed-timestep accumulator.
-- The renderer (`src/scene/`) and a minimal HUD (`src/ui/`).
-- 128 tests across 11 files, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
-
-**The design has moved well ahead of the code.** The card grammar, economy, and chess roster are all agreed, but none of it is implemented. Do not read the current code as evidence of the intended design — read `docs/design/game-design.md`.
+- **The card system.** The Deck, modality (rank builds / suit supports), the rank ladder 2–10, the four suit supports, and all five card actions — Jack Shield, Queen Echo, King Reinforce, Ace Expand, Joker Clear. Playing a card consumes it.
+- **Tower combat.** Firing geometry per rank, Tower health, shields, damage from blocked Pieces, and destruction.
+- **Tower legibility.** A Tower darkens as it loses health, flashes on a hit, pulses at critical health, and flares as it dies; clicking one opens an inspect panel with the exact figures, including lifetime `damageTaken`.
+- The renderer (`src/scene/`), and the HUD, the Deck UI and the Tower panel (`src/ui/`).
+- **CI.** `lint`, `typecheck`, `test:coverage` with per-directory thresholds, and `build` — see "CI" below.
+- 292 tests across 19 files, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
 
 What does **not** exist yet:
 
-- **Cards.** No Deck, no Ink, no modality. Towers are placed by clicking the board.
-- **Tower repair.** Towers fire, have health, and take damage from the Pieces they block — visibly now, with colour, a hit flash, a critical pulse, and a death flare — but there is no way to repair one back up.
-- **The piece roster.** One placeholder `pawn` exists with placeholder stats. None of the six agreed threats are implemented — no promotion, no colour vulnerability, no healing.
+- **Ink and packs.** No currency, no pack opening, no cull flow, and no seeded PRNG. The Deck is a fixed authored list in `src/data/deck.ts` — see the file's own comment before touching it.
+- **The piece roster.** One placeholder `pawn` exists with placeholder stats. None of the other five agreed threats are implemented — no promotion, no colour vulnerability, no healing.
 
-Towers fire and can kill Pieces outright, so a round no longer resolves purely by leaking out — it ends when nothing on the board can still act, whether that means every Piece destroyed, stranded, or through the Core.
+Towers fire and can kill Pieces outright, so a round does not resolve by leaking out — it ends when nothing on the board can still act, whether that means every Piece destroyed, stranded, or through the Core.
 
-**Next implementation step** is **♥ repair** — the support Cards are designed (see the suit table in `docs/design/game-design.md`), and it is where the design's "Repair versus the wall" open question first becomes reachable rather than theoretical: a Tower repaired to full while a Piece grinds on it forever is the permanent wall that question warns about.
+The design still runs ahead of the code on the economy and the roster, so read `docs/design/game-design.md` for the intended design rather than inferring it from what is built. The largest unbuilt pieces are Ink and packs (with the cull flow and the PRNG) and the rest of the Chess roster.
+
+**Known bug, cause unconfirmed.** Playing an Ace produces a visible shadow artifact — a black wedge across the scene. `src/scene/GameScene.tsx` casts shadows from a `directionalLight` using three.js's default directional-light shadow frustum, which the board's footprint in light space outgrows. A fixed frustum on a growable board is a real problem, but it does **not** account for the symptom: three.js renders receivers outside the shadow frustum as fully **lit**, not black, and the light-space half-extent already exceeds the default box at 8×8, before any Ace is played. So the mechanism is unknown. Reproduce and bisect before changing the lighting — an earlier confident diagnosis of this was wrong.
 
 ## Tech stack
 
@@ -78,7 +81,7 @@ Coverage sets `include` explicitly rather than relying on the default. The defau
 
 ## Game design
 
-The player defends a **Core** on a chessboard against rounds of invading chess Pieces, building **Towers** by playing cards from a standard 54-card deck. Every card is modal — **rank builds** a Tower, **suit supports** an existing one — and playing a card **consumes** it. Runs are seeded, start by opening a pack, and the Deck is capped at 30 cards.
+The player defends a **Core** on a board of chess squares against rounds of invading chess Pieces, building **Towers** by playing cards from a standard 54-card deck. Every standard card is modal — **rank builds** a Tower, **suit supports** an existing one — and playing a card **consumes** it. J, Q, K, A act instead of building, and a Joker has one action and no suit. Runs are seeded, start by opening a pack, and the Deck is capped at 30 cards.
 
 **[`docs/design/game-design.md`](docs/design/game-design.md) is the single source of truth** for the design, and holds the only canonical list of open questions. Read it before designing, extending, or balancing any game content. Do not duplicate its detail back into this file.
 
@@ -89,10 +92,13 @@ Design facts with hard implementation consequences. Breaking one of these is a b
 - **`Math.random` must never appear in `src/game/`.** Runs are seeded and the simulation must stay reproducible. Randomness comes from a seeded PRNG carried in `GameState`. **Enforced by ESLint** — a violation fails `pnpm lint`, and therefore CI.
 - **Ink income must be event-driven** — round completion and kills — **never time-based.** The gap between rounds is untimed, so time-based income is unbounded: the player would just wait.
 - **Playing a card consumes it.** There is no drawing, no shuffling, no discard pile, and no hand. The whole Deck is always visible and playable.
+- **A Card's identity is its `id`, never its rank and suit.** The Deck is a multiset — cards come from random packs, so duplicates are normal, and the authored starting Deck already holds a triple. Three identical 5♦ are three distinct Cards, and playing one must leave the other two. Any lookup or removal keyed on rank+suit is a bug the moment a duplicate exists; go through `findCard` / `removeCard` in `src/game/cards.ts`.
+- **The board grows.** An Ace adds a rank, so never derive a spawn rank or a board extent from a module constant — read it from `state.board`. A static `SPAWN_RANK` in `src/data/board.ts` had to be deleted for exactly this reason, and the fixed shadow frustum in `src/scene/GameScene.tsx` is the same assumption still unfixed.
 - **Towers block movement, and blocked Pieces attack them at half damage.** A Piece whose next square holds a Tower does not advance.
 - **Never add pathfinding.** A blocked Piece grinds; it must never route around. Routing would let the player steer Pieces by placing Towers — that is mazing, and it is rejected. Walling is allowed; herding is not.
 - **Pieces move by chess rules, not toward the Core.** `src/game/movement.ts` owns this. There is no goal-seeking: a Piece reaches the Core only if chess movement happens to take it there.
-- **A round ends when nothing can still act, not when the board is empty.** Chess movement strands Pieces — a pawn on the back rank off the Core's file has no legal move ever again. Waiting for an empty board hangs the round forever.
+- **A round ends only when no Piece can still act, not when the board is empty.** Chess movement strands Pieces — a pawn on the back rank off the Core's file has no legal move ever again. Waiting for an empty board hangs the round forever.
+- **A Piece blocked by a Tower counts as acting.** `nextMove` returns `attackTower`, not `stuck`, so the round cannot end while it grinds. That terminates only because repair is bounded by a finite Deck: ♥ runs out, the Tower falls, the round resumes. **Adding packs removes the bound** — see `src/game/roundTermination.test.ts`, which pins it, and "Repair versus the wall" in the design doc.
 - **Square colour is mechanically load-bearing**, not decoration — the Knight is only damageable on light squares.
 - **No path manipulation.** No walls, no blockers, no herding. Defense is coverage, not maze geometry.
 - **Ink is never spent to play a card.** It buys packs only.
@@ -122,7 +128,7 @@ step(state: GameState, command: Command): GameState   // player actions
 tick(state: GameState, fixedDt: number): GameState    // the simulation
 ```
 
-- `step` handles player commands — play a card, place a Tower, upgrade, start the round. Commands are valid both between rounds and mid-round.
+- `step` handles player commands — play a card for its rank or its suit, start the round, toggle auto-start. Commands are valid both between rounds and mid-round. There is no free Tower placement: every Tower comes from a Card, so there is no `placeTower` command and clicking an empty board with nothing selected does nothing.
 - `tick` advances the simulation: piece movement, tower firing, damage, deaths, round completion.
 - A **fixed-timestep accumulator** drives `tick`. Never pass a raw frame delta into the engine. Tests drive fake time by calling `tick` directly.
 - "Round in progress" is a flag on `GameState`, not a separate code path. There is one state machine, not two.
@@ -145,7 +151,7 @@ This bridge is the part most likely to get broken by accident, so understand it 
 3. `state/store.ts` subscribes to the simulation and publishes a snapshot to zustand **only when `structuralKey` changes** — that key deliberately excludes `roundElapsedMs`, `moveCooldownMs`, and `prevSquare`, all of which change every tick.
 4. Components read the snapshot for mounting and unmounting. Smooth motion between squares is done in `useFrame` by mutating the mesh transform, reading live state via `simulation.getState()`.
 
-Because pieces move in discrete hops, this keeps React renders rare: measured at **28 store publishes across 600 frames** (~21x fewer than rendering per frame). `src/state/simulation.test.ts` guards this — if that test starts failing, something is pushing per-frame updates through React.
+Because pieces move in discrete hops, this keeps React renders rare: measured at **24 store publishes across 600 frames** (25x fewer than rendering per frame). `src/state/simulation.test.ts` guards this with a bound of 60 — comfortable headroom over the real number, but tight enough to fail on a regression — and if that test starts failing, something is pushing per-frame updates through React.
 
 Adding a per-tick value to `structuralKey` would silently destroy this property. Don't.
 
@@ -155,9 +161,10 @@ Adding a per-tick value to `structuralKey` would silently destroy this property.
 src/
   game/       pure TS rules engine — no React, no three.js
               types, state, step, tick, board helpers
-  data/       board, piece types, round composition — data, not code
+  data/       board, piece types, tower ranks, card values, the starting Deck,
+              round composition — data, not code
   scene/      R3F components: Board, Core, Towers, Pieces, GameLoop
-  ui/         React DOM overlay: Hud (later: Deck, CardDetail, PackOpen)
+  ui/         React DOM overlay: Hud, Deck, TowerPanel (later: PackOpen, the cull screen)
   state/      simulation (owns live state) + zustand bridge to React
 ```
 
@@ -185,11 +192,16 @@ Use these terms exactly and consistently — in code, comments, and UI copy.
 | --- | --- |
 | **Cards** | The player's faction |
 | **Chess** | The AI attacking faction |
-| **Card** | An unplayed item in the Deck. Has a rank and a suit. **Consumed when played** |
-| **Rank** | 2–10, J, Q, K, A. Determines the Tower a Card builds |
+| **Card** | An unplayed item in the Deck. A standard Card has a rank and a suit; a **Joker** has neither. **Consumed when played** |
+| **Rank** | 2–10, J, Q, K, A. 2–10 build a Tower; J, Q, K, A act instead |
 | **Suit** | ♥ ♦ ♠ ♣. Determines the support action a Card can apply |
 | **Tower** | A Card played for its rank — placed, active, and destructible |
-| **Support** | A Card played for its suit, applied to an existing Tower |
+| **Support** | A Card played for its suit, applied to an existing Tower. The four suit actions only — a face card's action is never Support |
+| **Shield** | Absorbing capacity on a Tower, granted by a **Jack**. Absorbed before health, never regenerates |
+| **Echo** | The **Queen**'s action: a copy of an existing Tower's rank, built on an empty square |
+| **Reinforce** | The **King**'s action: +1 to Core current and maximum health |
+| **Expand** | The **Ace**'s action: the board gains a rank |
+| **Clear** | The **Joker**'s action: every Piece on the board is destroyed |
 | **Ink** | The run currency. Buys **packs**; never spent to play a card |
 | **Piece** | One Chess-faction invader instance |
 | **Piece type** | Pawn, knight, bishop, rook, queen, king |
@@ -207,6 +219,8 @@ Use these terms exactly and consistently — in code, comments, and UI copy.
 
 **Careful with "rank".** It means two different things — a Card's rank (2–A) and a board rank (row). Both are standard in their own domain, so keep them apart by context and name variables accordingly (`cardRank` vs `boardRank`) wherever both could appear.
 
+**And two types carry a Card's rank.** `CardRank` is every rank a Card can hold, `2..10 | 'J' | 'Q' | 'K' | 'A'`; `BuildableRank` is the `2..10` subset that builds a Tower. Anything doing arithmetic on a rank, or indexing `TOWER_RANKS` / `RANK_COLOURS`, wants `BuildableRank` — `Tower.cardRank` is one of these, because a Tower is only ever built from a buildable rank. `CardRank` was briefly the name of the narrow set; it is not any more, so treat an old reference to it with suspicion.
+
 Do not introduce synonyms for these. Drifting between "wave" and "round", or "tower" and "defender", makes the codebase harder to search.
 
 ## Testing
@@ -215,6 +229,7 @@ Do not introduce synonyms for these. Drifting between "wave" and "round", or "to
 - Drive time explicitly in tests by calling `tick` with a fixed delta. Never rely on wall-clock time or `requestAnimationFrame`.
 - Test behaviour through the engine's public surface (`step`, `tick`, state queries), not internals.
 - Keep `data/` definitions out of assertions where possible — a balance tweak should not break unrelated tests.
+- **There is no jsdom and no component tests, so a decision left inside a `.tsx` file cannot be tested at all.** Pull any non-trivial branching out into a pure module beside it and test that: `src/game/commandFor.ts` decides which Command a Card produces, `src/scene/boardClick.ts` decides what a board click does. The `.tsx` handler should be plumbing — read the stores, call the pure function, apply the result.
 - Use `pnpm test:run` in automation; `pnpm test` is watch mode.
 
 ## Open design decisions

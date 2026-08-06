@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
-import { createInitialState, step, tick } from './index'
-import type { CardRank, GameState, Square } from './types'
+import { liveRound, pawnAt, withTower } from './fixtures'
+import { tick } from './index'
+import type { BuildableRank, GameState, Square } from './types'
 
 const DT = 1000 / 60
 const PAWN_HEALTH = PIECE_TYPES.pawn.maxHealth
@@ -37,29 +38,14 @@ function wasHit(before: GameState, after: GameState, pieceId: string): boolean {
  * spawn — so the round resolves purely on what the Tower does.
  */
 function scenario(
-  cardRank: CardRank,
+  cardRank: BuildableRank,
   towerSquare: Square,
   pieceSquares: readonly Square[],
 ): GameState {
-  const placed = step(createInitialState(), {
-    kind: 'placeTower',
-    square: towerSquare,
-    cardRank,
-  })
-
-  return {
-    ...placed,
-    phase: 'inProgress',
-    pendingSpawns: [],
-    pieces: pieceSquares.map((square, index) => ({
-      id: `target-${index}`,
-      typeId: 'pawn' as const,
-      square,
-      prevSquare: square,
-      health: PAWN_HEALTH,
-      moveCooldownMs: 0,
-    })),
-  }
+  return liveRound(
+    withTower(cardRank, towerSquare),
+    pieceSquares.map((square, index) => pawnAt(`target-${index}`, square)),
+  )
 }
 
 describe('tower firing', () => {
@@ -183,6 +169,22 @@ describe('tower firing: target selection', () => {
     expect(further?.health).toBe(PAWN_HEALTH)
   })
 
+  it('breaks ties on the lexicographically smaller id, not numeric order', () => {
+    // 'piece-10' < 'piece-2' lexicographically but 10 > 2 numerically, so the
+    // two orders disagree here. This pins which comparison selectTargets uses,
+    // not merely that some tie-break exists.
+    const towerSquare = { file: 3, rank: 4 }
+    const state = liveRound(withTower(2, towerSquare), [
+      pawnAt('piece-10', { file: 2, rank: 4 }),
+      pawnAt('piece-2', { file: 4, rank: 4 }),
+    ])
+
+    const after = runFor(state, TOWER_RANKS[2].fireIntervalMs + DT)
+
+    expect(wasHit(state, after, 'piece-10')).toBe(true)
+    expect(wasHit(state, after, 'piece-2')).toBe(false)
+  })
+
   it('fires once per interval, not once per target', () => {
     const state = scenario(3, { file: 3, rank: 7 }, [
       { file: 3, rank: 5 },
@@ -203,6 +205,80 @@ describe('tower firing: determinism', () => {
   it('produces identical state from identical inputs', () => {
     const a = runFor(scenario(3, { file: 3, rank: 2 }, [{ file: 3, rank: 6 }]), 1500)
     const b = runFor(scenario(3, { file: 3, rank: 2 }, [{ file: 3, rank: 6 }]), 1500)
+
+    expect(a).toEqual(b)
+  })
+})
+
+describe('targets per shot', () => {
+  it('a single-target Tower damages only one of two covered Pieces', () => {
+    // Rank 3 fires up its own file; both Pieces sit on it.
+    const state = scenario(3, { file: 3, rank: 1 }, [
+      { file: 3, rank: 2 },
+      { file: 3, rank: 3 },
+    ])
+
+    const after = runFor(state, TOWER_RANKS[3].fireIntervalMs + DT)
+    const hit = state.pieces.filter((piece) => wasHit(state, after, piece.id))
+
+    expect(hit).toHaveLength(1)
+  })
+
+  it('a multi-target Tower damages several covered Pieces in one shot', () => {
+    // Rank 8 is a star with 3 targets. Three Pieces on three different rays.
+    const state = scenario(8, { file: 3, rank: 3 }, [
+      { file: 3, rank: 4 },
+      { file: 4, rank: 4 },
+      { file: 4, rank: 3 },
+    ])
+
+    const after = runFor(state, TOWER_RANKS[8].fireIntervalMs + DT)
+    const hit = state.pieces.filter((piece) => wasHit(state, after, piece.id))
+
+    expect(hit).toHaveLength(3)
+  })
+
+  it('caps at its target count', () => {
+    // Rank 8 covers four Pieces but may only hit 3.
+    const state = scenario(8, { file: 3, rank: 3 }, [
+      { file: 3, rank: 4 },
+      { file: 4, rank: 4 },
+      { file: 4, rank: 3 },
+      { file: 2, rank: 2 },
+    ])
+
+    const after = runFor(state, TOWER_RANKS[8].fireIntervalMs + DT)
+    const hit = state.pieces.filter((piece) => wasHit(state, after, piece.id))
+
+    expect(hit).toHaveLength(TOWER_RANKS[8].targetsPerShot)
+  })
+
+  it('rank 10 hits everything it covers', () => {
+    const state = scenario(10, { file: 3, rank: 3 }, [
+      { file: 3, rank: 4 },
+      { file: 4, rank: 4 },
+      { file: 2, rank: 2 },
+      { file: 5, rank: 5 },
+      { file: 1, rank: 3 },
+    ])
+
+    const after = runFor(state, TOWER_RANKS[10].fireIntervalMs + DT)
+    const hit = state.pieces.filter((piece) => wasHit(state, after, piece.id))
+
+    expect(hit).toHaveLength(5)
+  })
+
+  it('is deterministic when more Pieces are covered than can be hit', () => {
+    const build = () =>
+      scenario(8, { file: 3, rank: 3 }, [
+        { file: 3, rank: 4 },
+        { file: 4, rank: 4 },
+        { file: 4, rank: 3 },
+        { file: 2, rank: 2 },
+      ])
+
+    const a = runFor(build(), 2000)
+    const b = runFor(build(), 2000)
 
     expect(a).toEqual(b)
   })

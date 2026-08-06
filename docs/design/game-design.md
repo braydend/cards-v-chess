@@ -17,6 +17,14 @@ It is a **one-sided defense**. The player is always Cards; Chess is always the a
 
 The player defends the **Core**. A Piece that reaches it causes a **leak** and damages it. When the Core falls, the run ends.
 
+## The board
+
+The board starts **8×8** and **gains a rank every time an Ace is played**, so its size is not fixed for a run and it is no longer a literal chessboard. Only ranks grow, never files.
+
+The Core stays on rank 0 and Pieces enter from whatever the far rank currently is, so growth lengthens the run to the Core and buys Towers more shots. That is the Ace's whole effect.
+
+Growing the board retires the *thematic* claim to a true chessboard, deliberately. Nothing mechanical is lost: **square colour is `(file + rank)` parity**, so the checker pattern survives a rectangular board and the Knight's light-square vulnerability is unaffected.
+
 ## The card system
 
 ### Grammar
@@ -27,12 +35,16 @@ Every card is **modal**. Playing it means choosing one of two uses:
 
 > **Rank builds. Suit supports.**
 
-- Played for its **rank**, a card builds a Tower whose firing geometry and power come from that rank.
-- Played for its **suit**, it applies a support action to a Tower already on the board.
+- Played for its **rank**, a numbered card builds a Tower whose firing geometry and power come from that rank. A face card or an Ace performs its own action instead of building.
+- Played for its **suit**, any standard card applies a support action to a Tower already on the board.
 
-So the 7♦ either builds a rank-7 Tower or speeds up a Tower you already have. The choice happens at play time.
+So the 7♦ either builds a rank-7 Tower or speeds up a Tower you already have. The choice happens at play time. A Joker is not modal: it has neither rank nor suit, and exactly one action.
 
-Because every card can always build, **the player can never be stuck** holding only support cards with nothing to support. Preserve that property.
+**The never-stuck property is no longer complete.** It used to read: because every card can always build, the player can never be stuck holding only support cards with nothing to support. Jack and Queen both need a Tower already standing, so a Deck worn down to only those two with an empty board holds cards that cannot be played.
+
+That is **not a softlock** — rounds still start, standing Towers still fire, and the run continues — but those cards do nothing until a Tower exists. Because copies are unlimited and cards come from random packs, it is reachable rather than theoretical. It is recorded rather than closed: giving Jack and Queen a build fallback would blur "face cards change kind" for a rare case.
+
+Preserve the rest of the property. Ranks 2–10, King, Ace and the Jokers are all playable from an empty board, so a Deck holding any of them is never dead.
 
 ### Suit actions
 
@@ -43,30 +55,70 @@ Because every card can always build, **the player can never be stuck** holding o
 | ♠ Spades | **Health** — increase maximum health |
 | ♣ Clubs | **Damage** — increase damage |
 
-Support magnitude scales with rank, as Tower power does: a 9♥ is a large repair, a 2♥ a small one.
+Support magnitude scales with rank, as Tower power does: a 9♥ is a large repair, a 2♥ a small one. The scale is **face value for 2–10, then J 11, Q 12, K 13, A 14** — so a K♥ is a top-of-scale repair, and every face card is worth weighing for its suit as well as for its action.
+
+**♠ raises the health ceiling without healing.** That is what keeps it distinct from ♥: ♠ grows the ceiling, ♥ fills it. A ♠ on a damaged Tower buys headroom for a later ♥.
 
 ### Rank ladder
 
-| Rank | Firing geometry |
-| --- | --- |
-| **2** | Adjacent — the eight surrounding squares |
-| **3** | Vertical — along its file |
-| **4** | Cross — horizontal and vertical |
-| **5** | Diagonal — the X |
-| 6–10 | **Open** |
-| J, Q, K, A, Jokers | **Open** — these do not follow the ladder |
+| Rank | Firing geometry | Pieces hit per shot |
+| --- | --- | --- |
+| **2** | Adjacent — the eight surrounding squares | 1 |
+| **3** | Vertical — along its file | 1 |
+| **4** | Cross — horizontal and vertical | 1 |
+| **5** | Diagonal — the X | 1 |
+| **6** | Star — cross and diagonal together, all eight rays | 1 |
+| **7** | Disc — adjacent, widened several squares out | 1 |
+| **8** | Star, with longer rays | **3** |
+| **9** | Disc, the same shape as rank 7 | **5** |
+| **10** | Disc, wider still | **everything it covers** |
+
+**Shape carries the rank's identity through 7. From 8 upward the ladder scales on how many Pieces a shot hits instead.** After adjacent, vertical, cross, diagonal and star, the supply of generic non-chess silhouettes is spent, and the candidates left fight the power curve — a ring that only fires at exact range is *weaker* up close, and "the whole board" is a ceiling with nothing above it. Target count has no such problem, reads at a glance, and answers the Pawn swarm the roster is built around.
+
+Range, damage, fire interval and Tower health are **placeholder balance values** living in `src/data/towerRanks.ts`. The design commits only to power rising with rank. Note that range is not comparable across geometries — it counts squares along the pattern, so a disc of range 3 covers a 7×7 area while a vertical line of range 4 covers 8 squares. Rank 7's shorter range is not a downgrade from rank 5's.
 
 Rank 2 was originally **horizontal** and was changed after measuring it. Pieces travel down a file, so a horizontal line caught each Piece for exactly one move interval — one shot, which a Pawn survived: 1 damage against rank 3's 6. Adjacent keeps a Piece covered for three squares of its approach instead, and gives the lowest rank a coherent identity as a short-range blocker with teeth.
 
 Chess movement, added afterwards, sharpened this rather than changing it: a pawn is now *strictly* confined to its file, so a horizontal Tower would have been worse still.
 
-Shape is the rank's *identity*; **range and damage scale with rank**. Shape alone gives no power curve — diagonal is not inherently better than cross — so a 5 out-damages a 4 despite a narrower pattern.
+Shape alone gives no power curve — diagonal is not inherently better than cross — so **range and damage scale with rank** on top of it, and a 5 out-damages a 4 despite a narrower pattern.
 
 Rank 5 is diagonal for a specific reason: **diagonals preserve square colour.** A diagonal Tower on a light square can only ever hit light squares, which is exactly the Knight's vulnerability window. The counter emerges from real chess geometry rather than being assigned.
 
 **Towers are generic, never chess-themed.** Their geometry comes from card rank, not from chess pieces.
 
-Ace, the face cards, and the Jokers perform **specific actions rather than following the ladder** — a Tower upgrade or evolution is the agreed direction. Specifics undesigned.
+### Face cards, the Ace, and the Jokers
+
+These **act instead of building**, under one governing principle:
+
+> **Suits tune numbers. Face cards change kind.**
+
+♥ ♦ ♠ ♣ already own the whole stat quartet, and their magnitude scales with rank, so a face card whose rank mode merely bumped a stat would be a fifth suit.
+
+| Card | Action | Needs a Tower? |
+| --- | --- | --- |
+| **Jack — Shield** | Give a Tower a shield of **10** — flat, additive, absorbed before health, never regenerating | Yes |
+| **Queen — Echo** | Build a copy of an existing Tower's **rank** on an empty square | Yes |
+| **King — Reinforce** | Raise Core current **and** maximum health by **1** | No |
+| **Ace — Expand** | Grow the board by one rank, lengthening the run to the Core | No |
+| **Joker — Clear** | Destroy every Piece standing on the board | No |
+
+Each touches a different layer — a Tower's durability, the number of Towers, the Core, the battlefield, the Pieces. None of them duplicates a suit.
+
+**A shield differs from ♥ Repair in kind, not magnitude:** repair is reactive and can be out-paced, a shield is pre-emptive and cannot. Overflow carries into health, so no single hit is wasted and a shield never blocks more than it is worth.
+
+**Echo copies the rank only.** Accumulated ♦ ♠ ♣ supports and any shield do not carry across, or Echo would be the strongest support multiplier in the game rather than a second Tower.
+
+**Reinforce is the only card that touches the Core, and the only Core recovery there is** — nothing else ever adds to it. A leak costs exactly 1 Core health, so a King buys exactly one extra leak. Whether that competes with playing the same King for its suit is a live balance question, not a settled one.
+
+**Clear leaves Towers and pending spawns alone.** Towers are permanent and only ever destroyed by Pieces, and a round still spawning continues rather than ending early. Being suitless, Clear is a Joker's only play — and it is the one card that can always break a grind.
+
+Two hazards arrive with packs, because copies are unlimited by design. Neither is reachable while the Deck is a fixed authored list:
+
+- A **King**-heavy Deck means unbounded Core health.
+- An **Ace**-heavy Deck means an arbitrarily long board — a rendering and camera-framing problem as much as a balance one.
+
+Both will want a cap then.
 
 ### Cards are consumed, and there is no drawing
 
@@ -94,6 +146,10 @@ Consequence accepted: without a cost, a high card is strictly better than a low 
 Note the loop this creates: **playing cards frees Deck space.** Culling only bites when the player is sitting on a large unspent Deck, so hoarding has a cost and spending has a reward. Preserve that tension.
 
 **No copy limit** — the cap already bounds total supply, and a bad pull is a cull candidate rather than dead weight. A pile of 5♦s is a legitimate build.
+
+**The Deck is a multiset, not a subset of 54 distinct cards.** Cards are gained from random packs, so holding three identical 5♦ is the normal case rather than an edge case.
+
+**A Card's identity is its own `id`, never its rank and suit.** Playing one of three 5♦ consumes that instance and leaves the other two. Anything that looks a card up, or removes it, by rank and suit is a bug the moment a duplicate exists — which is immediately.
 
 **"Hand" is not a term in this game.** There is no draw pile, so there is only one set of cards: the Deck.
 
@@ -183,7 +239,7 @@ Pawn promotion turns a chaff wave into a timer: ignore the weak pieces and they 
 
 ## Towers
 
-**Towers are destructible.** They have health, take damage from Pieces, and are repaired with ♥ cards.
+**Towers are destructible.** They have health, take damage from Pieces, are repaired with ♥ cards, and can be shielded by a Jack. A shield absorbs before health and never regenerates.
 
 **Towers are permanent once placed** — they are never removed by the player, only destroyed.
 
@@ -199,9 +255,9 @@ Half damage is what makes the mechanic work: Pieces are poor demolitionists, so 
 
 **There is no pathfinding.** A blocked Piece waits and grinds; it never routes around. This is deliberate — routing around would let the player steer Pieces by placing Towers, which is exactly the mazing the design rejects. The player can *wall*, but cannot *herd*.
 
-Every Piece therefore contributes anti-Tower pressure, so repair will reliably have a job.
+Every Piece therefore contributes anti-Tower pressure, so repair reliably has a job.
 
-**A Tower's own geometry decides whether it can defend itself.** A vertical, cross, or adjacent Tower covers the square a Piece attacks it from, so it shoots back. A **diagonal** Tower does not — a Piece attacking from directly along its file sits in a blind spot. That asymmetry is emergent from real geometry, not assigned, and it is the case to watch when repair arrives.
+**A Tower's own geometry decides whether it can defend itself.** A vertical, cross, adjacent, or star Tower covers the square a Piece attacks it from, so it shoots back. A **diagonal** Tower does not — a Piece attacking from directly along its file sits in a blind spot, and rank 5 is the only diagonal on the ladder. That asymmetry is emergent from real geometry, not assigned. Repair has since arrived, which makes it the live case: see "Repair versus the wall" in the open questions.
 
 ### No walls, no mazing
 
@@ -215,16 +271,13 @@ This is a **coverage** tower defense, not a **maze** one: defense is about which
 
 | Question | Notes |
 | --- | --- |
-| **Ranks 6–10** | Ranks 2–5 are set; the rest of the geometry ladder is undesigned. |
-| **Ace, face cards, Jokers** | Direction agreed (Tower upgrade or evolution); specifics parked. |
 | **Which pack opens a run** | A run starts by opening one, but the type is not fixed. Presumably Base. |
 | **Run length and loss condition** | How long a run is, what ends it, and whether difficulty scales per round or in stages. |
 | **Running out of cards** | Cards are consumed and packs are the only source, so a player can reach zero. Loss, stall, or covered by a guaranteed Ink floor? |
 | **Pack weighting and prices** | How rank scarcity translates into pack contents, and what each type costs. |
 | **PRNG streams** | One stream (simplest) versus separate named streams for packs/rounds/draws, so seeds survive code changes. |
-| **Repair versus the wall** | **Not yet reachable, but will be the moment ♥ repair lands.** Towers block and there is no pathfinding, so a repaired Tower a Piece cannot break is a permanent wall — and against a diagonal Tower's blind spot the Piece cannot even be shot, so the round never ends. Candidate answers: attacked Towers lose *maximum* health permanently so repair only delays; repair capped per round; or a blocked Piece eventually breaks through regardless. Decide with play experience, not on paper. |
+| **Repair versus the wall** | **Reachable now — ♥ Repair exists.** Towers block and there is no pathfinding, so a repaired Tower a Piece cannot break is a permanent wall, and against a rank-5 Tower's `diagonal` blind spot the Piece cannot even shoot back. What bounds it today is that **cards are consumed and packs do not exist**: ♥ runs out, the Tower falls, and the round resumes. `src/game/roundTermination.test.ts` pins that bound, and the Joker is the escape hatch. **Adding packs removes the bound.** Candidate answers: attacked Towers lose *maximum* health permanently so repair only delays; repair capped per round; or a blocked Piece eventually breaks through regardless. Decide with play experience, not on paper. |
 | **How far do sliding Pieces move?** | **Blocks Bishop, Rook, and Queen.** In chess these slide any distance along a line, which here would carry them most of the way to the Core in a single move. Chess-exact is probably unplayable; a capped slide is not really chess. Needs deciding before those types can be added. Pawn, Knight (L-hop), and King (one square) are unambiguous and need no decision. |
 | **Stranded Pieces** | Pawns off the Core's file reach the back rank and can never move again. They currently remain on the board and accumulate across rounds. Pawn promotion is the designed answer; until then this is visible clutter. |
 | **The Core is hard to reach** | With chess pawn movement, only three of eight files threaten the Core at all. Whether that is acceptable difficulty, or wants a wider Core, a different board, or piece types that can traverse files, is undecided. |
-| **Board geometry** | Still a literal 8x8. Square colour being load-bearing argues for keeping a true chessboard. |
 | **Multiplayer scope** | Still assumed single-player versus AI, no backend, no netcode. |
