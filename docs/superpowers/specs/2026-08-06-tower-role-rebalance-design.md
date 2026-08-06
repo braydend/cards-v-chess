@@ -384,26 +384,37 @@ on the reasoning that 8x8 is the tightest case growth can produce.
 **Both are false.** `vertical`, `cross`, `diagonal`, and `ring` are all
 bounded by Chebyshev distance along the rank axis, so a centrally-placed
 Tower using one of them is RANK-CLIPPED on the 8x8 starting board — its reach
-runs into the top or bottom edge before its shape is complete. The first Ace
-(9 board ranks) removes that clipping, and each of those geometries jumps to
-its true, larger absolute size, permanently. `band` is the only geometry that
-was never rank-clipped, because its reach along the files was always the full
-board width — it alone matches the original claim.
+runs into the top or bottom edge before its shape is complete. Growth removes
+that clipping and each of those geometries grows to its true, larger absolute
+size, permanently. `band` is the only geometry that was never rank-clipped,
+because its reach along the files was always the full board width — it alone
+matches the original claim.
 
-Measured peak coverage, files fixed at 8, board ranks swept 8/9/10/12/16/24
+**How fast varies by geometry, and is measured rather than assumed for each
+one.** `ring`, `cross`, and `diagonal` finish growing at the first Ace (9
+board ranks). `vertical` does not: its range of 5 needs 11 board ranks to
+fully unclip (5 above the centre and 5 below, plus the centre itself), and it
+still reads 9 — one below its final 10 — at board rank 10. "The first Ace"
+is not a single answer that covers every rank-clipped geometry, and the table
+below shows this directly rather than asserting it.
+
+Measured peak coverage, files fixed at 8, board ranks swept 8/9/10/11/12/16/24
 (the 8x8 column matches the 39-of-63 figure "Verification" above already
 gives for rank 8; the columns after it are the correction):
 
-| Rank | Geometry | 8 ranks | 9 ranks | 10 | 12 | 16 | 24 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 3 | vertical | 7 | 8 | 9 | 10 | 10 | 10 |
-| 4 | cross | 14 | 15 | 15 | 15 | 15 | 15 |
-| 5 | diagonal | 13 | 14 | 14 | 14 | 14 | 14 |
-| 8 | ring | 39 | 47 | 47 | 47 | 47 | 47 |
-| 10 | band | 23 | 23 | 23 | 23 | 23 | 23 |
+| Rank | Geometry | 8 ranks | 9 | 10 | 11 | 12 | 16 | 24 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 3 | vertical | 7 | 8 | 9 | 10 | 10 | 10 | 10 |
+| 4 | cross | 14 | 15 | 15 | 15 | 15 | 15 | 15 |
+| 5 | diagonal | 13 | 14 | 14 | 14 | 14 | 14 | 14 |
+| 8 | ring | 39 | 47 | 47 | 47 | 47 | 47 | 47 |
+| 10 | band | 23 | 23 | 23 | 23 | 23 | 23 | 23 |
 
 (Ranks 2, 6, 7, 9 are unaffected by growth and are omitted; they hold flat at
-their 8x8 values from the original table.)
+their 8x8 values from the original table. `vertical` reaches its final value
+of 10 at 11 board ranks, not 9 — the table's own 9-ranks and 11-ranks columns
+show 8 and 10 respectively, disproving a single "first Ace" answer for every
+geometry.)
 
 Rank 8's ring is both the absolute ceiling (47 squares) and the worst SHARE
 the board ever shows (47 of 71, 66.2%, at 9 board ranks) — worse than the
@@ -418,6 +429,9 @@ so placement still matters at every point in a run; 66% at the worst point
 (one Ace in) is the number that intent has to be judged against, not the
 39-of-63 this document originally gave. `src/data/towerRanks.test.ts`'s
 `describe('the coverage ceiling', ...)` block now sweeps board heights
-8/9/16/24 rather than asserting against 8x8 alone, asserts an absolute
-ceiling of 47 and a "never the whole board" property at every height, and
-checks the 9-board-rank share is the worst the board ever sees.
+8/9/16/24 rather than asserting against 8x8 alone. Its ceiling is pinned PER
+HEIGHT rather than as one flat number — 39 at 8 board ranks, 47 at 9 and
+above — so a regression that inflated the 8x8 footprint cannot hide behind
+the looser bound that only applies once growth has removed the clipping. It
+also asserts a "never the whole board" property at every height, and checks
+that 9 board ranks is the worst share the board ever sees.
