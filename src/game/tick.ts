@@ -290,7 +290,7 @@ function drainDueSpawns(
 
     // The Staging rank, NOT the far rank. It is out of bounds, so no Tower can
     // ever stand there — which is what stops a Piece being placed on top of
-    // one. The Piece steps onto the far rank on its own move interval, and a
+    // one. The Piece steps onto the board on its own move interval, and a
     // Tower in the way is then handled by the ordinary blocking rule rather
     // than by a spawn-time special case. Read from state, not a constant: an
     // Ace grows the board and the Staging rank moves up with it.

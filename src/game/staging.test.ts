@@ -240,19 +240,38 @@ describe('entering the board from the Staging rank', () => {
 
 describe('an Ace played while Pieces wait', () => {
   it('admits them to the board, on new space no Tower could occupy', () => {
-    const base = withDeck([standardCard('ace', 'A', 'spades')], createInitialState())
-    const waiting = pawnAt('waiting', { file: 3, rank: stagingRank(base.board) })
-    const state: GameState = { ...base, phase: 'inProgress', pieces: [waiting], pendingSpawns: [] }
+    const initial = createInitialState()
+    // A Tower seeded on the OLD far rank, directly behind where the waiting
+    // Piece will land. Without it, asserting "no Tower overlaps the Piece"
+    // would be true of an empty fixture regardless of whether expansion works
+    // — seeding one here means the assertions below pin the actual property:
+    // the newly admitted Piece's square is new space no Tower could ever have
+    // been built on, not merely a board with nothing on it.
+    const base = withTower(3, { file: 3, rank: initial.board.ranks - 1 }, initial)
+    const state: GameState = {
+      ...withDeck([standardCard('ace', 'A', 'spades')], base),
+      phase: 'inProgress',
+      pieces: [pawnAt('waiting', { file: 3, rank: stagingRank(base.board) })],
+      pendingSpawns: [],
+    }
 
     const grown = step(state, { kind: 'expandBoard', cardId: 'ace' })
     const pawn = grown.pieces[0]
+    const pawnSquare = pawn?.square ?? { file: -1, rank: -1 }
 
     expect(grown.board.ranks).toBe(base.board.ranks + 1)
     // The rank it was standing on is now the far rank, and the Staging rank has
     // moved up past it.
     expect(pawn?.square.rank).toBe(grown.board.ranks - 1)
     expect(stagingRank(grown.board)).toBe(base.board.ranks + 1)
-    expect(grown.towers).toEqual([])
+    // The seeded Tower stands one rank behind the Piece's new square — proving
+    // the new rank really is new space, not merely a fixture with no Tower on it.
+    expect(grown.towers.some((tower) => squareKey(tower.square) === squareKey(pawnSquare))).toBe(
+      false,
+    )
+    // Issue #15's clause doing its job on the newly admitted Piece: it now
+    // occupies an in-bounds square, so `canBuildOn` refuses a build there.
+    expect(canBuildOn(grown, pawnSquare)).toBe(false)
   })
 })
 

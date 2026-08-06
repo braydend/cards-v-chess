@@ -30,7 +30,7 @@ alternatives" below.
 ## Decision
 
 **Pieces spawn onto a Staging rank, one rank beyond the board, and step onto the
-far rank on their own move interval like any other hop.**
+board on their own move interval like any other hop.**
 
 The collision is not arbitrated — it is removed. A spawn square that is not a
 board square can never hold a Tower, so there is nothing to arbitrate. And
