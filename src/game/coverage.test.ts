@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { coversSquare } from './coverage'
+import { PIECE_TYPES } from '../data/pieceTypes'
+import { towerRank } from '../data/towerRanks'
+import { allSquares, isInBounds } from './board'
+import { coveredSquares, coversSquare } from './coverage'
+import { liveRound, pawnAt, withTower } from './fixtures'
+import { tick } from './tick'
+import type { Square } from './types'
 
 const ORIGIN = { file: 4, rank: 4 }
 
@@ -268,5 +274,117 @@ describe('coversSquare: band', () => {
     // The whole point of the rank-10 toll gate. A file distance of 40 is
     // still covered; only the board-rank distance is bounded.
     expect(coversSquare('band', 1, ORIGIN, { file: 44, rank: 4 })).toBe(true)
+
+describe('coveredSquares', () => {
+  const board = { files: 8, ranks: 8 }
+
+  it('never includes the origin', () => {
+    expect(coveredSquares(board, 'adjacent', 1, ORIGIN)).not.toContainEqual(ORIGIN)
+  })
+
+  it('agrees with coversSquare on every square of the board', () => {
+    // A characterisation guard, not a behavioural one: `coveredSquares` is
+    // literally this expression today, so it cannot currently fail. It earns its
+    // keep the moment someone rewrites the function to walk the pattern instead
+    // of filtering the board — which is the obvious optimisation, and is exactly
+    // what `src/scene/firePulse.ts` does in its frame loop. The pinned property
+    // is that any such rewrite still answers identically.
+    for (const geometry of [
+      'adjacent',
+      'horizontal',
+      'vertical',
+      'cross',
+      'diagonal',
+      'star',
+    ] as const) {
+      const covered = coveredSquares(board, geometry, 3, ORIGIN)
+      const expected = allSquares(board).filter((square) =>
+        coversSquare(geometry, 3, ORIGIN, square),
+      )
+      expect(covered).toEqual(expected)
+    }
+  })
+
+  it('clips to the board rather than running off the edge', () => {
+    const corner = { file: 0, rank: 0 }
+    const covered = coveredSquares(board, 'star', 8, corner)
+
+    expect(covered.every((square) => isInBounds(board, square))).toBe(true)
+    expect(covered).toContainEqual({ file: 7, rank: 7 })
+  })
+
+  it('returns the eight neighbours for an adjacent Tower at range 1', () => {
+    expect(coveredSquares(board, 'adjacent', 1, ORIGIN)).toHaveLength(8)
+  })
+
+  it('covers 7 squares for a vertical Tower of range 4, clipped at the far edge', () => {
+    // Range is squares along the pattern, so this is not comparable to a disc.
+    // ORIGIN sits on board rank 4 of 8, so range 4 reaches ranks 0-3 below it
+    // but only 5-7 above: the eighth square would be rank 8, off the board.
+    expect(coveredSquares(board, 'vertical', 4, ORIGIN)).toHaveLength(7)
+  })
+
+  it('reads the extent from the board it is given, so an Ace widens the footprint', () => {
+    const grown = { files: 8, ranks: 9 }
+
+    expect(coveredSquares(grown, 'vertical', 8, { file: 4, rank: 0 }).length).toBeGreaterThan(
+      coveredSquares(board, 'vertical', 8, { file: 4, rank: 0 }).length,
+    )
+  })
+})
+
+/**
+ * The claim the coverage overlay rests on: a lit square is a square the Tower
+ * really shoots, and an unlit one is a square it really does not.
+ *
+ * Nothing else pins this. `coveredSquares` and `fireTowers` share the
+ * `coversSquare` predicate but each look the geometry up for themselves from
+ * `towerRank(cardRank)`, so a future support that moved range onto the Tower
+ * instance could update firing alone and leave the overlay silently wrong. The
+ * overlay's own tests could not catch it: they use `towerRank` as their oracle
+ * too, so they would agree with the overlay and both would be wrong. This drives
+ * the real engine instead and asks what actually took damage.
+ */
+describe('coveredSquares agrees with what a Tower shoots', () => {
+  // Under a Pawn's 900ms move interval, so the Piece never moves or promotes
+  // during the window, and over rank 3's 600ms fire interval, so the Tower
+  // definitely gets a shot off.
+  const WINDOW_MS = 704
+  const DT_MS = 16
+
+  function damagedAt(square: Square): boolean {
+    const state = withTower(3, ORIGIN)
+    let live = liveRound(state, [pawnAt('probe', square)])
+    const before = PIECE_TYPES.pawn.maxHealth
+
+    for (let elapsed = 0; elapsed < WINDOW_MS; elapsed += DT_MS) live = tick(live, DT_MS)
+
+    const probe = live.pieces.find((piece) => piece.id === 'probe')
+
+    // Destroyed counts as damaged: rank 3 deals 1 and a Pawn has 3, so this
+    // should not happen in one shot, but reading it as "unharmed" would invert
+    // the assertion if the balance numbers ever change.
+    return probe === undefined || probe.health < before
+  }
+
+  it('damages a Piece on every covered square and spares one on every other square', () => {
+    const board = { files: 8, ranks: 8 }
+    const def = towerRank(3)
+    const covered = coveredSquares(board, def.geometry, def.range, ORIGIN)
+    const isCovered = (square: Square) =>
+      covered.some((lit) => lit.file === square.file && lit.rank === square.rank)
+
+    const probes = allSquares(board).filter(
+      (square) =>
+        // Not the Tower's own square, which cannot hold a Piece, and not board
+        // rank 0, where a Pawn promotes into a Queen and changes health pool.
+        !(square.file === ORIGIN.file && square.rank === ORIGIN.rank) && square.rank > 0,
+    )
+
+    expect(probes.length).toBeGreaterThan(0)
+
+    for (const square of probes) {
+      expect(damagedAt(square), `file ${square.file}, rank ${square.rank}`).toBe(isCovered(square))
+    }
   })
 })

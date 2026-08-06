@@ -18,9 +18,19 @@ import { accumulatePulses, detectShots, isPulseLive, type FirePulse } from './fi
  *
  * Drawing over a hovered build preview is fine: additive on teal lightens it,
  * for a fraction of a second.
+ *
+ * This file had the only correct instinct in the stack, and the rest of the stack
+ * has since been brought up to it: every flat overlay now states its position
+ * explicitly — `TowerCoverage`'s amber footprint (1), `CoveragePreview`'s teal
+ * box (2) and illegal marker (3), `SelectionMarker`'s ring (4), this (5). The
+ * value here moved from 1 to 5 to stay topmost as the others were numbered; it
+ * has to remain the highest, and every value distinct, because a tie drops back
+ * to the camera-dependent sort. `TowerCoverage.tsx` carries the reasoning, and
+ * the measurement that heights cannot order instanced overlays at all.
  */
 const PULSE_Y = 0.07
 const PULSE_HEIGHT = 0.01
+const RENDER_ORDER = 5
 
 /**
  * A Tower's shots, as a ring of lit squares expanding through its firing
@@ -153,7 +163,7 @@ export const FirePulses = memo(function FirePulses({ board }: { board: BoardSpec
        * accident. This one never unmounts, so an Ace really would grow `limit`
        * past buffers allocated at the old size.
        */}
-      <Instances key={squares.length} limit={squares.length} renderOrder={1}>
+      <Instances key={squares.length} limit={squares.length} renderOrder={RENDER_ORDER}>
         <boxGeometry args={[SQUARE_SIZE * 0.9, PULSE_HEIGHT, SQUARE_SIZE * 0.9]} />
         {/*
          * Additive so the pulse brightens whatever square it sits on. The rank

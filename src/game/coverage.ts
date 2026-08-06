@@ -1,4 +1,5 @@
-import type { Square, TowerGeometry } from './types'
+import { allSquares } from './board'
+import type { BoardSpec, Square, TowerGeometry } from './types'
 
 /**
  * Whether a Tower at `from` with this geometry and range can hit `target`.
@@ -72,4 +73,27 @@ export function coversSquare(
     // and adding a geometry without a case here still fails to typecheck —
     // without them.
   }
+}
+
+/**
+ * Every square on the board this Tower covers, origin excluded and clipped to
+ * the board's extent.
+ *
+ * The list form of `coversSquare`, for callers that want to draw a footprint
+ * rather than ask about one square. Kept here, beside the predicate, so the
+ * overlay the player reads and the shot the engine takes cannot disagree.
+ *
+ * Reads the extent from `board` — never a module constant. An Ace grows the
+ * board, so a footprint derived from a constant would stop at the old edge.
+ *
+ * Allocates: not for a frame loop. `src/scene/firePulse.ts` deliberately walks
+ * the same geometry with scratch objects because it runs in `useFrame`.
+ */
+export function coveredSquares(
+  board: BoardSpec,
+  geometry: TowerGeometry,
+  range: number,
+  from: Square,
+): Square[] {
+  return allSquares(board).filter((square) => coversSquare(geometry, range, from, square))
 }

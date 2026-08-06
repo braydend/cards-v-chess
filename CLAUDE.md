@@ -23,7 +23,7 @@ What exists:
 - **Packs.** Four types — Scrap, Base, Court, Suited — bought with Ink **in the gap between rounds only**, culling to the 30-card cap first. A run opens by dealing a Base pack; there is no authored starting Deck. Runs are seeded, with named PRNG streams in `src/game/rng.ts`. Prices and rarity weights in `src/data/packs.ts` are placeholders; the sizes are not.
 - **The full Chess roster** — Pawn, Knight, Bishop, Rook, Queen, King — each with its own movement, Pawn promotion on the back rank, hunting Knights, the King's move-speed/slide aura, and the Bishop's healing aura.
 - **Tower combat.** Firing geometry per rank, Tower health, shields, damage from blocked Pieces, and destruction. The rank ladder trades coverage against single-target damage in opposite directions, and ranks 7–9 are utility rather than damage roles: rank 7 is a gunless Wall that blocks and soaks, rank 8 is an Amplifier that doubles what other Towers deal inside its ring, and rank 9 is a Freezer that slows movement and grinding alike.
-- **Tower legibility.** A Tower darkens as it loses health, flashes on a hit, pulses at critical health, and flares as it dies; clicking one opens an inspect panel with the exact figures, including lifetime `damageTaken`.
+- **Tower legibility.** A Tower darkens as it loses health, flashes on a hit, pulses at critical health, and flares as it dies; clicking one opens an inspect panel with the exact figures, including lifetime `damageTaken` and targets per shot. **Selecting a Tower also lights every square it covers**, in amber against the build preview's teal, so a placed Tower's footprint is readable and not just a word in the panel. Both overlays draw at once on purpose. **Which of the flat overlays draws on top is decided by an explicit `renderOrder` ladder, never by height or JSX order** — three.js sorts transparent objects on the projected z of each object's *world origin*, and drei's `Instances` leaves that origin at `(0,0,0)` with the instance positions in `instanceMatrix`, so a y offset is invisible to the sort. The height bands do a different and still necessary job: keeping the overlays from being coplanar, which would z-fight. Each file documents its own band and its rung; the gaps are not to be closed up, and the rungs must stay distinct, since a tie drops back to the sort the ladder exists to escape.
 - **Piece exit legibility.** A Piece that leaks lunges onto the Core's square
   and flashes it on contact; one killed by a Tower bursts where it stood; a
   Joker's Clear flashes the whole board instead of bursting each Piece; and a
@@ -35,7 +35,7 @@ What exists:
   clearing at `startRound` can wipe a record before the frame's only publish.
 - The renderer (`src/scene/`), with distinct per-type rendering for each Piece, and the HUD, the Deck UI and the Tower panel (`src/ui/`).
 - **CI.** `lint`, `typecheck`, `test:coverage` with per-directory thresholds, and `build` — see "CI" below.
-- 660 tests across 39 files, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
+- TESTCOUNT_PLACEHOLDER, all passing, none of which need a browser. Run `pnpm test:run` for the live count — this figure is indicative of scale, and a stale one here has already leaked into a plan document once.
 
 What does **not** exist yet:
 
