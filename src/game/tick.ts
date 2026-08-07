@@ -482,7 +482,15 @@ function movePieces(
       // switch away from zig-zagging actually stick rather than repeating or
       // reverting.
       const outcome = nextMove(
-        { typeId: piece.typeId, from: square, moveCount, handedness, slideBonus, hunting },
+        {
+          typeId: piece.typeId,
+          from: square,
+          moveCount,
+          handedness,
+          slideBonus,
+          hunting,
+          tier: piece.tier,
+        },
         board,
         coreSquare,
         towerBySquare,

@@ -10,7 +10,7 @@ import {
   queenDistanceField,
   rookDistanceField,
 } from './distanceFields'
-import type { BoardSpec, Handedness, Piece, PieceTypeId, Square, Tower } from './types'
+import type { BoardSpec, Handedness, Piece, PieceTier, PieceTypeId, Square, Tower } from './types'
 
 /**
  * What a Piece does when its move interval elapses.
@@ -61,6 +61,8 @@ export interface MoveRequest {
    * and `huntByField` for what hunting does per type.
    */
   readonly hunting: boolean
+  /** The tier this Piece was born with. Read by the red seek in `nextMove`. */
+  readonly tier: PieceTier
 }
 
 /**
@@ -407,11 +409,18 @@ export function nextMove(
   coreSquare: Square,
   towerBySquare: ReadonlyMap<string, Tower>,
 ): MoveOutcome {
+  // A Piece on the Staging rank is still entering the board. Hunting fields
+  // have no entry off-board, so a yellow Piece born `hunting: true` must
+  // march its first hop — hunting engages the moment it is on the board.
+  // This is the one carve-out that lets yellow exist at all; see the
+  // chess-tiers spec.
+  const hunting = request.hunting && isInBounds(board, request.from)
+
   switch (request.typeId) {
     case 'pawn':
       return pawnMove(request.from, board, coreSquare, towerBySquare)
     case 'rook':
-      return request.hunting || forwardLeavesBoard(request.from, board)
+      return hunting || forwardLeavesBoard(request.from, board)
         ? huntByField(
             request.from,
             board,
@@ -431,7 +440,7 @@ export function nextMove(
             towerBySquare,
           )
     case 'bishop': {
-      if (request.hunting || forwardLeavesBoard(request.from, board)) {
+      if (hunting || forwardLeavesBoard(request.from, board)) {
         // A Bishop stays on its own colour, so a Core on the other colour is
         // a square it can never stand on — no leak from it is possible. Such
         // a Bishop hunts the square directly in front of the Core instead,
@@ -471,7 +480,7 @@ export function nextMove(
         request.from,
         request.moveCount,
         request.handedness,
-        request.hunting,
+        hunting,
         board,
         coreSquare,
         towerBySquare,
@@ -481,7 +490,7 @@ export function nextMove(
     // leaves the board she hunts with full queen movement instead; the
     // alternation is forward-march behaviour only.
     case 'queen':
-      return request.hunting || forwardLeavesBoard(request.from, board)
+      return hunting || forwardLeavesBoard(request.from, board)
         ? huntByField(
             request.from,
             board,
@@ -504,7 +513,7 @@ export function nextMove(
     // grants slide distance, it does not receive it. Once forward leaves the
     // board the King hunts: one royal step at a time down the field.
     case 'king':
-      return request.hunting || forwardLeavesBoard(request.from, board)
+      return hunting || forwardLeavesBoard(request.from, board)
         ? huntByField(
             request.from,
             board,
@@ -572,6 +581,7 @@ export function isStuck(
     handedness: piece.handedness,
     slideBonus: 0,
     hunting: piece.hunting,
+    tier: piece.tier,
   }
   return nextMove(request, board, coreSquare, towerBySquare).kind === 'stuck'
 }

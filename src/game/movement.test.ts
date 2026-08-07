@@ -23,6 +23,7 @@ function move(
     handedness: 1,
     slideBonus: 0,
     hunting: false,
+    tier: 'green',
     ...overrides,
   }
   return nextMove(request, BOARD, CORE_SQUARE, towers)
