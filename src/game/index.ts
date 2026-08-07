@@ -28,6 +28,7 @@ export type {
   GameState,
   Handedness,
   Piece,
+  PieceTier,
   PieceTypeDef,
   PieceTypeId,
   RoundPhase,
@@ -35,6 +36,7 @@ export type {
   Spawn,
   Square,
   Suit,
+  TierDef,
   Tower,
   TowerGeometry,
 } from './types'

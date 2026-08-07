@@ -54,6 +54,29 @@ export interface PieceTypeDef {
   readonly inkReward: number
 }
 
+/** The four difficulty tiers a spawn can be assigned. Green is the baseline. */
+export type PieceTier = 'green' | 'yellow' | 'red' | 'black'
+
+export interface TierDef {
+  readonly id: PieceTier
+  readonly label: string
+  /**
+   * Whether the Piece hunts the Core from its first on-board hop. Yellow.
+   * Pawns never read it — they promote — so a yellow Pawn marches and the
+   * promoted Queen inherits the flag.
+   */
+  readonly huntsFromSpawn: boolean
+  /** Whether the Piece detours to attack Towers within reach. Red only. */
+  readonly seeksTowers: boolean
+  /** Chance in [0, 1) a Tower shot at this Piece is negated. 0 = never. */
+  readonly dodgeChance: number
+  /**
+   * How many moves away a red Piece considers a Tower worth seeking.
+   * PLACEHOLDER tuning. 0 for every non-red tier (never read).
+   */
+  readonly reachInMoves: number
+}
+
 /**
  * Which way sideways. Drives the Knight's zig-zag, the Bishop's and Queen's
  * diagonal side, and the reflection off a file edge during the forward march.
