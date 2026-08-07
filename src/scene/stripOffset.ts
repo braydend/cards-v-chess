@@ -6,8 +6,9 @@
  * through the board's own projected width, so no camera math lives here: the
  * caller projects the board's left/right edges and passes pixels.
  *
- * A negative overlap (the strip is already clear) and a degenerate projection
- * (a zero-width or non-finite board) both return 0: there is nothing to pan.
+ * A negative overlap (the strip is already clear) and a degenerate input (a
+ * zero-width or non-finite board, or a non-finite strip edge) all return 0:
+ * there is nothing to pan.
  * The result is clamped to `maxPan` so the Core stays reachable.
  */
 export function panOffsetForStrip(input: {
@@ -17,6 +18,7 @@ export function panOffsetForStrip(input: {
   boardFiles: number
   maxPan: number
 }): number {
+  if (!Number.isFinite(input.stripLeftPx)) return 0
   const pxPerWorld = (input.boardRightPx - input.boardLeftPx) / input.boardFiles
   if (!Number.isFinite(pxPerWorld) || pxPerWorld <= 0) return 0
 

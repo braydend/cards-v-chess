@@ -63,6 +63,9 @@ describe('panOffsetForStrip', () => {
     expect(
       panOffsetForStrip({ stripLeftPx: 449, boardLeftPx: Number.NaN, boardRightPx: 561, boardFiles: 8, maxPan: 7.7 }),
     ).toBe(0)
+    expect(
+      panOffsetForStrip({ stripLeftPx: Number.NaN, boardLeftPx: 283, boardRightPx: 561, boardFiles: 8, maxPan: 7.7 }),
+    ).toBe(0)
   })
 })
 

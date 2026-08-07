@@ -36,10 +36,10 @@ export function GameScene() {
   // side there.
   const landscape = useMediaQuery(LANDSCAPE_QUERY)
 
-  // The Card selection that raises the strip, and the mode whose label sets
-  // its width. A mode toggle re-measures so a wider label cannot re-cover the
-  // board. Both are view state in `uiStore`, read without touching the
-  // simulation snapshot.
+  // The Card selection that raises the strip, and the mode whose label the
+  // strip shows. The strip's width is fixed by CSS, so a mode toggle is a
+  // defensive re-measure rather than a size change. Both are view state in
+  // `uiStore`, read without touching the simulation snapshot.
   const selectedCardId = useUiStore((store) => store.selectedCardId)
   const playMode = useUiStore((store) => store.playMode)
 
