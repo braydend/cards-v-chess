@@ -1,5 +1,5 @@
 import { OrbitControls } from '@react-three/drei'
-import { useRef } from 'react'
+import { Suspense, useRef } from 'react'
 import { useGameStore } from '../state/store'
 import { Board } from './Board'
 import { Core } from './Core'
@@ -33,8 +33,10 @@ export function GameScene() {
         flash={coreFlash}
       />
       <Towers board={board} />
-      <Pieces board={board} />
-      <PieceExits board={board} flash={coreFlash} />
+      <Suspense fallback={null}>
+        <Pieces board={board} />
+        <PieceExits board={board} flash={coreFlash} />
+      </Suspense>
 
       <OrbitControls enablePan={false} minDistance={6} maxDistance={22} maxPolarAngle={1.4} />
     </>
