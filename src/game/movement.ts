@@ -1,5 +1,5 @@
 import { isInBounds, squareKey, squaresEqual } from './board'
-import { KNIGHT_OFFSETS, knightDistanceField } from './knightDistance'
+import { KNIGHT_OFFSETS, knightDistanceField } from './distanceFields'
 import type { BoardSpec, Handedness, Piece, PieceTypeId, Square, Tower } from './types'
 
 /**

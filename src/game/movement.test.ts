@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BOARD, CORE_SQUARE } from '../data/board'
 import { allSquares, squareKey, squaresEqual } from './board'
-import { knightDistanceField } from './knightDistance'
+import { knightDistanceField } from './distanceFields'
 import { nextMove } from './movement'
 import type { MoveRequest } from './movement'
 import type { PieceTypeId, Square, Tower } from './types'
