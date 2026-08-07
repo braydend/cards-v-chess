@@ -2,8 +2,10 @@ import { Color } from 'three'
 import { towerRank } from '../data/towerRanks'
 import {
   coversSquare,
+  isOccluded,
   type BoardSpec,
   type BuildableRank,
+  type Square,
   type Tower,
   type TowerGeometry,
 } from '../game'
@@ -158,6 +160,15 @@ const RANK_RGB: Record<BuildableRank, Color> = {
  */
 const scratchOrigin = { file: 0, rank: 0 }
 const scratchTarget = { file: 0, rank: 0 }
+/**
+ * The squares of the standing Towers, rebuilt from the `towers` argument at
+ * the top of each `accumulatePulses` call so `isOccluded` never allocates a
+ * fresh array in the frame loop. `isOccluded` excludes the origin, so the
+ * shooter's own square being in here is harmless — the same reasoning the
+ * engine's `selectTargets` relies on when it builds its blocker list from
+ * every standing Tower.
+ */
+const scratchBlockers: Square[] = []
 
 /**
  * The farthest a file can sit from `originFile` on a board `boardFiles` wide —
@@ -203,10 +214,19 @@ export function isPulseLive(pulse: FirePulse, now: number, board: BoardSpec): bo
  * row-major by board rank then file — the order `allSquares` produces, so one
  * index serves both this buffer and the renderer's mesh array.
  *
+ * Each lit square is clipped through `isOccluded` against the standing Towers:
+ * a shot the Tower is blocked from making cannot claim a square it can see but
+ * not hit. Without this, a Tower retargeting past an occluder would still sweep
+ * its whole geometric footprint, lighting squares another Tower hides — the
+ * same lie the overlays were fixed to stop telling. The shooter's own square is
+ * in the blocker list but never occludes itself (`isOccluded` excludes the
+ * origin), so a lone Tower's pulse is unchanged.
+ *
  * Zeroes only the board's own region, never the whole buffer, so it cannot
  * clobber anything a caller keeps past the end. Allocates nothing: the caller
- * owns `out`, and the two `Square`s handed to `coversSquare` are module-level
- * scratch.
+ * owns `out`, the three `Square` collections handed to `coversSquare` and
+ * `isOccluded` are module-level scratch, and the blocker list is rebuilt in
+ * place from the `towers` argument rather than allocated.
  *
  * Additive by design. The renderer draws with `AdditiveBlending`, where black
  * contributes nothing — so an unlit square needs no special case and
@@ -217,8 +237,12 @@ export function accumulatePulses(
   board: BoardSpec,
   pulses: readonly FirePulse[],
   now: number,
+  towers: readonly Tower[],
 ): void {
   out.fill(0, 0, board.files * board.ranks * 3)
+
+  scratchBlockers.length = 0
+  for (const tower of towers) scratchBlockers.push(tower.square)
 
   for (const pulse of pulses) {
     const { geometry, range } = towerRank(pulse.cardRank)
@@ -257,6 +281,11 @@ export function accumulatePulses(
         scratchTarget.file = file
         scratchTarget.rank = boardRank
         if (!coversSquare(geometry, range, scratchOrigin, scratchTarget)) continue
+        // Occlusion, the same answer the engine consults before a shot: a
+        // square the Tower can see but not hit is not a square its shot can
+        // light. `isOccluded` skips the origin, so the shooter never blocks
+        // its own pulse.
+        if (isOccluded(scratchOrigin, scratchTarget, scratchBlockers)) continue
 
         const intensity = 1 - age / FADE_SECONDS
         const base = (boardRank * board.files + file) * 3

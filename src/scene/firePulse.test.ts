@@ -223,7 +223,7 @@ describe('accumulatePulses', () => {
     const out = new Float32Array(board.files * board.ranks * 3)
     // Rank 4 is `cross`. The square directly up-file is covered; its diagonal
     // neighbour, at the same Chebyshev distance, is not.
-    accumulatePulses(out, board, [pulseAt(4)], 1 / PULSE_SQUARES_PER_SECOND)
+    accumulatePulses(out, board, [pulseAt(4)], 1 / PULSE_SQUARES_PER_SECOND, [])
 
     expect(channel(out, 3, 4)).toBeGreaterThan(0)
     expect(channel(out, 4, 4)).toBe(0)
@@ -233,7 +233,7 @@ describe('accumulatePulses', () => {
     const out = new Float32Array(board.files * board.ranks * 3)
     // Rank 4 reaches 4 squares. At 50ms the ring has passed d=1 (45ms) but is
     // nowhere near d=4 (182ms).
-    accumulatePulses(out, board, [pulseAt(4)], 0.05)
+    accumulatePulses(out, board, [pulseAt(4)], 0.05, [])
 
     expect(channel(out, 3, 4)).toBeGreaterThan(0)
     expect(channel(out, 3, 7)).toBe(0)
@@ -245,17 +245,17 @@ describe('accumulatePulses', () => {
     const arrival = 1 / PULSE_SQUARES_PER_SECOND
     const fadeSec = PULSE_FADE_MS / 1000
 
-    accumulatePulses(out, board, [pulse], arrival)
+    accumulatePulses(out, board, [pulse], arrival, [])
     const full = channel(out, 3, 4)
 
-    accumulatePulses(out, board, [pulse], arrival + fadeSec / 2)
+    accumulatePulses(out, board, [pulse], arrival + fadeSec / 2, [])
     const half = channel(out, 3, 4)
 
     // Sampled clearly past the fade, not exactly on it. `(arrival + fadeSec)`
     // minus `arrival` in doubles is 0.15999999999999998, a hair under the
     // threshold, which leaves an intensity of 2.2e-16 rather than 0 and would
     // fail the assertion below for no behavioural reason.
-    accumulatePulses(out, board, [pulse], arrival + fadeSec + 0.01)
+    accumulatePulses(out, board, [pulse], arrival + fadeSec + 0.01, [])
 
     // Compared against the rank colour rather than a hard-coded float, so a
     // palette change does not break this. `new Color(hex)` converts sRGB into
@@ -267,10 +267,10 @@ describe('accumulatePulses', () => {
 
   it('zeroes the buffer before summing, so a departed pulse leaves no residue', () => {
     const out = new Float32Array(board.files * board.ranks * 3)
-    accumulatePulses(out, board, [pulseAt(4)], 1 / PULSE_SQUARES_PER_SECOND)
+    accumulatePulses(out, board, [pulseAt(4)], 1 / PULSE_SQUARES_PER_SECOND, [])
     expect(channel(out, 3, 4)).toBeGreaterThan(0)
 
-    accumulatePulses(out, board, [], 1 / PULSE_SQUARES_PER_SECOND)
+    accumulatePulses(out, board, [], 1 / PULSE_SQUARES_PER_SECOND, [])
 
     expect(channel(out, 3, 4)).toBe(0)
   })
@@ -286,7 +286,7 @@ describe('accumulatePulses', () => {
     const pulse = pulseAt(10, 3, 3)
     const arrival = 4 / PULSE_SQUARES_PER_SECOND
 
-    accumulatePulses(out, board, [pulse], arrival)
+    accumulatePulses(out, board, [pulse], arrival, [])
 
     expect(channel(out, 7, 3)).toBeGreaterThan(0)
     // File 0 is Chebyshev distance 3 from the origin — already arrived too.
@@ -300,7 +300,7 @@ describe('accumulatePulses', () => {
     const out = new Float32Array(board.files * board.ranks * 3)
     const pulse = pulseAt(10, 3, 3)
 
-    accumulatePulses(out, board, [pulse], 10)
+    accumulatePulses(out, board, [pulse], 10, [])
 
     // Rank distance 2 from the origin's rank 3, past rank 10's range of 1.
     expect(channel(out, 3, 5)).toBe(0)
@@ -312,12 +312,12 @@ describe('accumulatePulses', () => {
     const above = pulseAt(4, 3, 5)
     const arrival = 1 / PULSE_SQUARES_PER_SECOND
 
-    accumulatePulses(out, board, [below], arrival)
+    accumulatePulses(out, board, [below], arrival, [])
     const single = channel(out, 3, 4)
 
     // {3,4} sits one square from each origin along the file, so both rings
     // reach it at the same instant.
-    accumulatePulses(out, board, [below, above], arrival)
+    accumulatePulses(out, board, [below, above], arrival, [])
 
     expect(channel(out, 3, 4)).toBeCloseTo(single * 2, 5)
   })
@@ -333,11 +333,42 @@ describe('accumulatePulses', () => {
     // square sits at Chebyshev distance 4 from the corner: inside the ring's
     // outer edge, not its distance 1-2 hollow core, which is blind and would
     // read back 0 regardless of whether the bounds guard worked.
-    accumulatePulses(out, board, [pulseAt(8, 0, 0)], 0.2)
+    accumulatePulses(out, board, [pulseAt(8, 0, 0)], 0.2, [])
 
     expect(channel(out, 4, 4)).toBeGreaterThan(0)
     expect(out[squareFloats]).toBe(-1)
     expect(out[squareFloats + 11]).toBe(-1)
+  })
+
+  it('does not light a square another Tower occludes, but keeps the near side', () => {
+    // A rank-3 Tower at {3,7} fires vertically. A rank-7 Wall at {3,4} stands
+    // between it and {3,2}: geometrically covered, actually blocked. The pulse
+    // must not sweep past the Wall — the same `isOccluded` the engine consults
+    // before a shot, so the animation cannot claim a shot the Tower is blocked
+    // from making. {3,6}, between the shooter and the Wall, still lights.
+    const shooter = { ...tower(), id: 'shooter', cardRank: 3 as const, square: { file: 3, rank: 7 } }
+    const wall = { ...tower(), id: 'wall', cardRank: 7 as const, square: { file: 3, rank: 4 } }
+    const pulse: FirePulse = { file: 3, boardRank: 7, cardRank: 3, startedAt: 0 }
+
+    // {3,2} is 5 squares up the file: 5/22s for the ring to arrive, then this
+    // sample lands halfway through that square's fade window. The same instant
+    // with and without the Wall isolates occlusion from timing.
+    const arrival = 5 / PULSE_SQUARES_PER_SECOND + PULSE_FADE_MS / 1000 / 2
+
+    const unblocked = new Float32Array(board.files * board.ranks * 3)
+    accumulatePulses(unblocked, board, [pulse], arrival, [shooter])
+    expect(channel(unblocked, 3, 2)).toBeGreaterThan(0)
+
+    const blocked = new Float32Array(board.files * board.ranks * 3)
+    accumulatePulses(blocked, board, [pulse], arrival, [shooter, wall])
+    expect(channel(blocked, 3, 2)).toBe(0)
+
+    // The shooter's own square in the blocker list never occludes its own
+    // shots (`isOccluded` excludes the origin), so {3,6} — between the shooter
+    // and the Wall — still lights at its own arrival instant.
+    const nearArrival = 1 / PULSE_SQUARES_PER_SECOND
+    accumulatePulses(blocked, board, [pulse], nearArrival, [shooter, wall])
+    expect(channel(blocked, 3, 6)).toBeGreaterThan(0)
   })
 
   it('indexes the buffer the way allSquares orders squares', () => {
