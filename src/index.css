@@ -890,6 +890,7 @@ canvas {
   }
 
   .deck__cards--touch {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+    justify-content: center;
   }
 }
