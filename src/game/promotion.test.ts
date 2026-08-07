@@ -10,6 +10,7 @@ function pawnOn(file: number, rank: number): Piece {
   return {
     id: 'piece-1',
     typeId: 'pawn',
+    tier: 'green',
     square,
     prevSquare: square,
     health: PIECE_TYPES.pawn.maxHealth,
@@ -111,5 +112,16 @@ describe('pawn promotion', () => {
 
     expect(state.pieces[0]?.square).toEqual({ file: 0, rank: 4 })
     expect(state.pieces[0]?.promoted).toBe(false)
+  })
+
+  it("inherits the Pawn's tier through promotion", () => {
+    const state = withPawn(0, 0)
+    const pawn = state.pieces[0]
+    if (!pawn) throw new Error('expected a Pawn')
+
+    const redPawn: GameState = { ...state, pieces: [{ ...pawn, tier: 'red' }] }
+    const after = runFor(redPawn, PIECE_TYPES.pawn.moveIntervalMs + DT)
+
+    expect(after.pieces[0]?.tier).toBe('red')
   })
 })

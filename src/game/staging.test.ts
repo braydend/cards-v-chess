@@ -204,13 +204,12 @@ describe('entering the board from the Staging rank', () => {
   it('records what a hunting Knight on the Staging rank actually does, since it would strand there', () => {
     const { board, core } = createInitialState()
 
-    // Unreachable today: a spawned Knight always starts `hunting: false`, the
-    // zig-zag branch only ever produces rank-decreasing hops (so a Knight
-    // reaches rank 0 before it could ever start hunting), and `huntCore`'s own
-    // candidates must be in bounds — so nothing can put a hunting Knight back
-    // on the Staging rank. This test forces the combination directly anyway,
-    // to record the actual behaviour rather than leave the design's argument
-    // resting on reachability alone.
+    // Unreachable today: the only Pieces born `hunting: true` are yellow ones
+    // on their way OFF this very rank — whose entry hop the staging carve-out
+    // marches — and `huntCore`'s own candidates must be in bounds, so nothing
+    // else can put a hunting Knight back on the Staging rank. This test forces
+    // the combination directly anyway, to record the actual behaviour rather
+    // than leave the design's argument resting on reachability alone.
     const knight = {
       ...pieceAt('knight', 'hunting-knight', { file: 3, rank: stagingRank(board) }),
       hunting: true,

@@ -111,6 +111,8 @@ export interface ExitRecord {
 export interface Piece {
   readonly id: string
   readonly typeId: PieceTypeId
+  /** Set at spawn and inherited through promotion. Behavioural only — never stats or Ink. */
+  readonly tier: PieceTier
   readonly square: Square
   /**
    * The square this piece hopped from. Exists purely so the renderer can

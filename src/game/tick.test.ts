@@ -38,6 +38,7 @@ function rookOnBackRank(file: number, handedness: Handedness): GameState {
       {
         id: 'test-rook',
         typeId: 'rook',
+        tier: 'green',
         square: { file, rank: 0 },
         prevSquare: { file, rank: 0 },
         health: PIECE_TYPES.rook.maxHealth,
@@ -67,6 +68,7 @@ function pieceAt(
   return {
     id,
     typeId,
+    tier: 'green',
     square,
     prevSquare: square,
     health: PIECE_TYPES[typeId].maxHealth,
@@ -288,6 +290,7 @@ describe('tick: motion state', () => {
         {
           id: 'test-bishop',
           typeId: 'bishop',
+          tier: 'green',
           square: { file: 7, rank: 3 },
           prevSquare: { file: 7, rank: 3 },
           health: PIECE_TYPES.bishop.maxHealth,

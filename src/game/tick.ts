@@ -1,4 +1,5 @@
 import { BLOCKED_ATTACK_MULTIPLIER, pieceType } from '../data/pieceTypes'
+import { tierDef } from '../data/tiers'
 import { towerRank, type TowerRankDef } from '../data/towerRanks'
 import { KING_SPEED_MULTIPLIER, applyHealing, buffedPieceIds, slideBonusFor } from './auras'
 import { isInBounds, squareKey, stagingRank } from './board'
@@ -12,7 +13,7 @@ import {
   amplifierIdsByPiece,
   frozenPieceIds,
 } from './towerAuras'
-import type { BoardSpec, ExitRecord, GameState, Piece, Square, Tower } from './types'
+import type { BoardSpec, ExitRecord, GameState, Piece, PieceTier, Square, Tower } from './types'
 
 /**
  * How many exit records `GameState.recentExits` keeps.
@@ -95,11 +96,12 @@ export function tick(state: GameState, dtMs: number): GameState {
   // Minted after movePieces has decided which Pawns reached the back rank, and
   // numbered starting after drainDueSpawns's own ids, so a Pawn and a spawn in
   // the same tick can never collide over the same id.
-  const promotedQueens: Piece[] = moved.promotedFrom.map((square, index) => ({
+  const promotedQueens: Piece[] = moved.promotedFrom.map((entry, index) => ({
     id: `piece-${nextEntityId + index}`,
     typeId: 'queen',
-    square,
-    prevSquare: square,
+    tier: entry.tier,
+    square: entry.square,
+    prevSquare: entry.square,
     health: pieceType('queen').maxHealth,
     moveCooldownMs: 0,
     moveCount: 0,
@@ -108,9 +110,10 @@ export function tick(state: GameState, dtMs: number): GameState {
     handedness: (nextEntityId + index) % 2 === 0 ? 1 : -1,
     auraCooldownMs: 0,
     buffed: false,
-    // A promoted Queen never hunts — that field only ever means anything for
-    // a Knight, and this Piece is not one any more.
-    hunting: false,
+    // A promoted Queen hunts from spawn when her tier says so — a yellow Pawn
+    // becomes a yellow Queen that hunts from the moment she appears. She spawns
+    // on the board, so the staging-rank carve-out never applies to her.
+    hunting: tierDef(entry.tier).huntsFromSpawn,
     // Renderer-facing only. This is the one place it is ever true.
     promoted: true,
   }))
@@ -390,6 +393,7 @@ function drainDueSpawns(
     spawned.push({
       id: `piece-${nextEntityId}`,
       typeId: spawn.typeId,
+      tier: spawn.tier,
       square,
       prevSquare: square,
       health: pieceType(spawn.typeId).maxHealth,
@@ -399,7 +403,9 @@ function drainDueSpawns(
       handedness: nextEntityId % 2 === 0 ? 1 : -1,
       auraCooldownMs: 0,
       buffed: false,
-      hunting: false,
+      // A yellow Piece is born hunting the Core — but never a Pawn, which
+      // promotes instead. See `Piece.hunting` in types.ts.
+      hunting: tierDef(spawn.tier).huntsFromSpawn && spawn.typeId !== 'pawn',
       promoted: false,
     })
     nextEntityId += 1
@@ -433,12 +439,12 @@ function movePieces(
   pieces: Piece[]
   leaked: number
   towerDamage: Map<string, number>
-  promotedFrom: Square[]
+  promotedFrom: { square: Square; tier: PieceTier }[]
   exits: ExitRecord[]
 } {
   const survivors: Piece[] = []
   const towerDamage = new Map<string, number>()
-  const promotedFrom: Square[] = []
+  const promotedFrom: { square: Square; tier: PieceTier }[] = []
   const exits: ExitRecord[] = []
   let leaked = 0
 
@@ -503,7 +509,7 @@ function movePieces(
       }
 
       if (outcome.kind === 'promote') {
-        promotedFrom.push(square)
+        promotedFrom.push({ square, tier: piece.tier })
         isPromoted = true
         exits.push({
           pieceId: piece.id,

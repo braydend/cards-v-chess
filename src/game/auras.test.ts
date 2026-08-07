@@ -7,6 +7,7 @@ function piece(id: string, typeId: PieceTypeId, square: Square, handedness: Hand
   return {
     id,
     typeId,
+    tier: 'green',
     square,
     prevSquare: square,
     health: 5,
