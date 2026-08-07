@@ -4,6 +4,7 @@ import { allSquares, findCard, squareKey, type BoardSpec } from '../game'
 import { getState } from '../state/simulation'
 import { dispatch } from '../state/store'
 import { useUiStore } from '../state/uiStore'
+import { COARSE_POINTER_QUERY, useMediaQuery } from '../ui/useMediaQuery'
 import { resolveBoardAction } from './boardClick'
 import { SQUARE_SIZE, fileToWorldX, rankToWorldZ, worldXToFile, worldZToRank } from './coords'
 import { CoveragePreview } from './CoveragePreview'
@@ -85,6 +86,7 @@ export function Board({ board }: { board: BoardSpec }) {
  */
 function PlacementSurface({ board }: { board: BoardSpec }) {
   const setHoveredSquare = useUiStore((store) => store.setHoveredSquare)
+  const coarse = useMediaQuery(COARSE_POINTER_QUERY)
 
   return (
     <mesh
@@ -119,6 +121,8 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
           setEchoSourceTowerId,
           selectedTowerId,
           setSelectedTowerId,
+          previewedSquare,
+          setPreviewedSquare,
         } = useUiStore.getState()
 
         // Live state, not the published snapshot: a click must act on the board
@@ -136,10 +140,8 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
           card: selectedCardId === null ? null : (findCard(state.deck, selectedCardId) ?? null),
           playMode,
           echoSourceTowerId,
-          // Task 4 supplies the live pointer and tracked previewed square; a
-          // fine pointer here keeps the existing click-to-play behaviour.
-          pointer: 'fine',
-          previewedSquare: null,
+          pointer: coarse ? 'coarse' : 'fine',
+          previewedSquare,
         })
 
         if (action.kind === 'select') {
@@ -157,9 +159,14 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
           return
         }
 
-        // Unreachable until Task 4 supplies a coarse pointer; the action
-        // exists so the pure module can unit-test the tap-to-preview rule.
-        if (action.kind === 'preview') return
+        // On touch the first tap commits the square for preview rather than
+        // playing. The next tap on the same square falls through to the play
+        // branches below — `resolveBoardAction` gates the preview on a
+        // different square.
+        if (action.kind === 'preview') {
+          setPreviewedSquare(action.square)
+          return
+        }
 
         // `dispatch` reports whether the play actually landed. A refusal (an
         // occupied square, the Core square, an Echo source Tower that died
@@ -169,6 +176,7 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
 
         if (action.command.kind === 'echoTower') setEchoSourceTowerId(null)
         setSelectedCardId(null)
+        setPreviewedSquare(null)
       }}
     >
       <planeGeometry args={[board.files * SQUARE_SIZE, board.ranks * SQUARE_SIZE]} />
