@@ -6,7 +6,7 @@ import { useGameStore } from '../state/store'
 import { fileToWorldX, rankToWorldZ } from './coords'
 import type { CoreFlash } from './coreFlash'
 import { PIECE_COLOURS } from './pieceColours'
-import { GEOMETRY_BY_TYPE, PIECE_TYPE_IDS, REST_Y_BY_TYPE } from './pieceGeometry'
+import { PIECE_TYPE_IDS, REST_Y, usePieceModels } from './pieceModels'
 import {
   GHOST_EXPIRY_SLACK_MS,
   GHOST_LIFETIME_MS,
@@ -49,12 +49,13 @@ export function PieceExits({
   // One geometry and one material per type, shared across every ghost of it,
   // per CLAUDE.md. Ghosts fade by scale rather than opacity, which is what lets
   // them share an opaque material at all — see `ghostScale`.
+  const models = usePieceModels()
   const resources = useMemo(() => {
     const byType = new Map<PieceTypeId, { geometry: BufferGeometry; material: Material }>()
 
     for (const typeId of PIECE_TYPE_IDS) {
       byType.set(typeId, {
-        geometry: GEOMETRY_BY_TYPE[typeId](),
+        geometry: models[typeId],
         material: new MeshStandardMaterial({
           color: PIECE_COLOURS[typeId],
           emissive: PIECE_COLOURS[typeId],
@@ -65,14 +66,13 @@ export function PieceExits({
     }
 
     return byType
-  }, [])
+  }, [models])
 
   useEffect(
     () => () => {
-      for (const { geometry, material } of resources.values()) {
-        geometry.dispose()
-        material.dispose()
-      }
+      // The model geometries are owned by pieceModels.ts and shared with
+      // Pieces.tsx, so dispose only what this component created.
+      for (const { material } of resources.values()) material.dispose()
     },
     [resources],
   )
@@ -189,7 +189,7 @@ function GhostMesh({
     if (startedAt.current < 0) startedAt.current = now
     const ageMs = (now - startedAt.current) * 1000
 
-    const restY = REST_Y_BY_TYPE[ghost.typeId]
+    const restY = REST_Y
     const fromX = fileToWorldX(board, ghost.file)
     const fromZ = rankToWorldZ(board, ghost.boardRank)
 
