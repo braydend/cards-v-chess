@@ -16,6 +16,7 @@ import { BUFF_RING_COLOUR, PIECE_COLOURS } from './pieceColours'
 import { GEOMETRY_BY_TYPE, PIECE_TYPE_IDS, REST_Y_BY_TYPE } from './pieceGeometry'
 import { PROMOTION_POP_MS, promotionPopLift, promotionPopScale } from './promotionPop'
 import { TIER_COLOURS } from './tierColours'
+import { createWhiffTracker, whiffAgeMs, whiffScale } from './whiff'
 
 /**
  * How long the visual hop takes. Deliberately much shorter than a piece's move
@@ -120,6 +121,7 @@ function PieceMesh({
   const ringRef = useRef<Mesh>(null)
   const tierRingRef = useRef<Mesh>(null)
   const firstSeenAt = useRef(-1)
+  const whiffTracker = useRef(createWhiffTracker())
 
   // Reads live simulation state and mutates the mesh transform directly. No
   // state is set here, and nothing is allocated — the sanctioned way to do
@@ -163,7 +165,15 @@ function PieceMesh({
     // allocation.
     const healthFraction = piece.health / pieceType(piece.typeId).maxHealth
     const scale = (0.55 + healthFraction * 0.45) * pop
-    mesh.scale.set(scale, scale, scale)
+    const flashAgeMs = whiffAgeMs(
+      whiffTracker.current,
+      state.recentDodges,
+      pieceId,
+      state.roundNumber,
+      now * 1000,
+    )
+    const whiff = whiffScale(flashAgeMs)
+    mesh.scale.set(scale * whiff, scale * whiff, scale * whiff)
 
     // Toggling `visible` rather than mounting conditionally — mounting would
     // recompile the material. No state is set here.
