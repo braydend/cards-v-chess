@@ -3,7 +3,7 @@ import { tierDef } from '../data/tiers'
 import { towerRank, type TowerRankDef } from '../data/towerRanks'
 import { KING_SPEED_MULTIPLIER, applyHealing, buffedPieceIds, slideBonusFor } from './auras'
 import { isInBounds, squareKey, stagingRank } from './board'
-import { coversSquare } from './coverage'
+import { coversSquare, isOccluded } from './coverage'
 import { roundIncome, totalKillReward } from './ink'
 import { isStuck, nextMove } from './movement'
 import { next, type Rng } from './rng'
@@ -284,7 +284,9 @@ export function tick(state: GameState, dtMs: number): GameState {
  * Advances every Tower's cooldown and resolves the shots that come due.
  *
  * A Tower fires at most one shot per elapsed interval, hitting up to its rank's
- * `targetsPerShot` Pieces. Nothing blocks line of fire and nothing pierces.
+ * `targetsPerShot` Pieces. Towers block each other's fire: a shot whose line to
+ * the target passes through another Tower is occluded, and `selectTargets`
+ * skips the occluded candidate rather than wasting the shot.
  *
  * Damage cannot reach the Staging rank. It is off `board` entirely, and a
  * Piece standing there is still assembling — chess movement is what admits it
@@ -331,6 +333,12 @@ function fireTowers(
   // damage depends on which Tower fired first.
   const amplifiers = amplifierIdsByPiece(towers, pieces)
 
+  // Every standing Tower occludes, including the shooter itself (which can
+  // never be strictly between itself and anything) and the Wall (which never
+  // shoots but blocks for everyone else). Computed once so no Tower's outcome
+  // depends on which Tower fires first.
+  const blockers = towers.map((tower) => tower.square)
+
   for (const tower of towers) {
     const def = towerRank(tower.cardRank)
 
@@ -346,7 +354,7 @@ function fireTowers(
     let cooldown = tower.fireCooldownMs + dtMs
 
     while (cooldown >= tower.fireIntervalMs) {
-      const targets = selectTargets(tower, def, pieces, remainingHealth, board, coreSquare)
+      const targets = selectTargets(tower, def, pieces, remainingHealth, board, coreSquare, blockers)
 
       if (targets.length === 0) {
         // Hold at "ready" rather than banking shots. Without this, a Tower idle
@@ -415,6 +423,7 @@ function selectTargets(
   remainingHealth: Map<string, number>,
   board: BoardSpec,
   coreSquare: Square,
+  blockers: readonly Square[],
 ): Piece[] {
   const candidates: { piece: Piece; distance: number }[] = []
 
@@ -424,6 +433,10 @@ function selectTargets(
     // comment for why damage cannot reach a Piece waiting there.
     if (!isInBounds(board, piece.square)) continue
     if (!coversSquare(def.geometry, def.range, tower.square, piece.square)) continue
+    // A Tower can see a square and still not hit it: another Tower strictly
+    // between blocks the shot. The Staging-rank bounds check above this is
+    // untouched — damage still cannot reach a Piece assembling off-board.
+    if (isOccluded(tower.square, piece.square, blockers)) continue
 
     candidates.push({
       piece,

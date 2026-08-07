@@ -4,7 +4,12 @@ import { squareKey, type BoardSpec } from '../game'
 import { useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { SQUARE_SIZE, fileToWorldX, rankToWorldZ } from './coords'
-import { coverageSelection, selectedFootprint } from './towerCoverage'
+import {
+  blockerSquares,
+  coverageSelection,
+  selectedFootprint,
+  squaresListsEqual,
+} from './towerCoverage'
 
 /**
  * Amber, against `CoveragePreview`'s teal.
@@ -100,12 +105,14 @@ const RENDER_ORDER = 1
  * thin?" is answered by seeing a new teal footprint against the existing amber
  * one, and hiding either would make the comparison impossible.
  *
- * **An aura shares this footprint**, which the rebalanced ladder makes the more
- * valuable half. `TowerRankDef.aura` applies to every Piece its Tower covers, so
- * these squares are exactly the rank-8 Amplifier's amplified zone and the rank-9
- * Freezer's slowed zone — roles whose whole value is the area rather than the
- * shot. The rank-7 Wall is the opposite case and lights nothing at all, which is
- * correct rather than broken: `none` geometry covers no square.
+ * **For aura ranks this footprint is the aura zone, not the shot zone.** An
+ * aura (rank 8 Amplify, rank 9 Freeze) applies to every Piece its Tower covers
+ * regardless of what stands between, so those footprints draw the full covered
+ * area — a Wall between the Amplifier and a Piece in its ring hides the shot,
+ * never the field. For firing ranks the footprint is `reachableSquares`: a
+ * square the Tower can see but cannot hit is not lit. The rank-7 Wall is the
+ * opposite case and lights nothing at all, which is correct rather than broken:
+ * `none` geometry covers no square.
  *
  * This shows coverage, not targeting. A shot is capped at `targetsPerShot` and
  * picks the Pieces nearest the Core, so a footprint of dozens of squares can
@@ -128,6 +135,16 @@ export function TowerCoverage({ board }: { board: BoardSpec }) {
   // some unrelated state change happened to redraw it.
   const towers = useGameStore((store) => store.snapshot.towers)
 
+  // Identity-stable blocker squares: zustand keeps the previous selector value
+  // when `squaresListsEqual` says the new one is equal, so this array reference
+  // changes only when a Tower is built or destroyed. The memo keys on it, so a
+  // hit or a cooldown tick — which refresh the `towers` array on every publish
+  // — costs the footprint nothing. See `blockerSquares` in towerCoverage.ts.
+  const blockers = useGameStore(
+    (store) => blockerSquares(store.snapshot.towers),
+    squaresListsEqual,
+  )
+
   // Reduced to scalars, deliberately — though be clear about what that buys.
   // Every publish hands this component a fresh `towers` array, so it re-renders
   // on any Piece hop or Tower hit whether the memo hits or not; the array is
@@ -138,14 +155,19 @@ export function TowerCoverage({ board }: { board: BoardSpec }) {
   // for the scalars is correctness of the dependency list: a memo body that read
   // `towers` would need `towers` as a dep, and then it would recompute on every
   // publish regardless.
+  //
+  // The blocker list is a second, identity-stable dependency: it is the one
+  // thing that genuinely reshapes the footprint beyond the selected Tower's own
+  // rank and square, and `squaresListsEqual` keeps it stable between build and
+  // destroy events.
   const selection = coverageSelection(towers, selectedTowerId)
   const cardRank = selection?.cardRank
   const file = selection?.file
   const boardRank = selection?.boardRank
 
   const footprint = useMemo(
-    () => selectedFootprint(board, cardRank, file, boardRank),
-    [board, cardRank, file, boardRank],
+    () => selectedFootprint(board, cardRank, file, boardRank, blockers),
+    [board, cardRank, file, boardRank, blockers],
   )
 
   if (!footprint) return null

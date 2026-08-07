@@ -1,4 +1,4 @@
-import { allSquares } from './board'
+import { allSquares, squaresEqual } from './board'
 import type { BoardSpec, Square, TowerGeometry } from './types'
 
 /**
@@ -7,8 +7,11 @@ import type { BoardSpec, Square, TowerGeometry } from './types'
  * Range is measured in squares along the pattern, so a diagonal range of 3
  * reaches 3 squares diagonally rather than 3 squares of straight-line distance.
  *
- * Nothing blocks line of fire — a Tower hits any covered square regardless of
- * what sits between. Piercing and blocking are not part of the design.
+ * Geometry answers "does this Tower see this square at all?" Occlusion is a
+ * separate question answered by `isOccluded`: a Tower can see a square and
+ * still not hit it, because another Tower stands between. `coversSquare` is
+ * deliberately occlusion-blind — auras and `firePulse` read it and neither is
+ * a shot.
  */
 export function coversSquare(
   geometry: TowerGeometry,
@@ -96,4 +99,89 @@ export function coveredSquares(
   from: Square,
 ): Square[] {
   return allSquares(board).filter((square) => coversSquare(geometry, range, from, square))
+}
+
+/**
+ * Whether a Tower at `from` can actually hit `target` given the Towers that
+ * stand between — the occlusion half of "preview cannot lie about a shot".
+ *
+ * `target` is occluded when some blocker stands STRICTLY between `from` and
+ * `target` on one of the 8 compass rays: the same file, the same rank, or the
+ * same diagonal. "Strictly" is load-bearing twice over — a blocker on the
+ * shooter's own square and one beyond the target are both not between. A
+ * target not on any compass ray (a ring or band square off the eight
+ * directions) can never be occluded at all: there is no line to sit between
+ * on. See the design spec for how this reads per geometry.
+ *
+ * Reads only the positions of the blocker set, so the answer cannot depend on
+ * which Tower a caller happened to process first — the same order-independence
+ * discipline as `amplifierIdsByPiece` in `towerAuras.ts`.
+ */
+export function isOccluded(
+  from: Square,
+  target: Square,
+  blockers: readonly Square[],
+): boolean {
+  const fileDelta = target.file - from.file
+  const rankDelta = target.rank - from.rank
+  const onFile = fileDelta === 0 && rankDelta !== 0
+  const onRank = rankDelta === 0 && fileDelta !== 0
+  const onDiagonal = Math.abs(fileDelta) === Math.abs(rankDelta) && fileDelta !== 0
+
+  // A target on no compass ray cannot be occluded by anything. That is the
+  // ring and band off-ray squares, and it is a property, not a gap.
+  if (!onFile && !onRank && !onDiagonal) return false
+
+  const between = (a: number, b: number, c: number): boolean =>
+    (a < b && b < c) || (c < b && b < a)
+
+  for (const blocker of blockers) {
+    if (squaresEqual(blocker, from)) continue
+
+    if (onFile && blocker.file === from.file && between(from.rank, blocker.rank, target.rank)) {
+      return true
+    }
+    if (onRank && blocker.rank === from.rank && between(from.file, blocker.file, target.file)) {
+      return true
+    }
+    if (onDiagonal) {
+      const blockerFileDelta = blocker.file - from.file
+      const blockerRankDelta = blocker.rank - from.rank
+      if (
+        // On the same diagonal line as `from`...
+        Math.abs(blockerFileDelta) === Math.abs(blockerRankDelta) &&
+        // ...headed the same way as the target (blocks the anti-diagonal),
+        // ...and strictly between rather than at or beyond the target.
+        blockerFileDelta !== 0 &&
+        Math.sign(blockerFileDelta) === Math.sign(fileDelta) &&
+        Math.sign(blockerRankDelta) === Math.sign(rankDelta) &&
+        Math.abs(blockerFileDelta) < Math.abs(fileDelta)
+      ) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
+/**
+ * Every square this Tower can actually hit, given the Towers standing between.
+ *
+ * The list form of `coversSquare` + `isOccluded`, for the callers that want a
+ * footprint rather than one square — the two coverage overlays in `src/scene`.
+ * An empty blocker list is exactly `coveredSquares`: a Tower alone never
+ * occludes itself, because a Tower is never strictly between itself and a
+ * target.
+ */
+export function reachableSquares(
+  board: BoardSpec,
+  geometry: TowerGeometry,
+  range: number,
+  from: Square,
+  blockers: readonly Square[],
+): Square[] {
+  return coveredSquares(board, geometry, range, from).filter(
+    (square) => !isOccluded(from, square, blockers),
+  )
 }

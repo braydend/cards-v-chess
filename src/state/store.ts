@@ -1,4 +1,4 @@
-import { create } from 'zustand'
+import { createWithEqualityFn } from 'zustand/traditional'
 import type { GameState } from '../game'
 import * as simulation from './simulation'
 import { structuralKey } from './structuralKey'
@@ -13,7 +13,7 @@ interface GameStore {
   snapshot: GameState
 }
 
-export const useGameStore = create<GameStore>(() => ({
+export const useGameStore = createWithEqualityFn<GameStore>(() => ({
   snapshot: simulation.getState(),
 }))
 

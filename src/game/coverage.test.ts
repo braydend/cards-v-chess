@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { towerRank } from '../data/towerRanks'
 import { allSquares, isInBounds } from './board'
-import { coveredSquares, coversSquare } from './coverage'
+import { coveredSquares, coversSquare, isOccluded, reachableSquares } from './coverage'
 import { liveRound, pawnAt, withTower } from './fixtures'
 import { tick } from './tick'
 import type { Square } from './types'
@@ -335,6 +335,89 @@ describe('coveredSquares', () => {
   })
 })
 
+describe('isOccluded', () => {
+  it('blocks a Tower strictly between on the same file', () => {
+    expect(isOccluded({ file: 4, rank: 2 }, { file: 4, rank: 6 }, [{ file: 4, rank: 4 }])).toBe(true)
+  })
+
+  it('blocks a Tower strictly between on the same rank', () => {
+    expect(isOccluded({ file: 2, rank: 4 }, { file: 6, rank: 4 }, [{ file: 4, rank: 4 }])).toBe(true)
+  })
+
+  it('blocks a Tower strictly between on the same diagonal', () => {
+    expect(isOccluded({ file: 2, rank: 2 }, { file: 6, rank: 6 }, [{ file: 4, rank: 4 }])).toBe(true)
+  })
+
+  it('does not block a Tower beyond the target', () => {
+    expect(isOccluded({ file: 4, rank: 2 }, { file: 4, rank: 4 }, [{ file: 4, rank: 6 }])).toBe(false)
+  })
+
+  it('does not block a Tower on the anti-diagonal', () => {
+    // The blocker is on the diagonal through the shooter that the target is
+    // NOT on: both are "on a diagonal" but they are different diagonals.
+    expect(isOccluded({ file: 2, rank: 2 }, { file: 6, rank: 6 }, [{ file: 4, rank: 0 }])).toBe(false)
+  })
+
+  it('does not block a Tower off the ray', () => {
+    expect(isOccluded({ file: 4, rank: 2 }, { file: 4, rank: 6 }, [{ file: 5, rank: 4 }])).toBe(false)
+  })
+
+  it('never counts the shooter itself as a blocker', () => {
+    const from = { file: 4, rank: 4 }
+    expect(isOccluded(from, { file: 4, rank: 7 }, [from])).toBe(false)
+  })
+
+  it('never blocks a distance-1 target — no square is strictly between', () => {
+    const from = { file: 4, rank: 4 }
+    const target = { file: 5, rank: 4 }
+    expect(isOccluded(from, target, [])).toBe(false)
+    expect(isOccluded(from, target, [{ file: 4, rank: 4 }])).toBe(false)
+    expect(isOccluded(from, target, [{ file: 5, rank: 5 }])).toBe(false)
+    expect(isOccluded(from, target, [{ file: 6, rank: 4 }])).toBe(false)
+  })
+
+  it('keeps an off-ray ring square reachable through a Tower inside the ring', () => {
+    // Rank 8's ring covers Chebyshev distance 3-4. The target at {7,5} is at
+    // distance 3 — inside the ring — but not on any compass ray from {4,4}
+    // (fileDelta 3, rankDelta 1), so no Tower can be "between" on a line that
+    // does not exist. This is the hollow-core socket case.
+    expect(isOccluded({ file: 4, rank: 4 }, { file: 7, rank: 5 }, [{ file: 4, rank: 5 }])).toBe(false)
+  })
+
+  it('does not block a Tower beyond the target on the diagonal', () => {
+    expect(isOccluded({ file: 2, rank: 2 }, { file: 4, rank: 4 }, [{ file: 6, rank: 6 }])).toBe(false)
+  })
+
+  it('never blocks when the target is the shooter', () => {
+    const from = { file: 4, rank: 4 }
+    expect(isOccluded(from, from, [{ file: 4, rank: 5 }])).toBe(false)
+  })
+})
+
+describe('reachableSquares', () => {
+  const board = { files: 8, ranks: 8 }
+
+  it('equals coveredSquares when nothing blocks', () => {
+    expect(reachableSquares(board, 'vertical', 4, ORIGIN, [])).toEqual(
+      coveredSquares(board, 'vertical', 4, ORIGIN),
+    )
+  })
+
+  it('drops the squares a blocker hides and keeps the ones on its side', () => {
+    const covered = coveredSquares(board, 'vertical', 4, ORIGIN)
+    const reachable = reachableSquares(board, 'vertical', 4, ORIGIN, [{ file: 4, rank: 6 }])
+
+    expect(reachable.length).toBeLessThan(covered.length)
+    expect(reachable).toContainEqual({ file: 4, rank: 5 })
+    expect(reachable).not.toContainEqual({ file: 4, rank: 7 })
+  })
+
+  it('ignores a blocker off the target line', () => {
+    const withBlocker = reachableSquares(board, 'vertical', 4, ORIGIN, [{ file: 3, rank: 6 }])
+    expect(withBlocker).toEqual(coveredSquares(board, 'vertical', 4, ORIGIN))
+  })
+})
+
 /**
  * The claim the coverage overlay rests on: a lit square is a square the Tower
  * really shoots, and an unlit one is a square it really does not.
@@ -347,7 +430,7 @@ describe('coveredSquares', () => {
  * too, so they would agree with the overlay and both would be wrong. This drives
  * the real engine instead and asks what actually took damage.
  */
-describe('coveredSquares agrees with what a Tower shoots', () => {
+describe('reachableSquares agrees with what a Tower shoots', () => {
   // Under a Pawn's 900ms move interval, so the Piece never moves or promotes
   // during the window, and over rank 3's 600ms fire interval, so the Tower
   // definitely gets a shot off.
@@ -369,10 +452,14 @@ describe('coveredSquares agrees with what a Tower shoots', () => {
     return probe === undefined || probe.health < before
   }
 
-  it('damages a Piece on every covered square and spares one on every other square', () => {
+  it('damages a Piece on every reachable square and spares one on every other square', () => {
     const board = { files: 8, ranks: 8 }
     const def = towerRank(3)
-    const covered = coveredSquares(board, def.geometry, def.range, ORIGIN)
+    // The shooter alone is the blocker list: a single Tower never occludes
+    // itself, so with this one-Tower arrangement reachableSquares equals
+    // coveredSquares — but the overlay now reads reachableSquares, so that is
+    // what must agree with the shot.
+    const covered = reachableSquares(board, def.geometry, def.range, ORIGIN, [ORIGIN])
     const isCovered = (square: Square) =>
       covered.some((lit) => lit.file === square.file && lit.rank === square.rank)
 
@@ -388,5 +475,44 @@ describe('coveredSquares agrees with what a Tower shoots', () => {
     for (const square of probes) {
       expect(damagedAt(square), `file ${square.file}, rank ${square.rank}`).toBe(isCovered(square))
     }
+  })
+})
+
+/**
+ * The same claim under occlusion: reachableSquares — not coveredSquares — is
+ * what the overlay lights, so a Piece a Tower can see but not hit must be
+ * spared, and one it can hit must not.
+ */
+describe('reachableSquares agrees with what a Tower shoots under occlusion', () => {
+  const SHOOTER = { file: 4, rank: 7 }
+  const WALL = { file: 4, rank: 5 }
+  const WINDOW_MS = 704
+  const DT_MS = 16
+
+  function damagedAt(square: Square): boolean {
+    const withWall = withTower(7, WALL)
+    const state = withTower(3, SHOOTER, withWall)
+    let live = liveRound(state, [pawnAt('probe', square)])
+    const before = PIECE_TYPES.pawn.maxHealth
+
+    for (let elapsed = 0; elapsed < WINDOW_MS; elapsed += DT_MS) live = tick(live, DT_MS)
+
+    const probe = live.pieces.find((piece) => piece.id === 'probe')
+
+    return probe === undefined || probe.health < before
+  }
+
+  it('spares a covered-but-hidden Piece and damages a reachable one', () => {
+    const board = { files: 8, ranks: 8 }
+    const def = towerRank(3)
+    const reachable = reachableSquares(board, def.geometry, def.range, SHOOTER, [WALL])
+
+    // {4,6} is between the shooter and the Wall — reachable. {4,2} is beyond
+    // the Wall on the same file — covered, but occluded.
+    expect(reachable).toContainEqual({ file: 4, rank: 6 })
+    expect(reachable).not.toContainEqual({ file: 4, rank: 2 })
+
+    expect(damagedAt({ file: 4, rank: 6 })).toBe(true)
+    expect(damagedAt({ file: 4, rank: 2 })).toBe(false)
   })
 })

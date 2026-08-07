@@ -1,15 +1,14 @@
 import { Instance, Instances } from '@react-three/drei'
 import { useMemo } from 'react'
-import { towerRank } from '../data/towerRanks'
 import {
   canBuildOn,
-  coveredSquares,
   findCard,
   isBuildableRank,
   isInBounds,
   squareKey,
   type BoardSpec,
 } from '../game'
+import { blockerSquares, overlaySquares, squaresListsEqual } from './towerCoverage'
 import { useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { SQUARE_SIZE, fileToWorldX, rankToWorldZ } from './coords'
@@ -62,6 +61,13 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
   // snapshot means a Piece hop, which changes the snapshot on every hop, does
   // not touch this value and so cannot force a recompute of the footprint.
   const deck = useGameStore((store) => store.snapshot.deck)
+  // Identity-stable blocker squares, for the same reason as TowerCoverage:
+  // this reference changes only on build/destroy, so a Piece hop or a hit
+  // cannot recompute the footprint below.
+  const blockers = useGameStore(
+    (store) => blockerSquares(store.snapshot.towers),
+    squaresListsEqual,
+  )
   // The engine's own predicate, deliberately: a narrower copy here would
   // disagree with the refusal in `cardPlays.ts`. It reads false for a Piece,
   // the Core square and an existing Tower alike. Selected on its own, not
@@ -77,17 +83,19 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
     const card = findCard(deck, selectedCardId)
     if (!card || card.kind !== 'standard' || !isBuildableRank(card.rank)) return null
 
-    const { geometry, range } = towerRank(card.rank)
-
     return {
       // The engine's own footprint, shared with the selected-Tower overlay so
       // the two cannot clip differently. It excludes the origin, because
       // `coversSquare` never covers its own square — so `hoveredSquare` is
       // never in here, and the red marker below cannot land on a teal one.
-      covered: coveredSquares(board, geometry, range, hoveredSquare),
+      // Decided by `overlaySquares`, the one place that picks what an overlay
+      // draws: firing ranks light `reachableSquares`, aura ranks the full
+      // covered zone — the same rule the amber footprint follows, so the teal
+      // promise and the amber fact always agree.
+      covered: overlaySquares(board, card.rank, hoveredSquare, blockers),
       origin: hoveredSquare,
     }
-  }, [board, deck, hoveredSquare, playMode, selectedCardId])
+  }, [board, blockers, deck, hoveredSquare, playMode, selectedCardId])
 
   if (!footprint) return null
 

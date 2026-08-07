@@ -1,5 +1,14 @@
 import { towerRank } from '../data/towerRanks'
-import { coveredSquares, type BoardSpec, type BuildableRank, type Square, type Tower } from '../game'
+import {
+  coveredSquares,
+  reachableSquares,
+  squareKey,
+  squaresEqual,
+  type BoardSpec,
+  type BuildableRank,
+  type Square,
+  type Tower,
+} from '../game'
 
 /**
  * What the selected-Tower coverage overlay draws.
@@ -36,6 +45,72 @@ export interface CoverageSelection {
   readonly cardRank: BuildableRank
   readonly file: number
   readonly boardRank: number
+}
+
+/**
+ * The squares of every standing Tower, sorted into a canonical order.
+ *
+ * The blocker set for a Tower's footprint and its shots. Sorted so the list's
+ * identity — not any particular insertion order — is what changes, which is
+ * what lets the component memoise the footprint on this list via
+ * `squaresListsEqual`: two publishes that only moved a Piece or a cooldown
+ * produce the same sorted squares, so the same list.
+ *
+ * The sort is string (lexicographic) order on `squareKey` on purpose — any
+ * deterministic total order gives the identity-stable memo signature, so a
+ * future "fix" to numeric order would churn the ordering for no benefit.
+ */
+export function blockerSquares(towers: readonly Tower[]): Square[] {
+  return [...towers]
+    .map((tower) => tower.square)
+    .sort((a, b) => (squareKey(a) < squareKey(b) ? -1 : 1))
+}
+
+/**
+ * Element-wise equality for two square lists, for a store selector.
+ *
+ * `createWithEqualityFn` keeps the previous selector value when the equality
+ * function says the new one is equal, so a selector that returns
+ * `blockerSquares(towers)` with this as its equality fn hands back the
+ * SAME array reference across publishes where no Tower was built or destroyed.
+ * The footprint memo keys on that reference, so a hit or a cooldown tick costs
+ * it nothing — the property the scalars in `CoverageSelection` exist to
+ * preserve.
+ */
+export function squaresListsEqual(a: readonly Square[], b: readonly Square[]): boolean {
+  if (a.length !== b.length) return false
+
+  for (let index = 0; index < a.length; index += 1) {
+    const left = a[index]
+    const right = b[index]
+    if (left === undefined || right === undefined || !squaresEqual(left, right)) return false
+  }
+
+  return true
+}
+
+/**
+ * The squares an overlay should draw for a Tower of this rank from `from`,
+ * given the standing layout.
+ *
+ * The overlay's contract differs by role. A firing rank's value is the shot,
+ * so it draws `reachableSquares` — a square the Tower can see but cannot hit
+ * (another Tower strictly between) is not lit. An aura rank's value is the
+ * field: rank 8's amplified zone and rank 9's slowed zone apply to the full
+ * covered area and are never occluded, so those draw `coveredSquares`
+ * instead. One function so the amber footprint and the teal preview cannot
+ * disagree, either with each other or with the rank's role.
+ */
+export function overlaySquares(
+  board: BoardSpec,
+  cardRank: BuildableRank,
+  from: Square,
+  blockers: readonly Square[],
+): Square[] {
+  const { geometry, range, aura } = towerRank(cardRank)
+  return aura
+    ? coveredSquares(board, geometry, range, from)
+    : reachableSquares(board, geometry, range, from, blockers)
 }
 
 export interface TowerFootprint {
@@ -76,11 +151,14 @@ export function coverageSelection(
  * them up from the ladder on every shot and so does this. If a support ever
  * moves range onto the instance, that function and this one change together.
  *
- * The squares themselves come from the engine's `coveredSquares`, which is the
- * list form of the same `coversSquare` predicate `fireTowers` tests before it
- * shoots. That is the whole point of the overlay: the highlight the player reads
- * and the shot the Tower takes cannot disagree, because there is one answer and
- * both ask for it.
+ * The squares come from `overlaySquares`, the one place that decides what an
+ * overlay draws per rank. Firing ranks get the engine's `reachableSquares`,
+ * which is the list form of `coversSquare` + `isOccluded` — the exact answer
+ * `fireTowers` gets before it shoots. That is the whole point of the overlay:
+ * the highlight the player reads and the shot the Tower takes cannot disagree,
+ * because there is one answer and both ask for it. A blocked square is a square
+ * the Tower can see but cannot hit, so it is not lit. Aura ranks draw
+ * `coveredSquares` instead — see `overlaySquares` for why.
  *
  * Takes the three fields positionally, each admitting `undefined`, rather than a
  * `Partial<CoverageSelection>`. The component reads them off a possibly-null
@@ -99,11 +177,11 @@ export function selectedFootprint(
   cardRank: BuildableRank | undefined,
   file: number | undefined,
   boardRank: number | undefined,
+  blockers: readonly Square[],
 ): TowerFootprint | null {
   if (cardRank === undefined || file === undefined || boardRank === undefined) return null
 
   const origin: Square = { file, rank: boardRank }
-  const { geometry, range } = towerRank(cardRank)
 
-  return { origin, covered: coveredSquares(board, geometry, range, origin) }
+  return { origin, covered: overlaySquares(board, cardRank, origin, blockers) }
 }

@@ -133,8 +133,9 @@ export const FirePulses = memo(function FirePulses({ board }: { board: BoardSpec
     if (pulses.current.length === 0 && !flashLive) return
 
     // Zeroes the board's region first, which is why it runs even with no pulses
-    // in flight. `accumulateBoardFlash` adds on top and never zeroes.
-    accumulatePulses(intensity, board, pulses.current, now)
+    // in flight. `accumulateBoardFlash` adds on top and never zeroes. Towers
+    // are threaded in so the pulse clips out squares another Tower blocks.
+    accumulatePulses(intensity, board, pulses.current, now, liveState.towers)
     accumulateBoardFlash(intensity, board, flashLive ? currentFlash : null, now)
 
     for (let i = 0; i < squares.length; i += 1) {
