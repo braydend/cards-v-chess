@@ -850,15 +850,20 @@ canvas {
   }
 
   /* The selected-card strip follows the actions. In landscape the rail is too
-     narrow for the mode-toggle labels, so the strip floats just left of the
-     right rail, vertically centered beside it. */
+     narrow for the mode-toggle labels, so the strip stacks its items into a
+     vertical column just left of the right rail — card on top, mode buttons
+     below, Play/hint under them — hugging the widest child instead of the
+     wide bar portrait uses. */
   .mobileStrip {
     left: auto;
     right: calc(var(--mobile-rail) + 0.7rem);
     top: 50%;
     bottom: auto;
     transform: translateY(-50%);
-    width: min(24rem, calc(100% - var(--mobile-rail) - 1.4rem));
+    flex-direction: column;
+    align-items: center;
+    width: auto;
+    max-width: min(24rem, calc(100% - var(--mobile-rail) - 1.4rem));
   }
 
   /* The inspect panel avoids the full-height right rail: anchored top-right,
