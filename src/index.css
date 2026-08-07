@@ -865,8 +865,18 @@ canvas {
     transform: translateY(-50%);
     flex-direction: column;
     align-items: center;
-    width: auto;
-    max-width: min(24rem, calc(100% - var(--mobile-rail) - 1.4rem));
+    /* Fixed width, not content-hugging: the mode-toggle sentences wrap to
+       several lines inside this column instead of stretching the strip to
+       the longest unbreakable line. */
+    width: min(14rem, calc(100% - var(--mobile-rail) - 1.4rem));
+    max-width: none;
+  }
+
+  /* The mode buttons and hint fill the strip's width so their text wraps
+     instead of widening it. */
+  .mobileStrip__modes,
+  .mobileStrip .hud__hint {
+    width: 100%;
   }
 
   /* The inspect panel avoids the full-height right rail: anchored top-right,
