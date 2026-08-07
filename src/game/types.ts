@@ -141,7 +141,7 @@ export interface Piece {
    * distance field over its own movement — instead of its forward march.
    * Knights hunt once their forward hops run out; the King and the sliders
    * hunt once their forward move would leave the board; Pawns promote instead
-   * and never hunt. See `huntCore` and `huntByField` in movement.ts.
+   * and never hunt. See `huntByOffsets` and `huntByField` in movement.ts.
    *
    * Latches true and never reverts. A same-colour Bishop's first hunting hop
    * goes *away* from rank 0, up to the diagonal intersection that routes it

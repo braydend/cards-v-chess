@@ -205,7 +205,7 @@ describe('entering the board from the Staging rank', () => {
     const { board, core } = createInitialState()
 
     // A yellow Knight is born `hunting: true` while still on the Staging rank,
-    // where no distance field has an entry — `huntCore` would read that absence
+    // where no distance field has an entry — `huntByOffsets` would read that absence
     // as `stuck`, and a Piece stranded there is permanently immune to damage
     // (only a Joker's Clear reaches it). The staging carve-out in `nextMove`
     // exists so this cannot happen: hunting stays dormant until the Piece is on
