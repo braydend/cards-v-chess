@@ -50,7 +50,15 @@ count 0 → base
 count n → ceil(previous × 1.10)
 ```
 
-Scrap, starting at 50: 50 → 55 → 61 → 68 → 75 → 82 → 91 → 101 → …
+Scrap, starting at 50: 50 → 55 → 61 → 68 → 75 → 83 → 92 → 102 → …
+
+**The rounding must be exact, never a floating-point ceil.** `50 × 1.1`
+evaluates to `55.00000000000001` in IEEE 754, so `Math.ceil(50 * 1.1)` is 56,
+not the 55 the issue's example demands. Compute the multiply in integers:
+`next = floor((price × 11 + 9) / 10)`, which is exactly `ceil(price × 11 / 10)`
+for the integer prices involved and cannot drift. This matters on every step,
+not just the first — `Math.ceil` on floats drifts forever after the first
+off-by-one.
 
 Three properties follow from the issue's example, where buying three Scraps
 raises only Scrap and a Base pack bought next still costs 100:
