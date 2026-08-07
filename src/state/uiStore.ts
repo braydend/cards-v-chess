@@ -17,6 +17,18 @@ interface UiStore {
   setHoveredSquare: (square: Square | null) => void
 
   /**
+   * The square whose coverage is being previewed on a touch device.
+   *
+   * Desktop previews coverage under a pointer (`hoveredSquare`); touch has no
+   * pointer position, so the first tap on a square commits it here and the
+   * teal/red `CoveragePreview` renders against it. Purely view state — the
+   * engine never reads it. Cleared when the Card selection changes, a play
+   * lands, or the run resets.
+   */
+  previewedSquare: Square | null
+  setPreviewedSquare: (square: Square | null) => void
+
+  /**
    * Which of a Card's two modes the next click applies. Rank builds, suit
    * supports — the choice happens at play time, not at selection time.
    */
@@ -78,6 +90,8 @@ export const useUiStore = create<UiStore>((set) => ({
   setSelectedCardId: (selectedCardId) => set({ selectedCardId }),
   hoveredSquare: null,
   setHoveredSquare: (hoveredSquare) => set({ hoveredSquare }),
+  previewedSquare: null,
+  setPreviewedSquare: (previewedSquare) => set({ previewedSquare }),
   playMode: 'build',
   setPlayMode: (playMode) => set({ playMode }),
   echoSourceTowerId: null,

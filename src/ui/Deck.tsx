@@ -1,5 +1,6 @@
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
+import { selectCard } from './cardActions'
 import { rankModeLabel, targetHint, untargetedPlay } from './cardPlay'
 import { CardFace } from './CardFace'
 import { supportModeLabel } from './supportLabel'
@@ -19,7 +20,6 @@ export function Deck() {
   const playMode = useUiStore((store) => store.playMode)
   const setPlayMode = useUiStore((store) => store.setPlayMode)
   const echoSourceTowerId = useUiStore((store) => store.echoSourceTowerId)
-  const setEchoSourceTowerId = useUiStore((store) => store.setEchoSourceTowerId)
 
   const selected = deck.find((card) => card.id === selectedCardId)
 
@@ -41,15 +41,7 @@ export function Deck() {
             <CardFace
               card={card}
               modifier={card.id === selectedCardId ? 'deck__card--active' : undefined}
-              onClick={() => {
-                // Clear any half-finished Echo so it cannot leak into the next play.
-                setEchoSourceTowerId(null)
-                // Each Card is picked fresh in rank mode. Carrying the previous
-                // Card's mode across would leave a Joker stuck in a suit mode it
-                // cannot offer, with no button to switch back.
-                setPlayMode('build')
-                setSelectedCardId(card.id === selectedCardId ? null : card.id)
-              }}
+              onClick={() => selectCard(card.id, selectedCardId)}
             />
           </li>
         ))}

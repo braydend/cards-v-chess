@@ -1,6 +1,6 @@
-import { reset } from '../state/simulation'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
+import { resetRun } from './cardActions'
 import { Credits } from './Credits'
 import { Deck } from './Deck'
 import { PackShop } from './PackShop'
@@ -17,24 +17,6 @@ import { TowerPanel } from './TowerPanel'
 export function Hud() {
   const snapshot = useGameStore((store) => store.snapshot)
   const { phase, roundNumber, core, leaks, autoStart, pieces, towers, ink } = snapshot
-
-  // `simulation.reset` only owns GameState, not view state, and it must stay
-  // that way — it lives outside React on purpose and never depends on other
-  // state. So a fresh run's leftover selection (in particular a half-picked
-  // Echo source Tower, which would otherwise survive into the new game) is
-  // cleared here, from the caller, rather than inside `reset` itself.
-  //
-  // `selectedTowerId` matters most of the three: `reset()` rewinds the entity
-  // counter, so a stale id would open the panel on a brand-new Tower that
-  // happens to reuse it.
-  function handleReset() {
-    reset()
-    useUiStore.getState().setSelectedCardId(null)
-    useUiStore.getState().setEchoSourceTowerId(null)
-    useUiStore.getState().setSelectedTowerId(null)
-    useUiStore.getState().setPackShopOpen(false)
-    useUiStore.getState().clearMarkedForCull()
-  }
 
   return (
     <div className="hud">
@@ -73,7 +55,7 @@ export function Hud() {
 
         <div className="hud__actions">
           {phase === 'defeated' ? (
-            <button type="button" className="hud__button" onClick={handleReset}>
+            <button type="button" className="hud__button" onClick={resetRun}>
               Play again
             </button>
           ) : (
