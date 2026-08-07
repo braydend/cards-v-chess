@@ -17,11 +17,13 @@ export const DEV_SEED = 'cards-v-chess'
  * The pack a run opens with.
  *
  * There is no authored starting Deck: the opening position is whatever this
- * deals, and reading it is the first real decision of the run. It is free — Ink
- * starts at zero — and an empty Deck plus ten cards cannot breach the cap, so
- * the opening deal has no cull step.
+ * deals, and reading it is the first real decision of the run. It is a Scrap —
+ * three cards, deliberately below the baseline — so a run points the player at
+ * the store almost immediately. It is free — Ink starts at zero — and an empty
+ * Deck plus three cards cannot breach the cap, so the opening deal has no cull
+ * step and never touches `packPurchases`.
  */
-const OPENING_PACK = 'base'
+const OPENING_PACK = 'scrap'
 
 export function createInitialState(seed: string = DEV_SEED): GameState {
   const opening = dealPack(OPENING_PACK, undefined, streamFor(seed, 'packs'), 1)
@@ -39,6 +41,7 @@ export function createInitialState(seed: string = DEV_SEED): GameState {
     recentExits: [],
     clears: 0,
     ink: 0,
+    packPurchases: { scrap: 0, base: 0, court: 0, suited: 0 },
     pendingSpawns: [],
     nextEntityId: 1,
     seed,

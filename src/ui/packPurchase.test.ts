@@ -13,6 +13,7 @@ describe('commitState', () => {
       pack: null,
       suit: null,
       markedIds: [],
+      packPurchases: { scrap: 0, base: 0, court: 0, suited: 0 },
     })
 
     expect(state.enabled).toBe(false)
@@ -28,6 +29,7 @@ describe('commitState', () => {
       pack: 'base',
       suit: null,
       markedIds: [],
+      packPurchases: { scrap: 0, base: 0, court: 0, suited: 0 },
     })
 
     expect(state.enabled).toBe(false)
@@ -42,6 +44,7 @@ describe('commitState', () => {
       pack: 'suited',
       suit: null,
       markedIds: [],
+      packPurchases: { scrap: 0, base: 0, court: 0, suited: 0 },
     })
 
     expect(state.enabled).toBe(false)
@@ -56,6 +59,7 @@ describe('commitState', () => {
       pack: 'suited',
       suit: 'hearts',
       markedIds: [],
+      packPurchases: { scrap: 0, base: 0, court: 0, suited: 0 },
     })
 
     expect(state.enabled).toBe(true)
@@ -69,6 +73,7 @@ describe('commitState', () => {
       pack: 'scrap',
       suit: null,
       markedIds: ['a'],
+      packPurchases: { scrap: 0, base: 0, court: 0, suited: 0 },
     })
 
     expect(state.enabled).toBe(false)
@@ -83,6 +88,7 @@ describe('commitState', () => {
       pack: 'scrap',
       suit: null,
       markedIds: ['a', 'b'],
+      packPurchases: { scrap: 0, base: 0, court: 0, suited: 0 },
     })
 
     expect(state.reason).toBe('Mark 1 more card in the Deck to destroy.')
@@ -96,6 +102,7 @@ describe('commitState', () => {
       pack: 'scrap',
       suit: null,
       markedIds: ['a', 'b', 'c', 'd'],
+      packPurchases: { scrap: 0, base: 0, court: 0, suited: 0 },
     })
 
     expect(state.enabled).toBe(false)
@@ -110,6 +117,7 @@ describe('commitState', () => {
       pack: 'scrap',
       suit: null,
       markedIds: ['a', 'b', 'c', 'd', 'e'],
+      packPurchases: { scrap: 0, base: 0, court: 0, suited: 0 },
     })
 
     expect(state.enabled).toBe(false)
@@ -124,11 +132,27 @@ describe('commitState', () => {
       pack: 'base',
       suit: null,
       markedIds: [],
+      packPurchases: { scrap: 0, base: 0, court: 0, suited: 0 },
     })
 
     expect(state.enabled).toBe(true)
     expect(state.label).toBe(`Open Base — ${BASE} Ink`)
     expect(state.reason).toBe(null)
+  })
+
+  it('prices the label at the escalated price once a type has been bought', () => {
+    const state = commitState({
+      deckSize: 5,
+      ink: 999,
+      phase: 'gap',
+      pack: 'scrap',
+      suit: null,
+      markedIds: [],
+      packPurchases: { scrap: 2, base: 0, court: 0, suited: 0 },
+    })
+
+    expect(state.enabled).toBe(true)
+    expect(state.label).toBe('Open Scrap — 61 Ink')
   })
 
   it('says what it will destroy when a cull is required', () => {
@@ -140,6 +164,7 @@ describe('commitState', () => {
       pack: 'base',
       suit: null,
       markedIds: marked,
+      packPurchases: { scrap: 0, base: 0, court: 0, suited: 0 },
     })
 
     expect(state.enabled).toBe(true)
@@ -154,6 +179,7 @@ describe('commitState', () => {
       pack: 'base',
       suit: null,
       markedIds: [],
+      packPurchases: { scrap: 0, base: 0, court: 0, suited: 0 },
     })
 
     expect(state.reason).toContain('Ink')
@@ -167,6 +193,7 @@ describe('commitState', () => {
       pack: 'base',
       suit: null,
       markedIds: [],
+      packPurchases: { scrap: 0, base: 0, court: 0, suited: 0 },
     })
 
     expect(state.enabled).toBe(false)
@@ -181,6 +208,7 @@ describe('commitState', () => {
       pack: 'base',
       suit: null,
       markedIds: [],
+      packPurchases: { scrap: 0, base: 0, court: 0, suited: 0 },
     })
 
     expect(state.enabled).toBe(false)
@@ -196,6 +224,7 @@ describe('commitState', () => {
       pack: null,
       suit: null,
       markedIds: [],
+      packPurchases: { scrap: 0, base: 0, court: 0, suited: 0 },
     })
 
     expect(state.reason).toBe('A round is in progress — packs are bought between rounds.')

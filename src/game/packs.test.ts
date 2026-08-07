@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DECK_CAP } from '../data/deck'
 import { PACK_TYPES, PACKS } from '../data/packs'
-import { canAfford, cullCountFor, dealPack } from './packs'
+import { canAfford, cullCountFor, dealPack, packPrice } from './packs'
 import { streamFor, type Rng } from './rng'
 import { createInitialState } from './state'
 
@@ -179,16 +179,58 @@ describe('cullCountFor', () => {
 })
 
 describe('canAfford', () => {
-  it('needs the full price', () => {
-    expect(canAfford(PACKS.base.price - 1, 'base')).toBe(false)
-    expect(canAfford(PACKS.base.price, 'base')).toBe(true)
-    expect(canAfford(PACKS.base.price + 1, 'base')).toBe(true)
+  it('needs the current, possibly escalated price', () => {
+    expect(canAfford(49, 'scrap', 0)).toBe(false)
+    expect(canAfford(50, 'scrap', 0)).toBe(true)
+    expect(canAfford(54, 'scrap', 1)).toBe(false)
+    expect(canAfford(55, 'scrap', 1)).toBe(true)
+  })
+})
+
+describe('packPrice', () => {
+  it('is the base price before any purchase', () => {
+    expect(packPrice('scrap', 0)).toBe(50)
+    expect(packPrice('base', 0)).toBe(100)
+    expect(packPrice('court', 0)).toBe(400)
+    expect(packPrice('suited', 0)).toBe(200)
+  })
+
+  it('compounds 1.10x per purchase, rounding up each step', () => {
+    // The issue's example: 50 → 55 → 61 → 68 → 75 → 83 → 92 → 102.
+    expect(packPrice('scrap', 1)).toBe(55)
+    expect(packPrice('scrap', 2)).toBe(61)
+    expect(packPrice('scrap', 3)).toBe(68)
+    expect(packPrice('scrap', 4)).toBe(75)
+    expect(packPrice('scrap', 5)).toBe(83)
+    expect(packPrice('scrap', 6)).toBe(92)
+    expect(packPrice('scrap', 7)).toBe(102)
+  })
+
+  // 50 × 1.1 is 55.00000000000001 in IEEE 754, so Math.ceil(50 * 1.1) is 56 —
+  // NOT the 55 the issue demands. The integer formula must give 55.
+  it('rounds exactly, with no floating-point drift', () => {
+    expect(packPrice('scrap', 1)).toBe(55)
+  })
+
+  it('escalates each type off its own base', () => {
+    expect(packPrice('base', 1)).toBe(110)
+    expect(packPrice('suited', 1)).toBe(220)
+    expect(packPrice('court', 1)).toBe(440)
   })
 })
 
 describe('the run opening', () => {
-  it('opens with a Base pack', () => {
-    expect(createInitialState('run-a').deck).toHaveLength(PACKS.base.size)
+  it('opens with a Scrap pack', () => {
+    expect(createInitialState('run-a').deck).toHaveLength(PACKS.scrap.size)
+  })
+
+  it('counts no pack purchases yet, so the first bought pack costs its base', () => {
+    expect(createInitialState('run-a').packPurchases).toEqual({
+      scrap: 0,
+      base: 0,
+      court: 0,
+      suited: 0,
+    })
   })
 
   it('is free — Ink starts at zero and the opening deal does not charge', () => {
@@ -202,7 +244,7 @@ describe('the run opening', () => {
   })
 
   it('advances the card counter past the opening deal', () => {
-    expect(createInitialState('run-a').nextCardId).toBe(PACKS.base.size + 1)
+    expect(createInitialState('run-a').nextCardId).toBe(PACKS.scrap.size + 1)
   })
 
   // The counter Piece handedness is derived from must be untouched by the deal.

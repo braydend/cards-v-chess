@@ -58,6 +58,13 @@ describe('PACKS', () => {
     expect(PACKS.suited.price).toBeLessThan(PACKS.court.price)
   })
 
+  it('prices the packs at the resolved bases', () => {
+    expect(PACKS.scrap.price).toBe(50)
+    expect(PACKS.base.price).toBe(100)
+    expect(PACKS.court.price).toBe(400)
+    expect(PACKS.suited.price).toBe(200)
+  })
+
   it('marks only Suited as needing a suit', () => {
     expect(PACKS.suited.suited).toBe(true)
     expect(PACKS.scrap.suited).toBe(false)

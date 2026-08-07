@@ -28,6 +28,13 @@ describe('structuralKey', () => {
     expect(structuralKey(earned)).not.toBe(structuralKey(base))
   })
 
+  it('changes when pack purchases move, since the shop prices from them', () => {
+    const base = createInitialState('key-test')
+    const purchased = { ...base, packPurchases: { ...base.packPurchases, scrap: 1 } }
+
+    expect(structuralKey(purchased)).not.toBe(structuralKey(base))
+  })
+
   it('ignores recentExits and clears, which add no publish of their own', () => {
     // Every real exit already changes this key some other way: a leak moves
     // `leaks` and `core.health`, a kill and a promotion move the pieces string,
@@ -90,10 +97,12 @@ describe('the Deck', () => {
     // The trigger: same length, entirely different contents.
     expect(after.deck).toHaveLength(before.deck.length)
     expect(after.deck.map((card) => card.id)).not.toEqual(before.deck.map((card) => card.id))
-    // Holding ink equal leaves the Deck as the only term that can move, so this
-    // is a genuine end-to-end pin rather than a restatement of the fixture —
-    // keyed on length again, both keys would come out identical.
-    expect(structuralKey({ ...after, ink: before.ink })).not.toBe(structuralKey(before))
+    // Holding ink and packPurchases equal leaves the Deck as the only term that
+    // can move, so this is a genuine end-to-end pin rather than a restatement
+    // of the fixture — keyed on length again, both keys would come out identical.
+    expect(
+      structuralKey({ ...after, ink: before.ink, packPurchases: before.packPurchases }),
+    ).not.toBe(structuralKey(before))
   })
 
   it('still changes when a card is played and nothing replaces it', () => {
