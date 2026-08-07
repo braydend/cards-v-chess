@@ -212,11 +212,11 @@ cannot reach the Staging rank at all under the shipped design, no Tower's
 geometry reaches it either, extra or otherwise. Net against `main`, the only
 change left is that a Piece arrives one hop later, at full health — more build
 time for the player, no change to combat once the Piece is on the board.
-Setting a
-spawn's cooldown to a full interval so a Piece stepped onto the board on the very
-next tick was considered and rejected — it would preserve the old timing exactly
-and reduce the Staging rank to a single-tick flicker, which is to build the thing
-and then hide it.
+
+Setting a spawn's cooldown to a full interval, so a Piece stepped onto the
+board on the very next tick, was considered and rejected — it would preserve
+the old timing exactly and reduce the Staging rank to a single-tick flicker,
+which is to build the thing and then hide it.
 
 ### The renderer draws a ledge, not a rank of squares
 
@@ -253,7 +253,7 @@ The four candidates the issue lists, and why the Staging rank beats each:
   stalls with a Piece that has not entered and cannot be shot or Cleared, since
   it is not on the board at all. The Staging rank produces the *opposite*
   outcome from the same board position: the Piece exists, grinds the wall, and is
-  a legal target.
+  reachable by a Joker's Clear.
 - **Shift the spawn to another file.** Needs a file-choice rule, and a second
   rule for a fully walled spawn rank. Worse, it lets Tower placement decide where
   Pieces appear — which is herding by another name, one step from the mazing the
@@ -325,9 +325,10 @@ of `src/scene/` — there is no jsdom, and it is one mesh with no branching.
   Tower's geometry could reach the Staging rank regardless of which rank
   built the wall.
 - **The Staging rank is one-way, pinned exhaustively.** Every square, Piece
-  type, handedness, `moveCount`, `hunting` state, and `slideBonus` — 6,144
-  combinations — is fed through `nextMove`, and every resulting `move`
-  outcome's destination is asserted in bounds. Zero violations, confirming
+  type, handedness, `hunting` state, and `slideBonus`, crossed with both
+  `moveCount` parities — 6,144 combinations — is fed through `nextMove`, and
+  every resulting `move` outcome's destination is asserted in bounds. Zero
+  violations, confirming
   the property already held structurally in `movement.ts` before this test
   existed; no runtime guard was added, per this project's preference for a
   build-time guarantee over defensive code.

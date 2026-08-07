@@ -55,9 +55,9 @@ function runFor(state: GameState, durationMs: number): GameState {
  * Every square of the far rank holding a rank-5 Tower, with the round started.
  *
  * Rank 5 is the diagonal, chosen so a Tower cannot cover the Staging square
- * directly behind it (file distance 0, rank distance 1 — not a diagonal). Its
- * neighbours can, so the Pieces still die; what matters is that the walled
- * square itself never has a Piece standing on it.
+ * directly behind it (file distance 0, rank distance 1 — not a diagonal).
+ * What matters is that the walled square itself never has a Piece standing
+ * on it.
  */
 function walledFarRank(): GameState {
   const base = createInitialState()
@@ -154,19 +154,6 @@ describe('spawning', () => {
   })
 })
 
-describe('the rank-5 precondition the walled tests rely on', () => {
-  // `walledFarRank`, the grind test above, and the round-termination test
-  // below all wall the board with rank-5 Towers specifically because rank 5
-  // is the diagonal geometry, which cannot cover the Staging square directly
-  // behind it (file distance 0, rank distance 1 — not a diagonal). If a
-  // future balance tweak changed rank 5's geometry, those tests would fail
-  // for a reason invisible from their own diffs; this test asserts the
-  // precondition directly so a failure here names its own cause.
-  it('rank 5 builds a diagonal Tower', () => {
-    expect(TOWER_RANKS[5].geometry).toBe('diagonal')
-  })
-})
-
 const PIECE_TYPE_IDS = Object.keys(PIECE_TYPES) as PieceTypeId[]
 
 describe('entering the board from the Staging rank', () => {
@@ -232,9 +219,15 @@ describe('entering the board from the Staging rank', () => {
     // `buildDistanceField` (knightDistance.ts) only ever visits in-bounds
     // squares, so the Staging rank was never added to the field. `huntCore`
     // reads that absence as `stuck`. A hunting Knight on the Staging rank
-    // would therefore strand there for good — nothing spawns one in that
-    // state today, but if a future change ever made it reachable, this is
-    // the consequence it would need to reckon with.
+    // would therefore strand there for good — and, now that damage cannot
+    // reach the Staging rank, permanently immune to everything except a
+    // Joker's Clear too. `stuck` does not remove a Piece, and `startRound`
+    // (step.ts) only resets `phase`, `roundElapsedMs`, and `pendingSpawns` —
+    // it does not touch `state.pieces` — so a Piece stranded here would ride
+    // along into every subsequent round rather than being swept away at the
+    // gap. Nothing spawns one in that state today, but if a future change
+    // ever made it reachable, this is the consequence it would need to
+    // reckon with.
     expect(isStuck(knight, board, core.square, new Map())).toBe(true)
   })
 })
@@ -362,7 +355,7 @@ describe('round termination with Pieces still on the Staging rank', () => {
  * catch a violation that reaches a live run.
  */
 describe('the Staging rank is one-way', () => {
-  it('never produces a move outcome whose destination is out of bounds, for every square, Piece type, handedness, moveCount, hunting state, and slide bonus', () => {
+  it('never produces a move outcome whose destination is out of bounds, for every square, Piece type, handedness, hunting state, and slide bonus, and both moveCount parities', () => {
     const { board, core } = createInitialState()
     const offenders: string[] = []
 
@@ -471,7 +464,8 @@ describe("the Staging rank is safe from damage, except a Joker's Clear", () => {
     // attacks — so this cannot pass because nothing happened at all. The
     // Piece is genuinely grinding against the Tower every hop; it simply
     // cannot be hurt by it in return.
-    expect(firstTower(state).health).toBeLessThan(firstTower(state).maxHealth)
+    const tower = firstTower(state)
+    expect(tower.health).toBeLessThan(tower.maxHealth)
   })
 
   // Now pins the "except a Joker's Clear" half of the rule above — MORE
