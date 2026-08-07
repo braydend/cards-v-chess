@@ -53,6 +53,15 @@ interface UiStore {
   setPackShopOpen: (open: boolean) => void
 
   /**
+   * Whether the credits modal is open.
+   *
+   * Purely view state: the attribution is static text, so nothing about it
+   * lives in `GameState`.
+   */
+  creditsOpen: boolean
+  setCreditsOpen: (open: boolean) => void
+
+  /**
    * Cards marked for destruction in the pack shop, by id.
    *
    * The cull is chosen before the pack opens, and no card is destroyed until the
@@ -77,6 +86,8 @@ export const useUiStore = create<UiStore>((set) => ({
   setSelectedTowerId: (selectedTowerId) => set({ selectedTowerId }),
   packShopOpen: false,
   setPackShopOpen: (packShopOpen) => set({ packShopOpen }),
+  creditsOpen: false,
+  setCreditsOpen: (creditsOpen) => set({ creditsOpen }),
   markedForCullIds: [],
   toggleMarkedForCull: (cardId) =>
     set((store) => ({
