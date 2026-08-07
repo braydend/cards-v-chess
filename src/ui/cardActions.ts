@@ -25,6 +25,10 @@ export function selectCard(cardId: string, selectedCardId: string | null): void 
  * state, and it must stay that way — it lives outside React on purpose. The
  * leftover-selection clearing happens here, from the caller, so the renderer
  * never resets a run without also clearing its own state.
+ *
+ * `selectedTowerId` matters most of the three: `reset()` rewinds the entity
+ * counter, so a stale id would open the Tower panel on a brand-new Tower that
+ * happens to reuse it.
  */
 export function resetRun(): void {
   reset()

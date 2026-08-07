@@ -4,7 +4,8 @@ import { rankModeLabel, targetHint, untargetedPlay } from './cardPlay'
 
 function card(rank: CardRank | 'joker', suit?: Suit): Card {
   if (rank === 'joker') return { id: 'card-1', kind: 'joker' }
-  return suit ? { id: 'card-1', kind: 'standard', rank, suit } : { id: 'card-1', kind: 'joker' }
+  if (!suit) throw new Error('standard card requires a suit')
+  return { id: 'card-1', kind: 'standard', rank, suit }
 }
 
 describe('rankModeLabel', () => {

@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import type { Card } from '../game'
 import { useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { selectCard } from './cardActions'
 import { CardFace } from './CardFace'
+import { useDialogFocus } from './useDialogFocus'
 
 /**
  * The mobile deck picker: a full-screen sheet (the same scrim + panel pattern
@@ -17,14 +18,9 @@ export function DeckOverlay({ onClose }: { onClose: () => void }) {
   const selectedCardId = useUiStore((store) => store.selectedCardId)
   const panelRef = useRef<HTMLDivElement>(null)
 
-  // Escape closes, like any modal. Bound only while open.
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  // Focus is moved in, Tab trapped, and focus restored by `useDialogFocus` —
+  // the `aria-modal` assertion depends on the trap. Mounted only while open.
+  useDialogFocus(panelRef, onClose, true)
 
   function pick(card: Card) {
     selectCard(card.id, selectedCardId)
