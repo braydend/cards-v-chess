@@ -502,9 +502,16 @@ function movePieces(
       }
 
       if (outcome.kind === 'attackTower') {
+        // Universal combat rule: any Piece deals FULL damage to a Tower that
+        // stands on one of its attack tiles — the squares it could capture
+        // onto. A Pawn's attack tiles are its forward diagonals, so a Pawn
+        // blocked STRAIGHT ahead is the one case where the blocker is not on
+        // an attack tile — genuinely stuck territory — and the only one that
+        // still pays BLOCKED_ATTACK_MULTIPLIER. See the chess-tiers spec.
+        const multiplier = piece.typeId === 'pawn' ? BLOCKED_ATTACK_MULTIPLIER : 1
         towerDamage.set(
           outcome.towerId,
-          (towerDamage.get(outcome.towerId) ?? 0) + attackDamage * BLOCKED_ATTACK_MULTIPLIER,
+          (towerDamage.get(outcome.towerId) ?? 0) + attackDamage * multiplier,
         )
         // Stay put, and leave nothing for the renderer to interpolate. The
         // latch still has to persist here exactly as it does on a real move

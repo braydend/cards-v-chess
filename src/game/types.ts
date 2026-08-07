@@ -30,8 +30,10 @@ export interface PieceTypeDef {
   readonly maxHealth: number
   /**
    * Damage dealt to a Tower. A Piece blocked by a Tower attacks it instead of
-   * moving, at `BLOCKED_ATTACK_MULTIPLIER` of this value — Pieces are poor at
-   * demolition, which is what makes a Tower a real obstacle.
+   * moving. Under the universal combat rule a blocking Tower sits on one of
+   * the Piece's attack tiles, so it deals this FULL value — the one carve-out
+   * is a Pawn blocked straight ahead, whose blocker is not on an attack tile,
+   * at `BLOCKED_ATTACK_MULTIPLIER` of this value. See the chess-tiers spec.
    */
   readonly attackDamage: number
   /**
