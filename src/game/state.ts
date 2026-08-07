@@ -36,6 +36,8 @@ export function createInitialState(seed: string = DEV_SEED): GameState {
     pieces: [],
     towers: [],
     leaks: 0,
+    recentExits: [],
+    clears: 0,
     ink: 0,
     pendingSpawns: [],
     nextEntityId: 1,

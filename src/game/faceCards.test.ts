@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { ACE_BOARD_RANKS, JACK_SHIELD, KING_CORE_HEALTH } from '../data/cards'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { firstTowerId, jokerCard, liveRound, pawnAt, pieceAt, standardCard, withDeck, withTower } from './fixtures'
-import { stagingRank, step, tick } from './index'
+import { createInitialState, stagingRank, step, tick } from './index'
 import { clearReward, roundIncome, totalKillReward } from './ink'
 import type { GameState, Piece } from './types'
 
@@ -367,5 +367,43 @@ describe('Joker — Clear', () => {
 
     expect(ended.phase).toBe('gap')
     expect(ended.ink).toBe(clearReward(board) + roundIncome(1))
+  })
+})
+
+describe('Joker Clear: the renderer signal', () => {
+  function clearable(): GameState {
+    return withDeck(
+      [jokerCard('joker-1')],
+      liveRound(createInitialState(), [
+        pawnAt('a', { file: 0, rank: 5 }),
+        pawnAt('b', { file: 1, rank: 5 }),
+      ]),
+    )
+  }
+
+  it('counts the Clear, so the renderer flashes the board instead of bursting every Piece', () => {
+    // Monotonic on purpose. The renderer compares this per frame, and a
+    // per-tick flag would be lost when `advance` runs five ticks per emit.
+    const state = clearable()
+    const after = step(state, { kind: 'clearPieces', cardId: 'joker-1' })
+
+    expect(after.pieces).toEqual([])
+    expect(after.clears).toBe(state.clears + 1)
+  })
+
+  it('records no per-Piece exits for a Clear', () => {
+    // A Clear is one board-wide event, not fifteen exits. The renderer needs
+    // the count and nothing else.
+    const after = step(clearable(), { kind: 'clearPieces', cardId: 'joker-1' })
+
+    expect(after.recentExits).toEqual([])
+  })
+
+  it('does not count a refused Clear', () => {
+    const state = clearable()
+    const refused = step(state, { kind: 'clearPieces', cardId: 'no-such-card' })
+
+    expect(refused).toBe(state)
+    expect(refused.clears).toBe(0)
   })
 })

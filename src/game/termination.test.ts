@@ -23,6 +23,7 @@ function pieceOn(id: string, typeId: PieceTypeId, file: number, rank: number): P
     auraCooldownMs: 0,
     buffed: false,
     hunting: false,
+    promoted: false,
   }
 }
 

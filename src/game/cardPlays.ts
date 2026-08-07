@@ -226,6 +226,7 @@ export function clearPieces(state: GameState, cardId: string): GameState {
     ...state,
     ink: state.ink + clearReward(state.pieces),
     pieces: [],
+    clears: state.clears + 1,
     deck: removeCard(state.deck, cardId),
   }
 }

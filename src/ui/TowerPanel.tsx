@@ -3,6 +3,7 @@ import { useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { formatStat } from './formatStat'
 import { GEOMETRY_LABELS } from './geometryLabels'
+import { targetsLabel } from './targetsLabel'
 
 /**
  * Details of the selected Tower.
@@ -30,6 +31,7 @@ export function TowerPanel() {
   if (!tower) return null
 
   const def = towerRank(tower.cardRank)
+  const targets = targetsLabel(def.targetsPerShot)
 
   return (
     <div className="towerPanel">
@@ -67,8 +69,22 @@ export function TowerPanel() {
 
       <p className="towerPanel__geometry">{GEOMETRY_LABELS[def.geometry]}</p>
 
+      {/* Targets per shot is the half of "what can this Tower attack" that the
+          board cannot show — the coverage highlight lights every square in the
+          footprint, and a shot only reaches some of the Pieces standing in it,
+          so the two are read together. The phrasing is `targetsLabel`'s, not
+          this file's: which wording each case gets is a decision, and a
+          decision inside a `.tsx` cannot be tested here.
+
+          It returns null for the rank-7 Wall, which has no gun, and then the
+          clause is dropped rather than printed as "hits 0 per shot". The
+          separator goes with it — hence the whole clause being one expression.
+
+          `def`, not the Tower — ♣ and ♦ mutate damage and the fire interval
+          onto the instance, but nothing moves this figure off the ladder. */}
       <p className="hud__muted">
         range {def.range} · {formatStat(tower.damage)} dmg · {tower.fireIntervalMs}ms
+        {targets === null ? '' : ` · ${targets}`}
       </p>
     </div>
   )

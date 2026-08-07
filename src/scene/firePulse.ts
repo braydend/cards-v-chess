@@ -1,6 +1,12 @@
 import { Color } from 'three'
 import { towerRank } from '../data/towerRanks'
-import { coversSquare, type BoardSpec, type BuildableRank, type Tower } from '../game'
+import {
+  coversSquare,
+  type BoardSpec,
+  type BuildableRank,
+  type Tower,
+  type TowerGeometry,
+} from '../game'
 import { RANK_COLOURS } from './rankColours'
 
 /**
@@ -153,11 +159,43 @@ const RANK_RGB: Record<BuildableRank, Color> = {
 const scratchOrigin = { file: 0, rank: 0 }
 const scratchTarget = { file: 0, rank: 0 }
 
-/** Whether this pulse still has anything to draw. */
-export function isPulseLive(pulse: FirePulse, now: number): boolean {
-  const { range } = towerRank(pulse.cardRank)
+/**
+ * The farthest a file can sit from `originFile` on a board `boardFiles` wide —
+ * whichever edge, file 0 or the last file, is farther.
+ */
+function farthestFileDistance(originFile: number, boardFiles: number): number {
+  return Math.max(originFile, boardFiles - 1 - originFile)
+}
 
-  return now - pulse.startedAt < range / PULSE_SQUARES_PER_SECOND + FADE_SECONDS
+/**
+ * The greatest Chebyshev distance from a pulse's origin to any square its
+ * geometry actually covers — the ceiling both the animation's scan window
+ * (`accumulatePulses`) and its lifetime (`isPulseLive`) must reach, derived
+ * once here so the two cannot drift apart.
+ *
+ * Equal to `range` for every geometry `coversSquare` bounds by Chebyshev
+ * distance before its own switch runs — which is every geometry but `band`.
+ * `band` is bounded only in board ranks (`rankDistance <= range`) and reaches
+ * the FULL board width in files, so its file reach is measured from the
+ * origin's own file to whichever edge is farther, not from `range`.
+ */
+function maxCoverageDistance(
+  geometry: TowerGeometry,
+  range: number,
+  originFile: number,
+  boardFiles: number,
+): number {
+  if (geometry !== 'band') return range
+
+  return Math.max(range, farthestFileDistance(originFile, boardFiles))
+}
+
+/** Whether this pulse still has anything to draw. */
+export function isPulseLive(pulse: FirePulse, now: number, board: BoardSpec): boolean {
+  const { geometry, range } = towerRank(pulse.cardRank)
+  const distance = maxCoverageDistance(geometry, range, pulse.file, board.files)
+
+  return now - pulse.startedAt < distance / PULSE_SQUARES_PER_SECOND + FADE_SECONDS
 }
 
 /**
@@ -190,10 +228,18 @@ export function accumulatePulses(
     scratchOrigin.file = pulse.file
     scratchOrigin.rank = pulse.boardRank
 
+    // `band` reaches the full board width in files — bounded only in board
+    // ranks — so its scan window must not be clipped to `range` on that axis
+    // the way every other geometry's is. Using `board.files - 1` as the file
+    // reach rather than `range` gets that for free: `Math.max`/`Math.min`
+    // below clamp it straight to the board's own edges, so this is not a
+    // widened scan for the eight geometries that don't need one — for them
+    // `range` is still the reach, unchanged.
+    const fileReach = geometry === 'band' ? board.files - 1 : range
     // Clamped to the board, which is also what guarantees no write lands
     // outside `out`.
-    const minFile = Math.max(0, pulse.file - range)
-    const maxFile = Math.min(board.files - 1, pulse.file + range)
+    const minFile = Math.max(0, pulse.file - fileReach)
+    const maxFile = Math.min(board.files - 1, pulse.file + fileReach)
     const minRank = Math.max(0, pulse.boardRank - range)
     const maxRank = Math.min(board.ranks - 1, pulse.boardRank + range)
 

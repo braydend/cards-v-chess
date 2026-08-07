@@ -6,6 +6,18 @@ import { SQUARE_SIZE, fileToWorldX, rankToWorldZ } from './coords'
 const SELECTED = '#f4f7fb'
 
 /**
+ * Position in the flat-overlay stack, lowest first: `TowerCoverage`'s amber
+ * footprint (1), `CoveragePreview`'s teal box (2) and illegal marker (3), this
+ * ring (4), `FirePulses` (5). `TowerCoverage.tsx` carries the reasoning.
+ *
+ * The height below is not enough on its own. This mesh does sit at a real board
+ * position, so unlike the instanced overlays its sort z is meaningful — but z
+ * ordering between separate transparent objects still shifts with the camera,
+ * which is precisely what `FirePulses` set its own `renderOrder` to escape.
+ */
+const RENDER_ORDER = 4
+
+/**
  * A ring on the selected Tower's square.
  *
  * Drawn flat in the board plane in the same style as CoveragePreview, and only
@@ -25,6 +37,7 @@ export function SelectionMarker({ board }: { board: BoardSpec }) {
 
   return (
     <mesh
+      renderOrder={RENDER_ORDER}
       rotation={[-Math.PI / 2, 0, 0]}
       position={[
         fileToWorldX(board, selected.square.file),

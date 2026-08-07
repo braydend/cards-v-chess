@@ -6,7 +6,41 @@ import { coversSquare } from './coverage'
 import { roundIncome, totalKillReward } from './ink'
 import { isStuck, nextMove } from './movement'
 import { step } from './step'
-import type { BoardSpec, GameState, Piece, Square, Tower } from './types'
+import {
+  FREEZE_MULTIPLIER,
+  amplificationFor,
+  amplifierIdsByPiece,
+  frozenPieceIds,
+} from './towerAuras'
+import type { BoardSpec, ExitRecord, GameState, Piece, Square, Tower } from './types'
+
+/**
+ * How many exit records `GameState.recentExits` keeps.
+ *
+ * Sized against the observation window, not by feel. A publish observes at most
+ * one frame of simulation, so overflowing before the renderer reads the ring
+ * would take 32 exits inside one frame — which needs 32 Pieces simultaneously
+ * one hop from the Core, a board state that would have ended the run several
+ * times over.
+ */
+export const EXIT_RING_SIZE = 32
+
+/**
+ * Appends to the exit ring, dropping the oldest past `EXIT_RING_SIZE`.
+ *
+ * Returns the SAME array when there is nothing to append, so the overwhelming
+ * majority of ticks allocate nothing here.
+ */
+function appendExits(
+  current: readonly ExitRecord[],
+  added: readonly ExitRecord[],
+): readonly ExitRecord[] {
+  if (added.length === 0) return current
+
+  const next = [...current, ...added]
+
+  return next.length > EXIT_RING_SIZE ? next.slice(next.length - EXIT_RING_SIZE) : next
+}
 
 /**
  * Advances the simulation by one fixed timestep.
@@ -43,13 +77,25 @@ export function tick(state: GameState, dtMs: number): GameState {
   // Tower map is: so no Piece's outcome depends on processing order.
   const allPieces = [...state.pieces, ...spawned]
   const buffed = buffedPieceIds(allPieces)
+  // Derived from tick-start Tower and Piece positions for the same reason
+  // `buffed` and `towerBySquare` are: so no Piece's outcome depends on the
+  // order Pieces are processed in.
+  const frozen = frozenPieceIds(state.towers, allPieces)
 
-  const moved = movePieces(allPieces, state.board, state.core.square, towerBySquare, dtMs, buffed)
+  const moved = movePieces(
+    allPieces,
+    state.board,
+    state.core.square,
+    towerBySquare,
+    dtMs,
+    buffed,
+    frozen,
+  )
 
   // Minted after movePieces has decided which Pawns reached the back rank, and
   // numbered starting after drainDueSpawns's own ids, so a Pawn and a spawn in
   // the same tick can never collide over the same id.
-  const promotedQueens: Piece[] = moved.promoted.map((square, index) => ({
+  const promotedQueens: Piece[] = moved.promotedFrom.map((square, index) => ({
     id: `piece-${nextEntityId + index}`,
     typeId: 'queen',
     square,
@@ -65,8 +111,10 @@ export function tick(state: GameState, dtMs: number): GameState {
     // A promoted Queen never hunts — that field only ever means anything for
     // a Knight, and this Piece is not one any more.
     hunting: false,
+    // Renderer-facing only. This is the one place it is ever true.
+    promoted: true,
   }))
-  const entityIdAfterPromotion = nextEntityId + moved.promoted.length
+  const entityIdAfterPromotion = nextEntityId + moved.promotedFrom.length
 
   // Damage from blocked Pieces lands before Towers shoot, so a Tower destroyed
   // this tick does not get a parting shot.
@@ -89,6 +137,7 @@ export function tick(state: GameState, dtMs: number): GameState {
   const coreHealth = Math.max(0, state.core.health - moved.leaked)
   const core = { ...state.core, health: coreHealth }
   const leaks = state.leaks + moved.leaked
+  const recentExits = appendExits(state.recentExits, moved.exits)
 
   // Within this function, Tower fire is the ONLY thing that pays a kill
   // reward — a Joker's Clear pays its own quarter share in cardPlays.ts. A
@@ -104,6 +153,7 @@ export function tick(state: GameState, dtMs: number): GameState {
       phase: 'defeated',
       core,
       leaks,
+      recentExits,
       ink,
       roundElapsedMs,
       pieces: healed,
@@ -154,6 +204,7 @@ export function tick(state: GameState, dtMs: number): GameState {
       roundElapsedMs: 0,
       core,
       leaks,
+      recentExits,
       // `state.roundNumber`, NOT the incremented value on the next line: this
       // pays for the round just played, not the one about to start.
       ink: ink + roundIncome(state.roundNumber),
@@ -168,6 +219,7 @@ export function tick(state: GameState, dtMs: number): GameState {
     ...state,
     core,
     leaks,
+    recentExits,
     ink,
     roundElapsedMs,
     pieces: healed,
@@ -213,8 +265,22 @@ function fireTowers(
   const remainingHealth = new Map(pieces.map((piece) => [piece.id, piece.health]))
   const nextTowers: Tower[] = []
 
+  // Derived once, from the Piece and Tower lists as passed in, so no Piece's
+  // damage depends on which Tower fired first.
+  const amplifiers = amplifierIdsByPiece(towers, pieces)
+
   for (const tower of towers) {
     const def = towerRank(tower.cardRank)
+
+    // The Wall never fires. Skipping before the cooldown loop rather than
+    // relying on `selectTargets` returning nothing keeps a gunless Tower out
+    // of the firing path entirely — and means its inert `fireIntervalMs` is
+    // never read, so it can never gate a loop.
+    if (def.geometry === 'none') {
+      nextTowers.push(tower)
+      continue
+    }
+
     let cooldown = tower.fireCooldownMs + dtMs
 
     while (cooldown >= tower.fireIntervalMs) {
@@ -231,7 +297,11 @@ function fireTowers(
       cooldown -= tower.fireIntervalMs
 
       for (const target of targets) {
-        remainingHealth.set(target.id, (remainingHealth.get(target.id) ?? 0) - tower.damage)
+        const multiplier = amplificationFor(tower.id, target.id, amplifiers)
+        remainingHealth.set(
+          target.id,
+          (remainingHealth.get(target.id) ?? 0) - tower.damage * multiplier,
+        )
       }
     }
 
@@ -330,6 +400,7 @@ function drainDueSpawns(
       auraCooldownMs: 0,
       buffed: false,
       hunting: false,
+      promoted: false,
     })
     nextEntityId += 1
   }
@@ -357,16 +428,32 @@ function movePieces(
   towerBySquare: ReadonlyMap<string, Tower>,
   dtMs: number,
   buffed: ReadonlySet<string>,
-): { pieces: Piece[]; leaked: number; towerDamage: Map<string, number>; promoted: Square[] } {
+  frozen: ReadonlySet<string>,
+): {
+  pieces: Piece[]
+  leaked: number
+  towerDamage: Map<string, number>
+  promotedFrom: Square[]
+  exits: ExitRecord[]
+} {
   const survivors: Piece[] = []
   const towerDamage = new Map<string, number>()
-  const promoted: Square[] = []
+  const promotedFrom: Square[] = []
+  const exits: ExitRecord[] = []
   let leaked = 0
 
   for (const piece of pieces) {
     const { moveIntervalMs: baseInterval, attackDamage } = pieceType(piece.typeId)
     const isBuffed = buffed.has(piece.id)
-    const moveIntervalMs = isBuffed ? baseInterval * KING_SPEED_MULTIPLIER : baseInterval
+    const buffedInterval = isBuffed ? baseInterval * KING_SPEED_MULTIPLIER : baseInterval
+    // A King's buff and a Freezer's slow COMPOSE rather than override: 0.7 x
+    // 1.5 = 1.05, so a PIECE STANDING BESIDE A KING that is also inside a
+    // Freezer's coverage is barely slowed at all. That does NOT extend to the
+    // King itself: `buffedPieceIds` excludes a King from its own aura, so a
+    // King caught alone in a Freezer's coverage takes the full 1.5x slow,
+    // with no buff of its own to compose against. The King is the Chess
+    // faction's answer to the Freezer for its neighbours, not for itself.
+    const moveIntervalMs = frozen.has(piece.id) ? buffedInterval * FREEZE_MULTIPLIER : buffedInterval
     const slideBonus = slideBonusFor(piece, buffed)
 
     let cooldown = piece.moveCooldownMs + dtMs
@@ -416,8 +503,14 @@ function movePieces(
       }
 
       if (outcome.kind === 'promote') {
-        promoted.push(square)
+        promotedFrom.push(square)
         isPromoted = true
+        exits.push({
+          pieceId: piece.id,
+          typeId: piece.typeId,
+          reason: 'promotion',
+          from: square,
+        })
         break
       }
 
@@ -444,6 +537,10 @@ function movePieces(
 
     if (reachedCore) {
       leaked += 1
+      // `square`, not `piece.square`: the hop loop above can have advanced the
+      // Piece more than once within this tick, and the renderer must lunge from
+      // where it actually was, not where it started the tick.
+      exits.push({ pieceId: piece.id, typeId: piece.typeId, reason: 'leak', from: square })
       continue
     }
     if (isPromoted) continue
@@ -460,7 +557,7 @@ function movePieces(
     })
   }
 
-  return { pieces: survivors, leaked, towerDamage, promoted }
+  return { pieces: survivors, leaked, towerDamage, promotedFrom, exits }
 }
 
 /**

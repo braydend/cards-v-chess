@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { CORE_SQUARE } from '../data/board'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { BISHOP_HEAL_INTERVAL_MS, KING_SPEED_MULTIPLIER } from './auras'
 import { liveRound, pawnAt, withTower } from './fixtures'
 import { createInitialState, stagingRank, step, tick } from './index'
 import { roundIncome } from './ink'
+import { EXIT_RING_SIZE } from './tick'
 import type { GameState, Handedness, Piece, PieceTypeId, Square, Tower } from './types'
 
 /** The fixed timestep the app runs at. Tests drive time; nothing reads a clock. */
@@ -46,6 +48,7 @@ function rookOnBackRank(file: number, handedness: Handedness): GameState {
         auraCooldownMs: 0,
         buffed: false,
         hunting: false,
+        promoted: false,
       },
     ],
   }
@@ -74,6 +77,7 @@ function pieceAt(
     auraCooldownMs: 0,
     buffed: false,
     hunting: false,
+    promoted: false,
     ...overrides,
   }
 }
@@ -642,5 +646,87 @@ describe('Ink from round completion', () => {
 
     expect(after.phase).toBe('defeated')
     expect(after.ink).toBe(0)
+  })
+})
+
+describe('tick: exit records', () => {
+  /** A lone Pawn one square up-file from the Core, so its next hop leaks. */
+  function oneLeakAway(state: GameState = createInitialState()): GameState {
+    return liveRound(state, [pawnAt('leaker', { file: 3, rank: 1 })])
+  }
+
+  it('records a leak with the leaker id, type, and the square it left from', () => {
+    const after = runFor(oneLeakAway(), PIECE_TYPES.pawn.moveIntervalMs + DT)
+
+    expect(after.recentExits).toEqual([
+      { pieceId: 'leaker', typeId: 'pawn', reason: 'leak', from: { file: 3, rank: 1 } },
+    ])
+  })
+
+  it("never records the Core's own square, which a leaking Piece never occupies", () => {
+    // `nextMove` returns `reachCore` for the square it WOULD step to, and
+    // `movePieces` drops the Piece without ever assigning it — so the renderer
+    // has to lunge from the square recorded here to a Core square the engine
+    // never wrote.
+    const after = runFor(oneLeakAway(), PIECE_TYPES.pawn.moveIntervalMs + DT)
+
+    expect(after.recentExits[0]?.from).not.toEqual(CORE_SQUARE)
+  })
+
+  it('records the square reached mid-tick, not the square the Piece began the tick on', () => {
+    // One tick, two hops: the Pawn steps rank 2 -> 1 and then leaks, so `from`
+    // must be rank 1. Reading `piece.square` instead of the hop loop's own
+    // `square` would report rank 2, and the renderer would lunge from a square
+    // the Piece had already left.
+    const state = liveRound(createInitialState(), [pawnAt('leaker', { file: 3, rank: 2 })])
+    const after = tick(state, PIECE_TYPES.pawn.moveIntervalMs * 2)
+
+    expect(after.recentExits[0]?.from).toEqual({ file: 3, rank: 1 })
+  })
+
+  it('records nothing when a Tower kills a Piece, since a kill is the absence of a record', () => {
+    // Rank 2 deals 3 to a Pawn's 3 health, so one shot at 400ms kills it well
+    // inside the Pawn's 900ms hop — no movement, no leak, nothing recorded.
+    // Rank 2 is 'adjacent' with range 1, and the victim sits at Chebyshev
+    // distance 1 from the Tower, so it is covered from the first tick.
+    const armed = withTower(2, { file: 0, rank: 4 })
+    const state = liveRound(armed, [pawnAt('victim', { file: 0, rank: 5 })])
+    const after = runFor(state, TOWER_RANKS[2].fireIntervalMs + DT)
+
+    expect(after.pieces).toHaveLength(0)
+    expect(after.recentExits).toEqual([])
+  })
+
+  it('drops the oldest record past the ring size and keeps the newest', () => {
+    const filled = Array.from({ length: EXIT_RING_SIZE }, (_, index) => ({
+      pieceId: `old-${index}`,
+      typeId: 'pawn' as const,
+      reason: 'leak' as const,
+      from: { file: 0, rank: 0 },
+    }))
+    const state = oneLeakAway({ ...createInitialState(), recentExits: filled })
+    const after = runFor(state, PIECE_TYPES.pawn.moveIntervalMs + DT)
+
+    expect(after.recentExits).toHaveLength(EXIT_RING_SIZE)
+    expect(after.recentExits[0]?.pieceId).toBe('old-1')
+    expect(after.recentExits.at(-1)?.pieceId).toBe('leaker')
+  })
+
+  it('keeps records across a round boundary, because auto-start can wipe them mid-frame', () => {
+    // The load-bearing lifetime test. `tick` auto-starts by calling `step` from
+    // inside itself, and `advance` runs up to five ticks per emit — so a leak,
+    // the round ending, and the auto-start can all land inside one frame. If
+    // `startRound` cleared the ring, the record would be gone before the
+    // renderer's only publish, and the last leak of a round would burst in
+    // place instead of lunging.
+    const base = createInitialState()
+    const after = runFor(
+      oneLeakAway({ ...base, autoStart: true }),
+      PIECE_TYPES.pawn.moveIntervalMs + DT * 4,
+    )
+
+    expect(after.phase).toBe('inProgress')
+    expect(after.roundNumber).toBe(2)
+    expect(after.recentExits.map((exit) => exit.pieceId)).toContain('leaker')
   })
 })

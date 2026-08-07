@@ -15,7 +15,7 @@ import { TOWER_RANKS } from '../data/towerRanks'
 import { coversSquare } from './coverage'
 import { jokerCard, liveRound, pawnAt, standardCard, withDeck, withTower } from './fixtures'
 import { step, tick } from './index'
-import type { GameState } from './types'
+import type { BuildableRank, GameState } from './types'
 
 const DT = 1000 / 60
 const TOWER_SQUARE = { file: 3, rank: 4 }
@@ -28,8 +28,31 @@ const GRINDER_SQUARE = { file: 3, rank: 5 }
  * lands — not anything about the Card. Waiting for a fixed deficit is what keeps
  * the arithmetic below valid: each ♥ is then worth precisely this much. Healing
  * the instant health dips by 1 would buy almost nothing, which is what let a
- * no-op repair hide behind these tests before. Must divide evenly into the
- * Tower's 20 max health at 1 damage per hop.
+ * no-op repair hide behind these tests before.
+ *
+ * The real constraint is narrower than a previous version of this comment
+ * claimed: it does NOT need to divide evenly into the Tower's max health
+ * (currently rank 5's 22, not the 20 this comment used to say — a later rank
+ * ladder rebalance raised it, which made the old claim false; no commit hash
+ * is cited here on purpose, since this branch has already been rebased once
+ * and moved the hash that used to sit here out from under this comment).
+ *
+ * Damage arrives in whole 1-point steps, so a deficit that only needs to
+ * reach or exceed `HEAL_DEFICIT` lands on exactly `HEAL_DEFICIT` every time,
+ * full stop — no remainder to worry about, whatever the Tower's max health
+ * is. Measured by instrumenting the test below while fixing this comment:
+ * against the current 22-health Tower, both heals fired with the Tower at
+ * exactly 12 health (a deficit of exactly 10), and the Tower fell at exactly
+ * the `aidedResolveMs` the test computes from
+ * `maxHealth + heartsAvailable * HEAL_DEFICIT` — accurate to well under a
+ * millisecond of simulated time.
+ *
+ * What DOES matter: `HEAL_DEFICIT` must stay safely below the Tower's max
+ * health, so the deficit can actually reach it while the Tower is still
+ * alive. 10 against 22 leaves 12 health in hand when a heal fires; if it were
+ * close to or above max health, the Tower would die before the threshold ever
+ * triggered and a heal would silently never fire — the exact no-op-repair
+ * failure mode described above, reached from the opposite direction.
  */
 const HEAL_DEFICIT = 10
 
@@ -41,11 +64,17 @@ function runFor(state: GameState, durationMs: number): GameState {
   return current
 }
 
-/** A rank-5 diagonal Tower with a Pawn grinding it from directly up-file. */
-function grind(hearts: number): GameState {
-  // Rank 5, matching the Tower: a numbered Card supports only its own rank.
-  const deck = Array.from({ length: hearts }, (_, i) => standardCard(`h${i}`, 5, 'hearts'))
-  const built = withDeck(deck, withTower(5, TOWER_SQUARE))
+/**
+ * A Tower of `rank` at `TOWER_SQUARE`, with a Pawn grinding it from directly
+ * up-file at `GRINDER_SQUARE`. Defaults to rank 5, the diagonal blind spot the
+ * rest of this file exercises; the rank 7 Wall below reuses the same shape
+ * rather than duplicating it, since blocking depends on the squares, not the
+ * rank.
+ */
+function grind(hearts: number, rank: BuildableRank = 5): GameState {
+  // Matching the Tower: a numbered Card supports only its own rank.
+  const deck = Array.from({ length: hearts }, (_, i) => standardCard(`h${i}`, rank, 'hearts'))
+  const built = withDeck(deck, withTower(rank, TOWER_SQUARE))
 
   return liveRound(built, [pawnAt('grinder', GRINDER_SQUARE)])
 }
@@ -190,5 +219,86 @@ describe('packs cannot lengthen the wall', () => {
     const between: GameState = { ...grind(0), phase: 'gap', ink: 10_000 }
 
     expect(step(between, { kind: 'buyPack', pack: 'base', cullCardIds: [] })).not.toBe(between)
+  })
+})
+
+describe('the rank 7 Wall', () => {
+  it('has no gun, so it can never shoot back at what grinds it', () => {
+    // The premise of everything below. A Wall is the diagonal blind spot
+    // generalised: rank 5 cannot shoot a Piece directly up-file, and rank 7
+    // cannot shoot anything at all.
+    expect(TOWER_RANKS[7].geometry).toBe('none')
+    expect(TOWER_RANKS[7].damage).toBe(0)
+  })
+
+  it('still falls when fed every ♥ in the Deck, and only because repair actually landed', () => {
+    // WHY THIS TEST EXISTS. "Repair versus the wall" is an OPEN design
+    // question, left open on the grounds that the existing bound survives the
+    // Wall: ♥ supply is fixed for a round's whole duration because buyPack is
+    // refused while a round is live, so repair runs out, the Wall falls, and
+    // the round resumes. That is reasoning, not evidence, until this runs.
+    //
+    // Unlike the diagonal blind spot above, this is not about the Wall being
+    // unable to hit ITS attacker specifically — geometry 'none' means it can
+    // never hit anything. It is the sharpest version of the case this file
+    // pins, because every other rank can eventually shorten its own grind by
+    // shooting something; the Wall never can.
+    //
+    // A weaker version of this test — grind for a fixed budget already longer
+    // than the unaided kill time, then check the Wall fell — passes whether or
+    // not any ♥ ever lands, because the budget alone guarantees the fall. That
+    // proves only "the Wall eventually falls," not "repair happened and then
+    // ran out," which is the actual claim the open design question rests on.
+    // The two assertions below close that gap: an emptied Deck is direct
+    // evidence every repair landed (playing a Card consumes it), and a fall
+    // time later than the unaided kill time is evidence repair bought real
+    // time rather than the Wall merely surviving the loop regardless of it.
+    const maxHealth = TOWER_RANKS[7].maxHealth
+    const dpsPerHop = PIECE_TYPES.pawn.attackDamage * BLOCKED_ATTACK_MULTIPLIER
+    const hopIntervalMs = PIECE_TYPES.pawn.moveIntervalMs
+    const heartsAvailable = 4
+
+    // Real constants, not guessed timings, mirroring the exhaustion test
+    // above: how long the grind takes unaided, versus with every ♥ landing at
+    // its full deficit value.
+    const unaidedResolveMs = (maxHealth / dpsPerHop) * hopIntervalMs
+    const aidedResolveMs =
+      ((maxHealth + heartsAvailable * HEAL_DEFICIT) / dpsPerHop) * hopIntervalMs
+
+    // Rank 7, matching the Wall: a numbered Card supports only its own rank.
+    let state = grind(heartsAvailable, 7)
+    let fellAtMs: number | undefined
+
+    for (let elapsed = 0; elapsed < aidedResolveMs + 10 * hopIntervalMs; elapsed += DT) {
+      state = tick(state, DT)
+
+      const tower = state.towers[0]
+      const heart = state.deck[0]
+      // Threshold, not exact-multiple: the deficit climbs in whole 1-point
+      // steps from 0, so it always lands on exactly HEAL_DEFICIT — see that
+      // constant's docstring for why 45 not dividing evenly by 10 is fine.
+      if (tower && heart && tower.maxHealth - tower.health >= HEAL_DEFICIT) {
+        state = step(state, { kind: 'supportTower', cardId: heart.id, towerId: tower.id })
+      }
+
+      if (fellAtMs === undefined && state.towers.length === 0) fellAtMs = elapsed
+
+      if (state.phase === 'gap') break
+    }
+
+    // Every ♥ actually landed, not merely offered.
+    expect(state.deck).toHaveLength(0)
+
+    // And landing them meant something: the Wall outlived the unaided kill
+    // time. Fail loudly rather than comparing against `undefined` if the loop
+    // above somehow ended without the Tower ever falling — that would be the
+    // "Wall broke round termination" finding the brief warned about, not a
+    // window that was merely too short (the loop's budget already comes from
+    // `aidedResolveMs`, the real total-damage arithmetic below, plus slack).
+    if (fellAtMs === undefined) throw new Error('expected the Wall to fall before the loop ended')
+    expect(fellAtMs).toBeGreaterThan(unaidedResolveMs)
+
+    expect(state.towers).toHaveLength(0)
+    expect(state.phase).not.toBe('inProgress')
   })
 })
