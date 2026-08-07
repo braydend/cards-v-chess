@@ -392,6 +392,57 @@ describe('isOccluded', () => {
     const from = { file: 4, rank: 4 }
     expect(isOccluded(from, from, [{ file: 4, rank: 5 }])).toBe(false)
   })
+
+  describe('isOccluded: the rank-10 band', () => {
+    const BAND = 'band' as const
+
+    it('blocks every band rank behind a full-height wall, not just the center line', () => {
+      // The three issue #44 scenarios. A gate at {0,2} covers ranks 1-3 across
+      // the full file width. A complete wall at file 2 (one Tower per band rank)
+      // must hide Pieces on every rank beyond it.
+      const wall = [
+        { file: 2, rank: 1 },
+        { file: 2, rank: 2 },
+        { file: 2, rank: 3 },
+      ]
+      expect(isOccluded({ file: 0, rank: 2 }, { file: 3, rank: 3 }, wall, BAND)).toBe(true)
+      expect(isOccluded({ file: 0, rank: 2 }, { file: 3, rank: 2 }, wall, BAND)).toBe(true)
+      expect(isOccluded({ file: 0, rank: 2 }, { file: 3, rank: 1 }, wall, BAND)).toBe(true)
+    })
+
+    it('a partial wall blocks only the rank it covers', () => {
+      // One Tower on rank 1 hides rank-1 Pieces and nothing else.
+      const wall = [{ file: 2, rank: 1 }]
+      expect(isOccluded({ file: 0, rank: 2 }, { file: 3, rank: 1 }, wall, BAND)).toBe(true)
+      expect(isOccluded({ file: 0, rank: 2 }, { file: 3, rank: 2 }, wall, BAND)).toBe(false)
+      expect(isOccluded({ file: 0, rank: 2 }, { file: 3, rank: 3 }, wall, BAND)).toBe(false)
+    })
+
+    it("requires the blocker to be strictly between on the target's rank", () => {
+      const gate = { file: 0, rank: 2 }
+      // Beyond the target.
+      expect(isOccluded(gate, { file: 3, rank: 1 }, [{ file: 4, rank: 1 }], BAND)).toBe(false)
+      // On the target's rank but behind the gate (blocker on the far side).
+      expect(isOccluded({ file: 2, rank: 2 }, { file: 3, rank: 1 }, [{ file: 4, rank: 1 }], BAND)).toBe(false)
+      // On the gate's own column — not strictly between.
+      expect(isOccluded(gate, { file: 3, rank: 3 }, [{ file: 0, rank: 3 }], BAND)).toBe(false)
+      // On a different rank entirely.
+      expect(isOccluded(gate, { file: 3, rank: 1 }, [{ file: 2, rank: 3 }], BAND)).toBe(false)
+    })
+
+    it('blocks the other sweep direction too', () => {
+      // The `between` predicate is symmetric: a gate in the middle of the board
+      // is blocked toward its left by a Tower on the target's rank to its left.
+      expect(isOccluded({ file: 4, rank: 2 }, { file: 2, rank: 2 }, [{ file: 3, rank: 2 }], BAND)).toBe(true)
+    })
+
+    it('never blocks without the geometry argument — the parameter is optional', () => {
+      // Omitting `geometry` keeps the old geometry-blind behavior: an off-ray
+      // band square is never occluded. This pins that the fix only activates
+      // when a caller opts in by passing `'band'`.
+      expect(isOccluded({ file: 0, rank: 2 }, { file: 3, rank: 1 }, [{ file: 2, rank: 1 }])).toBe(false)
+    })
+  })
 })
 
 describe('reachableSquares', () => {
