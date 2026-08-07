@@ -9,6 +9,7 @@ import { SQUARE_SIZE, fileToWorldX, rankToWorldZ, worldXToFile, worldZToRank } f
 import { CoveragePreview } from './CoveragePreview'
 import { FirePulses } from './FirePulses'
 import { SelectionMarker } from './SelectionMarker'
+import { TowerCoverage } from './TowerCoverage'
 
 const LIGHT_SQUARE = '#e6e0cf'
 const DARK_SQUARE = '#3c4655'
@@ -55,6 +56,11 @@ export function Board({ board }: { board: BoardSpec }) {
         ))}
       </Instances>
 
+      {/* Every flat overlay below writes no depth, so neither JSX order nor the
+          height each of them sits at decides what draws on top — each declares an
+          explicit `renderOrder`, lowest first in the order listed here. See
+          `TowerCoverage.tsx` for why heights cannot do this job. */}
+      <TowerCoverage board={board} />
       <CoveragePreview board={board} />
       <SelectionMarker board={board} />
       <FirePulses board={board} />

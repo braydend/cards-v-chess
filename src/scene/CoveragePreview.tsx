@@ -2,9 +2,8 @@ import { Instance, Instances } from '@react-three/drei'
 import { useMemo } from 'react'
 import { towerRank } from '../data/towerRanks'
 import {
-  allSquares,
   canBuildOn,
-  coversSquare,
+  coveredSquares,
   findCard,
   isBuildableRank,
   isInBounds,
@@ -17,6 +16,25 @@ import { SQUARE_SIZE, fileToWorldX, rankToWorldZ } from './coords'
 
 const COVERED = '#4fd1c5'
 const ILLEGAL = '#f56565'
+
+/**
+ * Position in the flat-overlay stack, lowest first: `TowerCoverage`'s amber
+ * footprint (1), this teal box (2), this illegal marker (3),
+ * `SelectionMarker`'s ring (4), `FirePulses` (5).
+ *
+ * Explicit because heights cannot order these. three.js sorts transparent
+ * objects on the projected z of each object's **world origin**, and drei's
+ * `Instances` leaves the `InstancedMesh` at the origin with every instance
+ * position in `instanceMatrix` — measured in the running scene, this overlay and
+ * `TowerCoverage`'s both report exactly `(0, 0, 0)`. `TowerCoverage.tsx` carries
+ * the full reasoning and the ladder.
+ *
+ * Teal above amber is the design decision: a Card being considered draws over a
+ * Tower already standing. The marker is above both because it is a refusal, and
+ * a warning that something else can paint over is not a warning.
+ */
+const COVERED_RENDER_ORDER = 2
+const ILLEGAL_RENDER_ORDER = 3
 
 /**
  * Highlights the squares the selected Card would cover from the hovered square.
@@ -62,9 +80,11 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
     const { geometry, range } = towerRank(card.rank)
 
     return {
-      // `coversSquare` never covers its own square, so `hoveredSquare` is
-      // never in here — the red marker below cannot land on a teal one.
-      covered: allSquares(board).filter((square) => coversSquare(geometry, range, hoveredSquare, square)),
+      // The engine's own footprint, shared with the selected-Tower overlay so
+      // the two cannot clip differently. It excludes the origin, because
+      // `coversSquare` never covers its own square — so `hoveredSquare` is
+      // never in here, and the red marker below cannot land on a teal one.
+      covered: coveredSquares(board, geometry, range, hoveredSquare),
       origin: hoveredSquare,
     }
   }, [board, deck, hoveredSquare, playMode, selectedCardId])
@@ -80,7 +100,11 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
           anyway) but it is the identical defect, and relying on that unmount
           is relying on a Deck-interaction detail rather than on anything this
           component controls. */}
-      <Instances key={board.files * board.ranks} limit={board.files * board.ranks}>
+      <Instances
+        key={board.files * board.ranks}
+        limit={board.files * board.ranks}
+        renderOrder={COVERED_RENDER_ORDER}
+      >
         <boxGeometry args={[SQUARE_SIZE * 0.9, 0.02, SQUARE_SIZE * 0.9]} />
         <meshBasicMaterial color={COVERED} transparent opacity={0.42} depthWrite={false} />
         {footprint.covered.map((square) => (
@@ -96,6 +120,7 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
           the Ace wedge; a single mesh cannot have it. */}
       {!legal && (
         <mesh
+          renderOrder={ILLEGAL_RENDER_ORDER}
           position={[
             fileToWorldX(board, footprint.origin.file),
             0.04,
