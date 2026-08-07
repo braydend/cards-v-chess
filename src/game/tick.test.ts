@@ -237,7 +237,7 @@ describe('tick: round completion', () => {
 describe('tick: hunting Knight latch', () => {
   it('latches hunting even when the very first hunt hop lands on a Tower', () => {
     // (5,0) has no legal forward hop, so it hunts immediately, and (4,2) is
-    // its one distance-1 neighbour (see knightDistance.ts). A Tower there
+    // its one distance-1 neighbour (see distanceFields.ts). A Tower there
     // forces the Knight's very first hunting decision down the attackTower
     // branch — exactly the path that used to leave `hunting` unpersisted on
     // the surviving Piece, because `movePieces`' attackTower branch never

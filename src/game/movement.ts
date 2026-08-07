@@ -243,7 +243,7 @@ function knightMove(
  * by construction — the Knight arrives within its own starting distance, in
  * hops, at most six here.
  *
- * The field itself never sees Towers — see `knightDistance.ts` — and this
+ * The field itself never sees Towers — see `distanceFields.ts` — and this
  * function only ever consults `towerBySquare` for the ONE candidate it has
  * already committed to. A Tower there is attacked, exactly like every other
  * blocked Piece; this never falls through to try the next-best offset, which

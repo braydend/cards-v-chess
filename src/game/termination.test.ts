@@ -98,7 +98,7 @@ describe('round termination', () => {
     // Core's square in real play, since the Core sits there and nothing
     // spawns on rank 0. Covering every other file is what makes this a
     // property of the whole back rank rather than one lucky square: the
-    // knight-distance field in knightDistance.ts is finite everywhere else on
+    // knight-distance field in distanceFields.ts is finite everywhere else on
     // an 8x8 board, so every one of these settles by leaking, never by
     // hanging or re-stranding.
     const settled = settle(roundWith([pieceOn('n', 'knight', file, 0)]))
