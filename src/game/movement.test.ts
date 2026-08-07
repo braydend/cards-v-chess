@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BOARD, CORE_SQUARE } from '../data/board'
 import { allSquares, squareKey, squaresEqual } from './board'
-import { kingDistanceField, knightDistanceField } from './distanceFields'
+import { kingDistanceField, knightDistanceField, rookDistanceField } from './distanceFields'
 import { nextMove } from './movement'
 import type { MoveRequest } from './movement'
 import type { PieceTypeId, Square, Tower } from './types'
@@ -45,6 +45,22 @@ function move(
     ...overrides,
   }
   return nextMove(request, BOARD, CORE_SQUARE, towers)
+}
+
+/**
+ * Follows hunting hops from `from` until the Piece leaks into the Core, giving
+ * up after 64 hops. `nextMove` re-derives the hunt target from the Piece's
+ * colour each hop, so this walks a colour-locked Bishop correctly too.
+ */
+function walkToCore(typeId: PieceTypeId, from: Square, overrides: Partial<MoveRequest> = {}): boolean {
+  let square = from
+  for (let hops = 0; hops < 64; hops += 1) {
+    const outcome = move(typeId, square, NO_TOWERS, { ...overrides, hunting: true })
+    if (outcome.kind === 'reachCore') return true
+    if (outcome.kind !== 'move') return false
+    square = outcome.to
+  }
+  return false
 }
 
 describe('pawn movement', () => {
@@ -155,39 +171,15 @@ describe('rook movement', () => {
     })
   })
 
-  it('sweeps sideways along the back rank when forward is off the board', () => {
-    expect(move('rook', { file: 5, rank: 0 }, NO_TOWERS, { handedness: -1 })).toEqual({
-      kind: 'move',
-      to: { file: 4, rank: 0 },
-      handedness: -1,
-    })
-  })
-
-  it('reflects off file 0 and flips handedness, so it never oscillates', () => {
-    expect(move('rook', { file: 0, rank: 0 }, NO_TOWERS, { handedness: -1 })).toEqual({
-      kind: 'move',
-      to: { file: 1, rank: 0 },
-      handedness: 1,
-    })
-  })
-
-  it('leaks into the Core when its sweep reaches the Core file', () => {
-    expect(move('rook', { file: 4, rank: 0 }, NO_TOWERS, { handedness: -1 })).toEqual({
+  it('leaks into the Core when its hunt slide reaches it', () => {
+    expect(move('rook', { file: 4, rank: 0 }, NO_TOWERS, { slideBonus: 1 })).toEqual({
       kind: 'reachCore',
     })
   })
 
-  it('reflects off the high file edge and flips handedness', () => {
-    expect(move('rook', { file: 7, rank: 0 })).toEqual({
-      kind: 'move',
-      to: { file: 6, rank: 0 },
-      handedness: -1,
-    })
-  })
-
-  it('ends a bonus slide at the corner rather than bending into an L', () => {
-    // Forward to (5,0), then the only remaining step is sideways. A Rook does
-    // not move in an L, so the slide stops.
+  it('ends a bonus slide at the back rank rather than bending into an L', () => {
+    // Forward to (5,0), and there the forward steps run out. A Rook does not
+    // bend onto a new line mid-slide, so the slide stops; the hunt begins next hop.
     expect(
       move('rook', { file: 5, rank: 1 }, NO_TOWERS, { handedness: -1, slideBonus: 1 }),
     ).toEqual({
@@ -196,17 +188,92 @@ describe('rook movement', () => {
       handedness: -1,
     })
   })
+})
 
-  it('never returns to its own square when a bonus slide meets a file edge', () => {
-    // Sideways to file 0, where the next step would reflect back to file 1.
-    // Stopping at the corner keeps the hop meaningful; the reflection happens next hop.
-    expect(
-      move('rook', { file: 1, rank: 0 }, NO_TOWERS, { handedness: -1, slideBonus: 1 }),
-    ).toEqual({
+describe('rook hunting', () => {
+  it('slides toward the Core along the back rank instead of sweeping', () => {
+    expect(move('rook', { file: 5, rank: 0 })).toEqual({
       kind: 'move',
-      to: { file: 0, rank: 0 },
-      handedness: -1,
+      to: { file: 4, rank: 0 },
+      hunting: true,
     })
+  })
+
+  it('covers two squares toward the Core under a King aura', () => {
+    expect(move('rook', { file: 7, rank: 0 }, NO_TOWERS, { slideBonus: 1 })).toEqual({
+      kind: 'move',
+      to: { file: 5, rank: 0 },
+      hunting: true,
+    })
+  })
+
+  it('stops on the phase target instead of overshooting it', () => {
+    // From (7,3) — a synthetic hunting request, since a real hunt starts on
+    // rank 0 — the first phase target is (3,3), where the Core's file meets
+    // the Rook's rank. Even a slide long enough to cross it stops there:
+    // overshooting would land at the same field distance and undo the
+    // convergence argument.
+    expect(move('rook', { file: 7, rank: 3 }, NO_TOWERS, { hunting: true, slideBonus: 5 })).toEqual({
+      kind: 'move',
+      to: { file: 3, rank: 3 },
+      hunting: true,
+    })
+  })
+
+  it('arrives at the Core from every square on the board', () => {
+    for (const square of allSquares(BOARD)) {
+      if (squaresEqual(square, CORE_SQUARE)) continue
+      expect(walkToCore('rook', square)).toBe(true)
+    }
+  })
+
+  it('never increases field distance from hop to hop', () => {
+    const field = rookDistanceField(BOARD, CORE_SQUARE)
+
+    for (const square of allSquares(BOARD)) {
+      if (squaresEqual(square, CORE_SQUARE)) continue
+
+      let current = square
+      let previous = field.get(squareKey(current)) ?? 0
+      for (let hops = 0; hops < 64; hops += 1) {
+        const outcome = move('rook', current, NO_TOWERS, { hunting: true })
+        if (outcome.kind === 'reachCore') break
+        expect(outcome.kind).toBe('move')
+        if (outcome.kind !== 'move') break
+
+        const distance = field.get(squareKey(outcome.to)) ?? Number.MAX_SAFE_INTEGER
+        expect(distance).toBeLessThanOrEqual(previous)
+        previous = distance
+        current = outcome.to
+      }
+    }
+  })
+
+  it('grinds a Tower on its chosen line rather than sliding around it', () => {
+    const towers = towersAt({ file: 4, rank: 0 })
+
+    expect(move('rook', { file: 5, rank: 0 }, towers)).toEqual({
+      kind: 'attackTower',
+      towerId: 'tower-0',
+      hunting: true,
+    })
+  })
+
+  it('stops short when a Tower interrupts a hunt slide it has already begun', () => {
+    const towers = towersAt({ file: 4, rank: 0 })
+
+    expect(move('rook', { file: 6, rank: 0 }, towers, { slideBonus: 1 })).toEqual({
+      kind: 'move',
+      to: { file: 5, rank: 0 },
+      hunting: true,
+    })
+  })
+
+  it('is Tower-blind: a Tower nowhere near the choice does not change it', () => {
+    const chosen = { kind: 'move' as const, to: { file: 6, rank: 0 }, hunting: true }
+
+    expect(move('rook', { file: 7, rank: 0 })).toEqual(chosen)
+    expect(move('rook', { file: 7, rank: 0 }, towersAt({ file: 0, rank: 7 }))).toEqual(chosen)
   })
 })
 

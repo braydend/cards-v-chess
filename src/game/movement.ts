@@ -1,5 +1,12 @@
 import { isInBounds, squareKey, squaresEqual } from './board'
-import { KNIGHT_OFFSETS, ROYAL_OFFSETS, kingDistanceField, knightDistanceField } from './distanceFields'
+import {
+  KNIGHT_OFFSETS,
+  ORTHOGONAL_OFFSETS,
+  ROYAL_OFFSETS,
+  kingDistanceField,
+  knightDistanceField,
+  rookDistanceField,
+} from './distanceFields'
 import type { BoardSpec, Handedness, Piece, PieceTypeId, Square, Tower } from './types'
 
 /**
@@ -429,15 +436,25 @@ export function nextMove(
     case 'pawn':
       return pawnMove(request.from, board, coreSquare, towerBySquare)
     case 'rook':
-      return travel(
-        request.from,
-        request.handedness,
-        1 + request.slideBonus,
-        rookStep,
-        board,
-        coreSquare,
-        towerBySquare,
-      )
+      return request.hunting || forwardLeavesBoard(request.from, board)
+        ? huntByField(
+            request.from,
+            board,
+            coreSquare,
+            towerBySquare,
+            rookDistanceField(board, coreSquare),
+            ORTHOGONAL_OFFSETS,
+            1 + request.slideBonus,
+          )
+        : travel(
+            request.from,
+            request.handedness,
+            1 + request.slideBonus,
+            forwardFileStep,
+            board,
+            coreSquare,
+            towerBySquare,
+          )
     case 'bishop':
       return travel(
         request.from,
