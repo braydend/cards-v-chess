@@ -578,6 +578,17 @@ canvas {
   cursor: pointer;
 }
 
+/* The credits attribution. Teal links match the teal used for selection
+   elsewhere; the text inherits the modal panel's colour. */
+.credits__line {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.credits__line a {
+  color: #4fd1c5;
+}
+
 /* Marked for destruction. Red because it is destructive and irreversible once
    the purchase commits.
 

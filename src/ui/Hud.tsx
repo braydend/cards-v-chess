@@ -1,6 +1,7 @@
 import { reset } from '../state/simulation'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
+import { Credits } from './Credits'
 import { Deck } from './Deck'
 import { PackShop } from './PackShop'
 import { TowerPanel } from './TowerPanel'
@@ -95,6 +96,14 @@ export function Hud() {
             Buy a pack
           </button>
 
+          <button
+            type="button"
+            className="hud__button"
+            onClick={() => useUiStore.getState().setCreditsOpen(true)}
+          >
+            Credits
+          </button>
+
           <label className="hud__toggle">
             <input
               type="checkbox"
@@ -112,6 +121,7 @@ export function Hud() {
 
       <TowerPanel />
       <PackShop />
+      <Credits />
     </div>
   )
 }

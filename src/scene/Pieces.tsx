@@ -8,12 +8,12 @@ import {
   type Mesh,
 } from 'three'
 import { pieceType } from '../data/pieceTypes'
-import type { BoardSpec, PieceTier, PieceTypeId } from '../game'
+import type { BoardSpec, PieceTier } from '../game'
 import { getState } from '../state/simulation'
 import { useGameStore } from '../state/store'
 import { fileToWorldX, rankToWorldZ } from './coords'
-import { BUFF_RING_COLOUR, PIECE_COLOURS } from './pieceColours'
-import { GEOMETRY_BY_TYPE, PIECE_TYPE_IDS, REST_Y_BY_TYPE } from './pieceGeometry'
+import { BUFF_RING_COLOUR } from './pieceColours'
+import { REST_Y, usePieceModels } from './pieceModels'
 import { PROMOTION_POP_MS, promotionPopLift, promotionPopScale } from './promotionPop'
 import { TIER_COLOURS } from './tierColours'
 import { createWhiffTracker, whiffAgeMs, whiffScale } from './whiff'
@@ -31,39 +31,33 @@ export function Pieces({ board }: { board: BoardSpec }) {
   // dies, not when one moves. Movement is handled by mutation below.
   const pieces = useGameStore((store) => store.snapshot.pieces)
 
-  // One geometry and one material per type, shared across every instance of it,
-  // per CLAUDE.md. Built once, disposed on unmount.
+  // The shared model geometries, one per type, cached module-wide. Suspends
+  // until the GLTF is loaded — the `<Suspense>` in GameScene holds the board
+  // up while it streams in.
+  const models = usePieceModels()
+
+  // One geometry per type (from `pieceModels`) and one material per tier,
+  // shared across every instance of each, per CLAUDE.md. Built once, disposed
+  // on unmount.
   const resources = useMemo(() => {
     const ring = new RingGeometry(0.34, 0.42, 16)
     const ringMaterial = new MeshStandardMaterial({ color: BUFF_RING_COLOUR, emissive: BUFF_RING_COLOUR })
-    const tierRingMaterials = new Map<keyof typeof TIER_COLOURS, Material>()
+    const byTier = new Map<PieceTier, Material>()
+
     for (const [tier, colour] of Object.entries(TIER_COLOURS)) {
-      tierRingMaterials.set(
-        tier as keyof typeof TIER_COLOURS,
-        new MeshStandardMaterial({ color: colour, emissive: colour }),
-      )
-    }
-    const byType = new Map<PieceTypeId, { geometry: BufferGeometry; material: Material }>()
-
-    for (const typeId of PIECE_TYPE_IDS) {
-      byType.set(typeId, {
-        geometry: GEOMETRY_BY_TYPE[typeId](),
-        material: new MeshStandardMaterial({ color: PIECE_COLOURS[typeId], flatShading: true }),
-      })
+      byTier.set(tier as PieceTier, new MeshStandardMaterial({ color: colour, flatShading: true }))
     }
 
-    return { byType, ring, ringMaterial, tierRingMaterials }
+    return { byTier, ring, ringMaterial }
   }, [])
 
   useEffect(
     () => () => {
-      for (const { geometry, material } of resources.byType.values()) {
-        geometry.dispose()
-        material.dispose()
-      }
+      // The model geometries are owned by pieceModels.ts and shared with
+      // PieceExits.tsx, so dispose only what this component created.
+      for (const material of resources.byTier.values()) material.dispose()
       resources.ring.dispose()
       resources.ringMaterial.dispose()
-      for (const material of resources.tierRingMaterials.values()) material.dispose()
     },
     [resources],
   )
@@ -71,22 +65,20 @@ export function Pieces({ board }: { board: BoardSpec }) {
   return (
     <>
       {pieces.map((piece) => {
-        const shared = resources.byType.get(piece.typeId)
-        if (!shared) return null
+        const geometry = models[piece.typeId]
+        const material = resources.byTier.get(piece.tier)
+        if (!geometry || !material) return null
 
         return (
           <PieceMesh
             key={piece.id}
             pieceId={piece.id}
-            typeId={piece.typeId}
-            tier={piece.tier}
             promoted={piece.promoted}
             board={board}
-            geometry={shared.geometry}
-            material={shared.material}
+            geometry={geometry}
+            material={material}
             ringGeometry={resources.ring}
             ringMaterial={resources.ringMaterial}
-            tierRingMaterials={resources.tierRingMaterials}
           />
         )
       })}
@@ -96,30 +88,23 @@ export function Pieces({ board }: { board: BoardSpec }) {
 
 function PieceMesh({
   pieceId,
-  typeId,
-  tier,
   promoted,
   board,
   geometry,
   material,
   ringGeometry,
   ringMaterial,
-  tierRingMaterials,
 }: {
   pieceId: string
-  typeId: PieceTypeId
-  tier: PieceTier
   promoted: boolean
   board: BoardSpec
   geometry: BufferGeometry
   material: Material
   ringGeometry: BufferGeometry
   ringMaterial: Material
-  tierRingMaterials: Map<keyof typeof TIER_COLOURS, Material>
 }) {
   const ref = useRef<Mesh>(null)
   const ringRef = useRef<Mesh>(null)
-  const tierRingRef = useRef<Mesh>(null)
   const firstSeenAt = useRef(-1)
   const whiffTracker = useRef(createWhiffTracker())
 
@@ -151,7 +136,7 @@ function PieceMesh({
     const toX = fileToWorldX(board, piece.square.file)
     const toZ = rankToWorldZ(board, piece.square.rank)
 
-    const restY = REST_Y_BY_TYPE[typeId]
+    const restY = REST_Y
 
     mesh.position.set(
       fromX + (toX - fromX) * progress,
@@ -190,15 +175,6 @@ function PieceMesh({
         ring.position.set(mesh.position.x, 0.02, mesh.position.z)
       }
     }
-
-    // The tier ring follows the mesh and stays visible whenever the Piece is
-    // alive — unlike the buff ring it does not depend on `phase`, because the
-    // tier is the Piece's own identity, not a transient aura.
-    const tierRing = tierRingRef.current
-    if (tierRing) {
-      tierRing.visible = true
-      tierRing.position.set(mesh.position.x, 0.01, mesh.position.z)
-    }
   })
 
   return (
@@ -211,15 +187,6 @@ function PieceMesh({
         rotation={[-Math.PI / 2, 0, 0]}
         visible={false}
       />
-      {tier !== 'green' && (
-        <mesh
-          ref={tierRingRef}
-          geometry={ringGeometry}
-          material={tierRingMaterials.get(tier)}
-          rotation={[-Math.PI / 2, 0, 0]}
-          visible={false}
-        />
-      )}
     </>
   )
 }
