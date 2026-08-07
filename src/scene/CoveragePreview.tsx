@@ -8,9 +8,10 @@ import {
   squareKey,
   type BoardSpec,
 } from '../game'
-import { blockerSquares, overlaySquares, squaresListsEqual } from './towerCoverage'
+import { blockerSquares, overlaySquares, squaresListsEqual } from './towerFootprint'
 import { useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
+import { COARSE_POINTER_QUERY, useMediaQuery } from '../ui/useMediaQuery'
 import { SQUARE_SIZE, fileToWorldX, rankToWorldZ } from './coords'
 
 const COVERED = '#4fd1c5'
@@ -51,7 +52,13 @@ const ILLEGAL_RENDER_ORDER = 3
  * a Tower — so the player sees why a click there is a no-op before they make it.
  */
 export function CoveragePreview({ board }: { board: BoardSpec }) {
+  const coarse = useMediaQuery(COARSE_POINTER_QUERY)
   const hoveredSquare = useUiStore((store) => store.hoveredSquare)
+  const previewedSquare = useUiStore((store) => store.previewedSquare)
+  // On touch there is no continuous pointer position — the first tap commits a
+  // square to `previewedSquare`, and the preview renders against that. On a
+  // fine pointer the live hover drives it as before.
+  const activeSquare = coarse ? previewedSquare : hoveredSquare
   const selectedCardId = useUiStore((store) => store.selectedCardId)
   const playMode = useUiStore((store) => store.playMode)
   // Board.tsx mounts this unconditionally, so this subscription is live
@@ -74,10 +81,10 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
   // folded into the memo below, so zustand's `Object.is` on this boolean — not
   // on the snapshot object — decides whether this component re-renders; a
   // Piece hop that does not flip legality now costs nothing here.
-  const legal = useGameStore((store) => !hoveredSquare || canBuildOn(store.snapshot, hoveredSquare))
+  const legal = useGameStore((store) => !activeSquare || canBuildOn(store.snapshot, activeSquare))
 
   const footprint = useMemo(() => {
-    if (!hoveredSquare || !isInBounds(board, hoveredSquare)) return null
+    if (!activeSquare || !isInBounds(board, activeSquare)) return null
     if (!selectedCardId || playMode !== 'build') return null
 
     const card = findCard(deck, selectedCardId)
@@ -86,16 +93,16 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
     return {
       // The engine's own footprint, shared with the selected-Tower overlay so
       // the two cannot clip differently. It excludes the origin, because
-      // `coversSquare` never covers its own square — so `hoveredSquare` is
+      // `coversSquare` never covers its own square — so `activeSquare` is
       // never in here, and the red marker below cannot land on a teal one.
       // Decided by `overlaySquares`, the one place that picks what an overlay
       // draws: firing ranks light `reachableSquares`, aura ranks the full
       // covered zone — the same rule the amber footprint follows, so the teal
       // promise and the amber fact always agree.
-      covered: overlaySquares(board, card.rank, hoveredSquare, blockers),
-      origin: hoveredSquare,
+      covered: overlaySquares(board, card.rank, activeSquare, blockers),
+      origin: activeSquare,
     }
-  }, [board, blockers, deck, hoveredSquare, playMode, selectedCardId])
+  }, [activeSquare, blockers, board, deck, playMode, selectedCardId])
 
   if (!footprint) return null
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { SUITS } from '../data/cards'
 import { PACK_TYPES, PACKS, type PackType } from '../data/packs'
 import { canAfford, cullCountFor, packPrice, type Card, type Suit } from '../game'
@@ -6,6 +6,7 @@ import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { CardFace, SUIT_GLYPH } from './CardFace'
 import { commitState, newCards } from './packPurchase'
+import { useDialogFocus } from './useDialogFocus'
 
 /**
  * The pack shop: pick a pack, cull to the cap, open it.
@@ -35,7 +36,6 @@ export function PackShop() {
   const [revealed, setRevealed] = useState<readonly Card[] | null>(null)
 
   const panelRef = useRef<HTMLDivElement>(null)
-  const returnFocusRef = useRef<HTMLElement | null>(null)
 
   const close = useCallback(() => {
     setOpen(false)
@@ -65,54 +65,9 @@ export function PackShop() {
     }
   }
 
-  // Remember where focus came from, move it into the dialog, and hand it back
-  // on the way out.
-  useEffect(() => {
-    if (!open) return
-
-    returnFocusRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null
-    panelRef.current?.focus()
-
-    return () => returnFocusRef.current?.focus()
-  }, [open])
-
-  // Escape closes, like any modal. Bound only while open, so the handler is not
-  // live for the whole session. `close` is memoised so this binds once per open
-  // rather than on every render.
-  useEffect(() => {
-    if (!open) return
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        close()
-        return
-      }
-
-      if (event.key !== 'Tab') return
-
-      // `aria-modal` asserts focus is confined to this dialog, so confine it —
-      // otherwise Tab walks into the HUD behind, including "Play again".
-      const panel = panelRef.current
-      if (!panel) return
-
-      const focusable = panel.querySelectorAll<HTMLElement>('button:not([disabled])')
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (!first || !last) return
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, close])
+  // Focus is moved in, Tab trapped, and focus restored by `useDialogFocus` —
+  // the `aria-modal` assertion depends on the trap.
+  useDialogFocus(panelRef, close, open)
 
   function choose(next: PackType) {
     // Re-clicking the pack already chosen must not clear the marks — a player
@@ -242,7 +197,7 @@ export function PackShop() {
                 <span className="hud__label">
                   Destroy {needed} of {deck.length} — marked {marked.length}
                 </span>
-                <ul className="deck__cards">
+                <ul className="deck__cards deck__cards--touch">
                   {deck.map((card) => (
                     <li key={card.id}>
                       <CardFace

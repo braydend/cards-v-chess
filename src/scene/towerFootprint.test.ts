@@ -18,7 +18,7 @@ import {
   selectedFootprint,
   squaresListsEqual,
   type TowerFootprint,
-} from './towerCoverage'
+} from './towerFootprint'
 
 /**
  * Towers are built through the engine rather than hand-written, so a test can

@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import { useUiStore } from '../state/uiStore'
+import { useDialogFocus } from './useDialogFocus'
 
 /**
  * The CC-BY 4.0 attribution for the chess piece models.
@@ -28,53 +29,10 @@ export function Credits() {
   const setOpen = useUiStore((store) => store.setCreditsOpen)
   const panelRef = useRef<HTMLDivElement>(null)
 
-  // Remember where focus came from, move it into the dialog, and hand it back
-  // on the way out — the `PackShop` precedent.
-  useEffect(() => {
-    if (!open) return
-
-    const returnFocus =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null
-    panelRef.current?.focus()
-
-    return () => returnFocus?.focus()
-  }, [open])
-
-  // Escape closes, like any modal. Bound only while open.
-  useEffect(() => {
-    if (!open) return
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        setOpen(false)
-        return
-      }
-
-      if (event.key !== 'Tab') return
-
-      // `aria-modal` asserts focus is confined to this dialog, so confine it —
-      // otherwise Tab walks into the HUD behind. The scrim sits outside the
-      // panel, exactly as in `PackShop`, so it is not part of the trap.
-      const panel = panelRef.current
-      if (!panel) return
-
-      const focusable = panel.querySelectorAll<HTMLElement>('button:not([disabled]), a[href]')
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (!first || !last) return
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, setOpen])
+  // Focus is moved in, Tab trapped, and focus restored by `useDialogFocus` —
+  // the `aria-modal` assertion depends on the trap. `setOpen` is stable, but
+  // the hook is written for unstable `close` closures all the same.
+  useDialogFocus(panelRef, () => setOpen(false), open)
 
   if (!open) return null
 

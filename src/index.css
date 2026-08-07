@@ -610,3 +610,285 @@ canvas {
   background: #1d3a38;
   color: #4fd1c5;
 }
+
+/* Mobile layout — the query is mirrored verbatim in src/ui/useMediaQuery.ts
+   (MOBILE_LAYOUT_QUERY). Keep the two strings identical.
+   The HUD becomes a thin bottom bar plus a deck overlay; the desktop panel
+   never mounts (Hud.tsx branches), so no part of the desktop layout is hidden
+   here — these rules style the mobile components and are inactive on desktop
+   because the media query does not match. */
+@media (max-width: 28rem), (max-height: 30rem) {
+  /* Shared chrome for the two mobile clusters: stats and actions each carry
+     the background, border, and pointer-events the single bar used to own.
+     Placement differs per orientation — see the orientation blocks below. */
+  .mobileStats,
+  .mobileActions {
+    position: absolute;
+    pointer-events: auto;
+    display: flex;
+    border: 1px solid rgb(255 255 255 / 12%);
+    background: rgb(16 20 26 / 88%);
+    color: #e8edf4;
+  }
+
+  /* Portrait: stats top (notch-safe), actions bottom (home-indicator-safe).
+     The board keeps the vertical middle. */
+  .mobileStats {
+    top: 0;
+    left: 0;
+    right: 0;
+    align-items: center;
+    justify-content: center;
+    padding: 0.45rem 0.7rem;
+    padding-top: calc(0.45rem + env(safe-area-inset-top));
+    border-bottom-left-radius: 0.6rem;
+    border-bottom-right-radius: 0.6rem;
+  }
+
+  .mobileActions {
+    bottom: 0;
+    left: 0;
+    right: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.7rem;
+    padding-bottom: calc(0.45rem + env(safe-area-inset-bottom));
+    border-top-left-radius: 0.6rem;
+    border-top-right-radius: 0.6rem;
+  }
+
+  .mobileStats {
+    display: flex;
+    gap: 0.8rem;
+    margin: 0;
+  }
+
+  .mobileStats dt {
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8fa0b5;
+  }
+
+  .mobileStats dd {
+    margin: 0.1rem 0 0;
+    font-size: 1.05rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .mobileActions {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  .hud__button--quiet {
+    background: #2a323d;
+  }
+
+  /* The selected-card strip: sits above the bar, is dismissible, and carries
+     the mode toggle. On touch the strip is what replaces the Deck detail. */
+  .mobileStrip {
+    position: absolute;
+    left: 0.7rem;
+    right: 0.7rem;
+    bottom: calc(3.2rem + env(safe-area-inset-bottom));
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid rgb(255 255 255 / 12%);
+    border-radius: 0.5rem;
+    background: rgb(16 20 26 / 92%);
+    color: #e8edf4;
+  }
+
+  .mobileStrip__card {
+    position: relative;
+    flex: none;
+    width: 2.6rem;
+  }
+
+  .mobileStrip__cancel {
+    position: absolute;
+    top: -0.5rem;
+    right: -0.5rem;
+    width: 1.3rem;
+    height: 1.3rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: #2a323d;
+    color: #b9c6d6;
+    font: inherit;
+    line-height: 1;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .mobileStrip__modes {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .mobileStrip__modes .deck__mode {
+    font-size: 0.7rem;
+    padding: 0.4rem 0.5rem;
+  }
+
+  .mobileStrip .hud__hint {
+    flex: 1;
+    max-width: none;
+  }
+
+  /* The deck overlay reuses the modal shell; the panel is a bottom sheet. */
+  .deckOverlay {
+    align-items: flex-end;
+  }
+
+  .deckOverlay__panel {
+    width: 100%;
+    max-height: 70%;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  /* Touch-sized targets, shared by the deck overlay and the pack-shop cull.
+     Fixed 3.5rem tracks — no `1fr` — so cards render the same size whatever
+     the panel width or how many cards the deck holds, like the pack reveal. */
+  .deck__cards--touch {
+    grid-template-columns: repeat(auto-fill, 3.5rem);
+    justify-content: center;
+  }
+
+  .deck__cards--touch .deck__card {
+    font-size: 0.95rem;
+    min-height: 2.6rem;
+  }
+}
+
+/* Touch hygiene — under the mobile media query, interactive chrome must not
+   zoom on double-tap, must not fire iOS's callout on long-press, and must not
+   scroll the page when a deck is scrolled. The canvas keeps its global
+   `touch-action: none` so orbit and pinch stay on the board. */
+@media (max-width: 28rem), (max-height: 30rem) {
+  .hud button,
+  .hud .deck__card,
+  .modal button,
+  .mobileStats,
+  .mobileActions,
+  .mobileStrip {
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .deck__cards,
+  .modal__panel,
+  .towerPanel {
+    touch-action: pan-y;
+    overscroll-behavior: contain;
+  }
+
+  /* The Tower panel moves above the bar so the two never overlap. */
+  .towerPanel {
+    bottom: calc(3.6rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* Landscape: stats become a full-height left rail, actions a full-height
+   right rail, so the board keeps the full vertical centre. Placed after the
+   touch-hygiene block so the landscape .towerPanel `bottom: auto` beats that
+   block's portrait `bottom` offset (equal specificity — source order decides). */
+@media (max-width: 28rem) and (orientation: landscape),
+  (max-height: 30rem) and (orientation: landscape) {
+  /* The right rail's width, defined on `.hud` so every mobile child inherits
+     it — the rails, strip and TowerPanel are siblings, so a custom property
+     set only on the rail rules would never reach the offsets below. */
+  .hud {
+    --mobile-rail: 9rem;
+  }
+
+  .mobileStats {
+    left: 0;
+    top: 0;
+    bottom: 0;
+    /* Clears the portrait rule's `right: 0` — without this the rail would
+       span the full width and cover the board. */
+    right: auto;
+    width: var(--mobile-rail);
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.8rem;
+    padding: 0.7rem 0.45rem;
+    padding-left: calc(0.45rem + env(safe-area-inset-left));
+    border-top-right-radius: 0.6rem;
+    border-bottom-right-radius: 0.6rem;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  .mobileActions {
+    right: 0;
+    top: 0;
+    bottom: 0;
+    /* Clears the portrait rule's `left: 0` — same full-width trap. */
+    left: auto;
+    width: var(--mobile-rail);
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.7rem 0.45rem;
+    padding-right: calc(0.45rem + env(safe-area-inset-right));
+    border-top-left-radius: 0.6rem;
+    border-bottom-left-radius: 0.6rem;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  /* The selected-card strip follows the actions. In landscape the rail is too
+     narrow for the mode-toggle labels, so the strip stacks its items into a
+     vertical column just left of the right rail — card on top, mode buttons
+     below, Play/hint under them — hugging the widest child instead of the
+     wide bar portrait uses. */
+  .mobileStrip {
+    left: auto;
+    right: calc(var(--mobile-rail) + 0.7rem);
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+    flex-direction: column;
+    align-items: center;
+    width: auto;
+    max-width: min(24rem, calc(100% - var(--mobile-rail) - 1.4rem));
+  }
+
+  /* The inspect panel avoids the full-height right rail: anchored top-right,
+     left of it. */
+  .towerPanel {
+    top: 0.7rem;
+    right: calc(var(--mobile-rail) + 0.7rem);
+    bottom: auto;
+  }
+
+  /* The deck overlay becomes a full-height right-side panel instead of the
+     bottom sheet portrait uses, with the cards stacked as a single vertical
+     column so the whole deck reads in one glance. */
+  .deckOverlay {
+    justify-content: flex-end;
+    align-items: stretch;
+  }
+
+  .deckOverlay__panel {
+    width: min(26rem, 85vw);
+    height: 100%;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+}

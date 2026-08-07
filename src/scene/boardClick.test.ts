@@ -70,6 +70,8 @@ function click(overrides: Partial<BoardClickContext> = {}): BoardClickContext {
     card: null,
     playMode: 'build',
     echoSourceTowerId: null,
+    pointer: 'fine',
+    previewedSquare: null,
     ...overrides,
   }
 }
@@ -258,6 +260,80 @@ describe('resolveBoardAction: building', () => {
     expect(resolveBoardAction(click({ towers: [], card: card(10) }))).toEqual({
       kind: 'play',
       command: { kind: 'buildTower', cardId: 'card-1', square: EMPTY },
+    })
+  })
+})
+
+describe('resolveBoardAction: coarse-pointer tap-to-preview', () => {
+  const coarse = { pointer: 'coarse' as const }
+
+  it('previews the first tap on a square instead of playing', () => {
+    expect(resolveBoardAction(click({ ...coarse, card: card(4) }))).toEqual({
+      kind: 'preview',
+      square: EMPTY,
+    })
+  })
+
+  it('plays the second tap on the same square', () => {
+    expect(
+      resolveBoardAction(click({ ...coarse, card: card(4), previewedSquare: EMPTY })),
+    ).toEqual({
+      kind: 'play',
+      command: { kind: 'buildTower', cardId: 'card-1', square: EMPTY },
+    })
+  })
+
+  it('re-previews a tap on a different square', () => {
+    const other = { file: 4, rank: 4 }
+    expect(
+      resolveBoardAction(click({ ...coarse, card: card(4), previewedSquare: EMPTY, square: other })),
+    ).toEqual({ kind: 'preview', square: other })
+  })
+
+  it('previews on an occupied square — the red marker is how touch shows illegality', () => {
+    expect(resolveBoardAction(click({ ...coarse, card: card(4), square: A.square }))).toEqual({
+      kind: 'preview',
+      square: A.square,
+    })
+  })
+
+  it('lets the second tap on an occupied square resolve normally', () => {
+    expect(
+      resolveBoardAction(
+        click({ ...coarse, card: card(4), square: A.square, previewedSquare: A.square }),
+      ),
+    ).toEqual({ kind: 'select', towerId: A.id })
+  })
+
+  it('never previews on a fine pointer', () => {
+    expect(resolveBoardAction(click({ card: card(4) }))).toEqual({
+      kind: 'play',
+      command: { kind: 'buildTower', cardId: 'card-1', square: EMPTY },
+    })
+  })
+
+  it('plays a support card on a single tap', () => {
+    expect(
+      resolveBoardAction(
+        click({ ...coarse, square: A.square, card: card(3, 'hearts'), playMode: 'support' }),
+      ),
+    ).toEqual({
+      kind: 'play',
+      command: { kind: 'supportTower', cardId: 'card-1', towerId: A.id },
+    })
+  })
+
+  it('picks a Queen’s Echo source on a single tap', () => {
+    expect(resolveBoardAction(click({ ...coarse, square: A.square, card: card('Q') }))).toEqual({
+      kind: 'pickEchoSource',
+      towerId: A.id,
+    })
+  })
+
+  it('does not preview for a King, which takes no board target', () => {
+    expect(resolveBoardAction(click({ ...coarse, square: A.square, card: card('K') }))).toEqual({
+      kind: 'select',
+      towerId: A.id,
     })
   })
 })
