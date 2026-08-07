@@ -371,6 +371,36 @@ describe('accumulatePulses', () => {
     expect(channel(blocked, 3, 6)).toBeGreaterThan(0)
   })
 
+  it('does not light a band square on a walled rank, but keeps the near side', () => {
+    // A rank-10 band at {0,3} sweeps ranks 2-4 across the full width. A rank-7
+    // Wall at {2,4} hides the band's rank-4 line. {3,4} is geometrically
+    // covered but occluded — the center line at rank 3 already worked, so this
+    // pins the off-rank line the wall now hides. {1,4}, between the shooter and
+    // the Wall, still lights.
+    const shooter = { ...tower(), id: 'shooter', cardRank: 10 as const, square: { file: 0, rank: 3 } }
+    const wall = { ...tower(), id: 'wall', cardRank: 7 as const, square: { file: 2, rank: 4 } }
+    const pulse: FirePulse = { file: 0, boardRank: 3, cardRank: 10, startedAt: 0 }
+
+    // {3,4} is 3 squares away: 3/22s for the ring to arrive, then this sample
+    // lands halfway through that square's fade window. The same instant with and
+    // without the Wall isolates occlusion from timing.
+    const arrival = 3 / PULSE_SQUARES_PER_SECOND + PULSE_FADE_MS / 1000 / 2
+
+    const unblocked = new Float32Array(board.files * board.ranks * 3)
+    accumulatePulses(unblocked, board, [pulse], arrival, [shooter])
+    expect(channel(unblocked, 3, 4)).toBeGreaterThan(0)
+
+    const blocked = new Float32Array(board.files * board.ranks * 3)
+    accumulatePulses(blocked, board, [pulse], arrival, [shooter, wall])
+    expect(channel(blocked, 3, 4)).toBe(0)
+
+    // {1,4} — between the shooter and the Wall — still lights at its own
+    // arrival instant.
+    const nearArrival = 1 / PULSE_SQUARES_PER_SECOND
+    accumulatePulses(blocked, board, [pulse], nearArrival, [shooter, wall])
+    expect(channel(blocked, 1, 4)).toBeGreaterThan(0)
+  })
+
   it('indexes the buffer the way allSquares orders squares', () => {
     // Pins the ordering `channel()` above and `accumulatePulses` both assume
     // — rank-major, rank outer, file inner — independently of the index
