@@ -1,4 +1,4 @@
-import type { PieceTypeId, RoundSpec, Spawn } from '../game/types'
+import type { PieceTier, PieceTypeId, RoundSpec, Spawn } from '../game/types'
 import { BOARD } from './board'
 
 /**
@@ -19,6 +19,57 @@ export const INTRODUCED_AT: Record<PieceTypeId, number> = {
   rook: 7,
   queen: 9,
   king: 11,
+}
+
+/**
+ * The round a tier starts appearing. The spread is a deliberate delay: the
+ * player meets one behaviour change at a time, on top of the steadily growing
+ * roster. PLACEHOLDER tuning.
+ */
+export const TIER_INTRODUCED_AT: Record<PieceTier, number> = {
+  green: 1,
+  yellow: 4, // PLACEHOLDER
+  red: 8, // PLACEHOLDER
+  black: 12, // PLACEHOLDER
+}
+
+const TIER_ORDER: readonly PieceTier[] = ['green', 'yellow', 'red', 'black']
+
+const TIER_BASE_WEIGHT: Record<PieceTier, number> = {
+  green: 4,
+  yellow: 3,
+  red: 2,
+  black: 1,
+}
+
+/**
+ * A tier's weight in a round. The mix shifts as the run progresses: green
+ * recedes from its starting 4 (floored at 1) and every unlocked tier grows
+ * from its base. All PLACEHOLDER tuning; the shape — never before the unlock
+ * round, always present in it, shifting toward the higher tiers — is design.
+ */
+function tierWeight(tier: PieceTier, roundNumber: number): number {
+  const since = roundNumber - TIER_INTRODUCED_AT[tier]
+  if (since < 0) return 0
+  if (tier === 'green') return Math.max(1, TIER_BASE_WEIGHT.green - since)
+  return TIER_BASE_WEIGHT[tier] + since
+}
+
+/**
+ * The weighted tier pool for a round, interleaved exactly like `poolFor` so a
+ * newly unlocked tier appears in the very round it unlocks.
+ */
+function tierPoolFor(roundNumber: number): PieceTier[] {
+  const passes = Math.max(...TIER_ORDER.map((tier) => tierWeight(tier, roundNumber)))
+  const pool: PieceTier[] = []
+
+  for (let pass = 1; pass <= passes; pass += 1) {
+    for (const tier of TIER_ORDER) {
+      if (tierWeight(tier, roundNumber) >= pass) pool.push(tier)
+    }
+  }
+
+  return pool
 }
 
 /**
@@ -63,6 +114,7 @@ function poolFor(roundNumber: number): PieceTypeId[] {
 
 export function roundSpec(roundNumber: number): RoundSpec {
   const pool = poolFor(roundNumber)
+  const tierPool = tierPoolFor(roundNumber)
   const count = 2 + roundNumber
   const spawns: Spawn[] = []
 
@@ -71,6 +123,8 @@ export function roundSpec(roundNumber: number): RoundSpec {
       atMs: i * 1200,
       // `pool` is never empty — the Pawn is available from round 1.
       typeId: pool[i % pool.length] as PieceTypeId,
+      // `tierPool` is never empty — Green is available from round 1.
+      tier: tierPool[i % tierPool.length] as PieceTier,
       file: (i * 3 + roundNumber) % BOARD.files,
     })
   }

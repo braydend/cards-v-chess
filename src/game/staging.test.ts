@@ -141,7 +141,7 @@ describe('spawning', () => {
     const state: GameState = {
       ...built,
       phase: 'inProgress',
-      pendingSpawns: [{ atMs: 0, typeId: 'pawn', file: 3 }],
+      pendingSpawns: [{ atMs: 0, typeId: 'pawn', tier: 'green', file: 3 }],
     }
 
     // Two Pawn hops' worth of time: the first spawns it, the rest attack.
@@ -170,7 +170,7 @@ describe('entering the board from the Staging rank', () => {
     const state: GameState = {
       ...base,
       phase: 'inProgress',
-      pendingSpawns: [{ atMs: 0, typeId, file: 3 }],
+      pendingSpawns: [{ atMs: 0, typeId, tier: 'green', file: 3 }],
     }
 
     // One full move interval past the spawn, plus a tick of slack.
@@ -287,7 +287,7 @@ describe('round termination with Pieces still on the Staging rank', () => {
     const state: GameState = {
       ...built,
       phase: 'inProgress',
-      pendingSpawns: [{ atMs: 0, typeId: 'pawn', file: 3 }],
+      pendingSpawns: [{ atMs: 0, typeId: 'pawn', tier: 'green', file: 3 }],
     }
 
     // Generous: a Pawn deals 1 per 900ms hop into rank 5's 22 health
@@ -323,7 +323,7 @@ describe('round termination with Pieces still on the Staging rank', () => {
     const state: GameState = {
       ...built,
       phase: 'inProgress',
-      pendingSpawns: [{ atMs: 0, typeId: 'pawn', file: 3 }],
+      pendingSpawns: [{ atMs: 0, typeId: 'pawn', tier: 'green', file: 3 }],
     }
 
     // Generous, as above: 1 damage per 900ms hop into rank 3's 14 health
@@ -357,7 +357,7 @@ describe('round termination with Pieces still on the Staging rank', () => {
     const state: GameState = {
       ...built,
       phase: 'inProgress',
-      pendingSpawns: [{ atMs: 0, typeId: 'pawn', file: 3 }],
+      pendingSpawns: [{ atMs: 0, typeId: 'pawn', tier: 'green', file: 3 }],
     }
 
     // Generous: 1 damage per 900ms hop into the Wall's 45 health (towerRanks.ts)
@@ -471,7 +471,7 @@ describe("the Staging rank is safe from damage, except a Joker's Clear", () => {
     let state: GameState = {
       ...built,
       phase: 'inProgress',
-      pendingSpawns: [{ atMs: 0, typeId: 'pawn', file: 3 }],
+      pendingSpawns: [{ atMs: 0, typeId: 'pawn', tier: 'green', file: 3 }],
     }
 
     // Long enough that a vulnerable Pawn (maxHealth 3, pieceTypes.ts) would

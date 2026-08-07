@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { INTRODUCED_AT, roundSpec } from './rounds'
-import type { PieceTypeId } from '../game/types'
+import { INTRODUCED_AT, TIER_INTRODUCED_AT, roundSpec } from './rounds'
+import type { PieceTier, PieceTypeId } from '../game/types'
 
 function typesIn(roundNumber: number): Set<PieceTypeId> {
   return new Set(roundSpec(roundNumber).spawns.map((spawn) => spawn.typeId))
@@ -43,5 +43,35 @@ describe('round composition', () => {
     for (const [typeId, count] of counts) {
       if (typeId !== 'pawn') expect(pawns).toBeGreaterThanOrEqual(count)
     }
+  })
+})
+
+function tiersIn(roundNumber: number): Set<PieceTier> {
+  return new Set(roundSpec(roundNumber).spawns.map((spawn) => spawn.tier))
+}
+
+describe('tier composition', () => {
+  it('sends only green in the opening rounds', () => {
+    expect(tiersIn(1)).toEqual(new Set(['green']))
+  })
+
+  it('never sends a tier before the round it is introduced', () => {
+    for (let roundNumber = 1; roundNumber <= 14; roundNumber += 1) {
+      for (const tier of tiersIn(roundNumber)) {
+        expect(roundNumber).toBeGreaterThanOrEqual(TIER_INTRODUCED_AT[tier])
+      }
+    }
+  })
+
+  it('actually sends a newly unlocked tier in its unlock round', () => {
+    for (const [tier, roundNumber] of Object.entries(TIER_INTRODUCED_AT)) {
+      expect(tiersIn(Number(roundNumber))).toContain(tier as PieceTier)
+    }
+  })
+
+  it('stays deterministic — same round, same tiers', () => {
+    expect(roundSpec(9).spawns.map((spawn) => spawn.tier)).toEqual(
+      roundSpec(9).spawns.map((spawn) => spawn.tier),
+    )
   })
 })

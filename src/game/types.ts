@@ -267,6 +267,8 @@ export interface Spawn {
   /** Milliseconds into the round at which this piece appears. */
   readonly atMs: number
   readonly typeId: PieceTypeId
+  /** The difficulty tier this Piece is born with. */
+  readonly tier: PieceTier
   readonly file: number
 }
 
