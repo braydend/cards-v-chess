@@ -89,13 +89,24 @@ export function GameScene() {
         // `OrbitControls` moves the camera on its own schedule, so refresh the
         // matrices before projecting the board's edges into screen pixels.
         camera.updateMatrixWorld(true)
-        goal = panOffsetForStrip({
+        const overlap = panOffsetForStrip({
           stripLeftPx: rect.left,
           boardLeftPx: screenXOf(camera, sizeWidth, -board.files / 2),
           boardRightPx: screenXOf(camera, sizeWidth, board.files / 2),
           boardFiles: board.files,
           maxPan,
         })
+
+        // The goal is relative, not absolute: the board pans by `overlap`
+        // from where it currently sits (a manual two-finger pan or an earlier
+        // re-measure already moved `target`), never to an x measured from
+        // centre. The lateral budget keeps the resulting target inside the
+        // pan radius even when a prior pan spent part of it on y/z, so the
+        // length clamp below cannot fight the glide.
+        const yz =
+          controls.target.y * controls.target.y + controls.target.z * controls.target.z
+        const lateralBudget = Math.sqrt(Math.max(maxPan * maxPan - yz, 0))
+        goal = Math.min(controls.target.x + overlap, lateralBudget)
       }
     }
 
