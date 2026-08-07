@@ -204,6 +204,6 @@ export function reachableSquares(
   blockers: readonly Square[],
 ): Square[] {
   return coveredSquares(board, geometry, range, from).filter(
-    (square) => !isOccluded(from, square, blockers),
+    (square) => !isOccluded(from, square, blockers, geometry),
   )
 }

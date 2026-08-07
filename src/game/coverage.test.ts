@@ -467,6 +467,28 @@ describe('reachableSquares', () => {
     const withBlocker = reachableSquares(board, 'vertical', 4, ORIGIN, [{ file: 3, rank: 6 }])
     expect(withBlocker).toEqual(coveredSquares(board, 'vertical', 4, ORIGIN))
   })
+
+  it('a walled band footprint omits the far side of each walled rank and keeps the near side', () => {
+    // Gate at {0,2}, band range 1: ranks 1-3 across the full file width. A wall
+    // at file 2 (one Tower per band rank) hides every band square on the far
+    // side of it, while the near side stays lit.
+    const gate = { file: 0, rank: 2 }
+    const wall = [
+      { file: 2, rank: 1 },
+      { file: 2, rank: 2 },
+      { file: 2, rank: 3 },
+    ]
+    const reachable = reachableSquares(board, 'band', 1, gate, wall)
+
+    // Far side (file >= 3): covered but occluded.
+    expect(reachable).not.toContainEqual({ file: 3, rank: 1 })
+    expect(reachable).not.toContainEqual({ file: 3, rank: 2 })
+    expect(reachable).not.toContainEqual({ file: 3, rank: 3 })
+    // Near side (file 1): before the wall, still lit.
+    expect(reachable).toContainEqual({ file: 1, rank: 1 })
+    expect(reachable).toContainEqual({ file: 1, rank: 2 })
+    expect(reachable).toContainEqual({ file: 1, rank: 3 })
+  })
 })
 
 /**
