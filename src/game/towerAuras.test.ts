@@ -105,6 +105,20 @@ describe('the Amplifier in a live round', () => {
 
     expect(14 - (victim?.health ?? 0)).toBe(TOWER_RANKS[8].damage)
   })
+
+  it('does not cut the field when a Tower stands between the Amplifier and the Piece', () => {
+    // The aura is positional, not a beam: a Wall between the Amplifier and a
+    // Piece inside its ring changes nothing. This pins the design decision —
+    // occlusion is for shots, never for fields.
+    const withAmplifier = withTower(8, { file: 3, rank: 3 })
+    const withWall = withTower(7, { file: 3, rank: 5 }, withAmplifier)
+    const state = liveRound(withWall, [pieceAt('rook', 'victim', { file: 3, rank: 7 })])
+
+    // Chebyshev distance 4 from the Amplifier — inside the ring, with the Wall
+    // at distance 2 strictly between them on the file.
+    const amplifiers = amplifierIdsByPiece(state.towers, state.pieces)
+    expect(amplifiers.get('victim')).toEqual(new Set([firstTowerId(state)]))
+  })
 })
 
 describe('frozenPieceIds', () => {
@@ -147,6 +161,16 @@ describe('frozenPieceIds', () => {
     const frozen = frozenPieceIds(state.towers, state.pieces)
     expect(frozen.has('doubly-covered')).toBe(true)
     expect(frozen.size).toBe(1)
+  })
+
+  it('does not cut the field when a Tower stands between the Freezer and the Piece', () => {
+    const withFreezer = withTower(9, { file: 3, rank: 3 })
+    const withWall = withTower(7, { file: 3, rank: 4 }, withFreezer)
+    const state = liveRound(withWall, [pawnAt('chilled', { file: 3, rank: 5 })])
+
+    // Chebyshev distance 2 from the Freezer — inside its range-2 disc, with
+    // the Wall strictly between them on the file.
+    expect(frozenPieceIds(state.towers, state.pieces).has('chilled')).toBe(true)
   })
 })
 
