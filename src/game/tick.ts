@@ -436,7 +436,7 @@ function selectTargets(
     // A Tower can see a square and still not hit it: another Tower strictly
     // between blocks the shot. The Staging-rank bounds check above this is
     // untouched — damage still cannot reach a Piece assembling off-board.
-    if (isOccluded(tower.square, piece.square, blockers)) continue
+    if (isOccluded(tower.square, piece.square, blockers, def.geometry)) continue
 
     candidates.push({
       piece,

@@ -410,4 +410,79 @@ describe('tower firing: Towers block each other', () => {
     expect(wasHit(state, after, 'target-0')).toBe(false)
     expect(wasHit(state, after, 'target-1')).toBe(true)
   })
+
+  it('a full-height wall hides every rank of the toll gate, not just the center line', () => {
+    // Issue #44 scenario. The gate at {0,2} covers ranks 1-3 across the full
+    // width; a complete wall at file 2 must hide Pieces on every rank behind it.
+    const gate = withTower(10, { file: 0, rank: 2 })
+    const wall = withTower(
+      7,
+      { file: 2, rank: 1 },
+      withTower(7, { file: 2, rank: 2 }, withTower(7, { file: 2, rank: 3 }, gate)),
+    )
+    const state = liveRound(wall, [
+      pawnAt('center', { file: 3, rank: 2 }),
+      pawnAt('above', { file: 3, rank: 3 }),
+      pawnAt('below', { file: 3, rank: 1 }),
+    ])
+
+    const after = runFor(state, TOWER_RANKS[10].fireIntervalMs + DT)
+
+    // A Pawn's 900ms move interval outlasts the shot window, so none of these
+    // hop during it — position is stable for the whole assertion.
+    expect(wasHit(state, after, 'center')).toBe(false)
+    expect(wasHit(state, after, 'above')).toBe(false)
+    expect(wasHit(state, after, 'below')).toBe(false)
+  })
+
+  it('a partial wall hides only the rank it covers', () => {
+    // One Wall on rank 1 shields rank-1 Pieces and nothing else: the rank-2 and
+    // rank-3 Pieces are still reachable and still hit.
+    const gate = withTower(10, { file: 0, rank: 2 })
+    const state = liveRound(withTower(7, { file: 2, rank: 1 }, gate), [
+      pawnAt('sameRank', { file: 3, rank: 1 }),
+      pawnAt('centerRank', { file: 3, rank: 2 }),
+      pawnAt('otherRank', { file: 3, rank: 3 }),
+    ])
+
+    const after = runFor(state, TOWER_RANKS[10].fireIntervalMs + DT)
+
+    expect(wasHit(state, after, 'sameRank')).toBe(false)
+    expect(wasHit(state, after, 'centerRank')).toBe(true)
+    expect(wasHit(state, after, 'otherRank')).toBe(true)
+  })
+
+  it('spares an occluded Piece and still hits a reachable one on another rank', () => {
+    // The rank-1 Wall hides the rank-1 Piece nearest the Core; the rank-3 Piece,
+    // one rank off the walled line, stays reachable and gets the shot.
+    const gate = withTower(10, { file: 0, rank: 2 })
+    const state = liveRound(withTower(7, { file: 2, rank: 1 }, gate), [
+      pawnAt('hidden', { file: 3, rank: 1 }),
+      pawnAt('exposed', { file: 3, rank: 3 }),
+    ])
+
+    const after = runFor(state, TOWER_RANKS[10].fireIntervalMs + DT)
+
+    expect(wasHit(state, after, 'hidden')).toBe(false)
+    expect(wasHit(state, after, 'exposed')).toBe(true)
+  })
+
+  it('holds fire when every rank is walled, and does not bank the shot', () => {
+    // The gate's one covered Piece is hidden and nothing else is in reach; the
+    // Tower must fire nothing and sit clamped at "ready" — the same cooldown a
+    // Tower with no target produces, never a stored shot.
+    const gate = withTower(10, { file: 0, rank: 2 })
+    const wall = withTower(
+      7,
+      { file: 2, rank: 1 },
+      withTower(7, { file: 2, rank: 2 }, withTower(7, { file: 2, rank: 3 }, gate)),
+    )
+    const state = liveRound(wall, [pawnAt('target-0', { file: 3, rank: 2 })])
+
+    const after = runFor(state, TOWER_RANKS[10].fireIntervalMs + DT)
+
+    expect(wasHit(state, after, 'target-0')).toBe(false)
+    const shooter = after.towers.find((tower) => tower.cardRank === 10)
+    expect(shooter?.fireCooldownMs).toBe(TOWER_RANKS[10].fireIntervalMs)
+  })
 })
