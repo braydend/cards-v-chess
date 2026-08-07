@@ -228,7 +228,6 @@ Immediately after the shared chrome rule, inside the same `@media` block, add:
     right: 0;
     align-items: center;
     justify-content: center;
-    gap: 1.4rem;
     padding: 0.45rem 0.7rem;
     padding-top: calc(0.45rem + env(safe-area-inset-top));
     border-bottom-left-radius: 0.6rem;
@@ -249,7 +248,7 @@ Immediately after the shared chrome rule, inside the same `@media` block, add:
   }
 ```
 
-Then add a separate `@media` block after the whole existing mobile block (i.e. after its closing brace), for the landscape rails:
+Then add a separate `@media` block **after both existing mobile `@media` blocks** (i.e. after the touch-hygiene block's closing brace, at the end of the file), for the landscape rails. It must come last so its `.towerPanel` override (Step 3) beats the touch-hygiene block's `bottom` rule:
 
 ```css
 /* Landscape: stats become a full-height left rail, actions a full-height
@@ -260,6 +259,9 @@ Then add a separate `@media` block after the whole existing mobile block (i.e. a
     left: 0;
     top: 0;
     bottom: 0;
+    /* Clears the portrait rule's `right: 0` — without this the rail would
+       span the full width and cover the board. */
+    right: auto;
     flex-direction: column;
     justify-content: center;
     gap: 0.8rem;
@@ -275,6 +277,8 @@ Then add a separate `@media` block after the whole existing mobile block (i.e. a
     right: 0;
     top: 0;
     bottom: 0;
+    /* Clears the portrait rule's `left: 0` — same full-width trap. */
+    left: auto;
     flex-direction: column;
     justify-content: center;
     gap: 0.4rem;
@@ -338,11 +342,12 @@ Still in `src/index.css`:
   }
 ```
 
-   This is the correct portrait placement — keep it. In the landscape `@media` block from Step 2, add the landscape override so the panel sits top-right, left of the right rail:
+   This is the correct portrait placement — keep it. The landscape `@media` block from Step 2 must come **after** this touch-hygiene block (source order matters: both rules have equal specificity and the landscape override's `bottom: auto` has to beat this `bottom` value). Add the landscape override to that block so the panel sits top-right, left of the right rail:
 
 ```css
   /* The inspect panel avoids the full-height right rail: anchored top-right,
-     left of it. */
+     left of it. Placed after the touch-hygiene block so its `bottom: auto`
+     overrides the portrait `bottom` offset from that block. */
   .towerPanel {
     top: 0.7rem;
     right: calc(6rem + 0.7rem);
