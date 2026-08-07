@@ -9,7 +9,7 @@ import {
   coverageSelection,
   selectedFootprint,
   squaresListsEqual,
-} from './towerCoverage'
+} from './towerFootprint'
 
 /**
  * Amber, against `CoveragePreview`'s teal.
@@ -121,7 +121,7 @@ const RENDER_ORDER = 1
  * figure. Lighting only the squares a shot would hit would change every tick,
  * which is not what a reference overlay is for.
  *
- * Plumbing only: what to draw is decided in `towerCoverage.ts`, which is pure
+ * Plumbing only: what to draw is decided in `towerFootprint.ts`, which is pure
  * and tested, because there is no jsdom here and a conditional in this file
  * would be a conditional no test can reach.
  */
@@ -139,7 +139,7 @@ export function TowerCoverage({ board }: { board: BoardSpec }) {
   // when `squaresListsEqual` says the new one is equal, so this array reference
   // changes only when a Tower is built or destroyed. The memo keys on it, so a
   // hit or a cooldown tick — which refresh the `towers` array on every publish
-  // — costs the footprint nothing. See `blockerSquares` in towerCoverage.ts.
+  // — costs the footprint nothing. See `blockerSquares` in towerFootprint.ts.
   const blockers = useGameStore(
     (store) => blockerSquares(store.snapshot.towers),
     squaresListsEqual,

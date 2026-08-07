@@ -8,7 +8,7 @@ import {
   squareKey,
   type BoardSpec,
 } from '../game'
-import { blockerSquares, overlaySquares, squaresListsEqual } from './towerCoverage'
+import { blockerSquares, overlaySquares, squaresListsEqual } from './towerFootprint'
 import { useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { SQUARE_SIZE, fileToWorldX, rankToWorldZ } from './coords'
