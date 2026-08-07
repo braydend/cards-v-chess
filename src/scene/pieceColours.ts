@@ -35,3 +35,6 @@ export const PIECE_COLOURS: Record<PieceTypeId, string> = {
   queen: '#a93226',
   king: '#af601a',
 }
+
+/** The King-buff ring at a Piece's base. Kept here so tier colours can be tested disjoint from it. */
+export const BUFF_RING_COLOUR = '#f1c40f'

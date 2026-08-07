@@ -24,7 +24,7 @@ import type { BoardSpec, Square } from './types'
 /**
  * The eight knight-move offsets, in one fixed order.
  *
- * Both the BFS below and `huntCore` in movement.ts iterate this same array —
+ * Both the BFS below and `huntByOffsets` in movement.ts iterate this same array —
  * a hunting Knight scans it in this order and commits to the first offset
  * whose destination is a hop closer to the Core, so this order is what makes
  * that choice deterministic rather than "some in-bounds candidate at d − 1,

@@ -296,7 +296,7 @@ describe('Joker — Clear', () => {
     const state = withJoker()
     const spawning: GameState = {
       ...state,
-      pendingSpawns: [{ atMs: 9_000, typeId: 'pawn', file: 2 }],
+      pendingSpawns: [{ atMs: 9_000, typeId: 'pawn', tier: 'green', file: 2 }],
     }
 
     const after = step(spawning, { kind: 'clearPieces', cardId: 'joker' })

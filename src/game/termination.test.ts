@@ -14,6 +14,7 @@ function pieceOn(id: string, typeId: PieceTypeId, file: number, rank: number): P
   return {
     id,
     typeId,
+    tier: 'green',
     square,
     prevSquare: square,
     health: PIECE_TYPES[typeId].maxHealth,

@@ -30,6 +30,10 @@ describe('streamFor', () => {
     expect(draw(streamFor('run-a', 'packs'), 8)).not.toEqual(draw(streamFor('run-a', 'rounds'), 8))
   })
 
+  it('gives combat its own stream, independent of packs', () => {
+    expect(draw(streamFor('run-a', 'packs'), 8)).not.toEqual(draw(streamFor('run-a', 'combat'), 8))
+  })
+
   it('is unaffected by how much another stream has been drawn', () => {
     const packs = streamFor('run-a', 'packs')
     const before = draw(packs, 4)

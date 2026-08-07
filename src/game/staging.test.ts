@@ -141,7 +141,7 @@ describe('spawning', () => {
     const state: GameState = {
       ...built,
       phase: 'inProgress',
-      pendingSpawns: [{ atMs: 0, typeId: 'pawn', file: 3 }],
+      pendingSpawns: [{ atMs: 0, typeId: 'pawn', tier: 'green', file: 3 }],
     }
 
     // Two Pawn hops' worth of time: the first spawns it, the rest attack.
@@ -170,7 +170,7 @@ describe('entering the board from the Staging rank', () => {
     const state: GameState = {
       ...base,
       phase: 'inProgress',
-      pendingSpawns: [{ atMs: 0, typeId, file: 3 }],
+      pendingSpawns: [{ atMs: 0, typeId, tier: 'green', file: 3 }],
     }
 
     // One full move interval past the spawn, plus a tick of slack.
@@ -201,34 +201,22 @@ describe('entering the board from the Staging rank', () => {
     expect(isStuck(piece, board, core.square, walled)).toBe(false)
   })
 
-  it('records what a hunting Knight on the Staging rank actually does, since it would strand there', () => {
+  it('marches the entry hop of a hunting Knight on the Staging rank, never stranding it', () => {
     const { board, core } = createInitialState()
 
-    // Unreachable today: a spawned Knight always starts `hunting: false`, the
-    // zig-zag branch only ever produces rank-decreasing hops (so a Knight
-    // reaches rank 0 before it could ever start hunting), and `huntCore`'s own
-    // candidates must be in bounds — so nothing can put a hunting Knight back
-    // on the Staging rank. This test forces the combination directly anyway,
-    // to record the actual behaviour rather than leave the design's argument
-    // resting on reachability alone.
+    // A yellow Knight is born `hunting: true` while still on the Staging rank,
+    // where no distance field has an entry — `huntByOffsets` would read that absence
+    // as `stuck`, and a Piece stranded there is permanently immune to damage
+    // (only a Joker's Clear reaches it). The staging carve-out in `nextMove`
+    // exists so this cannot happen: hunting stays dormant until the Piece is on
+    // the board, and the entry hop is a march. This test forces the hunting
+    // flag directly to pin the carve-out, not the reachability argument.
     const knight = {
       ...pieceAt('knight', 'hunting-knight', { file: 3, rank: stagingRank(board) }),
       hunting: true,
     }
 
-    // `knightDistanceField` (distanceFields.ts) only ever visits in-bounds
-    // squares, so the Staging rank was never added to the field. `huntCore`
-    // reads that absence as `stuck`. A hunting Knight on the Staging rank
-    // would therefore strand there for good — and, now that damage cannot
-    // reach the Staging rank, permanently immune to everything except a
-    // Joker's Clear too. `stuck` does not remove a Piece, and `startRound`
-    // (step.ts) only resets `phase`, `roundElapsedMs`, and `pendingSpawns` —
-    // it does not touch `state.pieces` — so a Piece stranded here would ride
-    // along into every subsequent round rather than being swept away at the
-    // gap. Nothing spawns one in that state today, but if a future change
-    // ever made it reachable, this is the consequence it would need to
-    // reckon with.
-    expect(isStuck(knight, board, core.square, new Map())).toBe(true)
+    expect(isStuck(knight, board, core.square, new Map())).toBe(false)
   })
 })
 
@@ -287,7 +275,7 @@ describe('round termination with Pieces still on the Staging rank', () => {
     const state: GameState = {
       ...built,
       phase: 'inProgress',
-      pendingSpawns: [{ atMs: 0, typeId: 'pawn', file: 3 }],
+      pendingSpawns: [{ atMs: 0, typeId: 'pawn', tier: 'green', file: 3 }],
     }
 
     // Generous: a Pawn deals 1 per 900ms hop into rank 5's 22 health
@@ -323,7 +311,7 @@ describe('round termination with Pieces still on the Staging rank', () => {
     const state: GameState = {
       ...built,
       phase: 'inProgress',
-      pendingSpawns: [{ atMs: 0, typeId: 'pawn', file: 3 }],
+      pendingSpawns: [{ atMs: 0, typeId: 'pawn', tier: 'green', file: 3 }],
     }
 
     // Generous, as above: 1 damage per 900ms hop into rank 3's 14 health
@@ -357,7 +345,7 @@ describe('round termination with Pieces still on the Staging rank', () => {
     const state: GameState = {
       ...built,
       phase: 'inProgress',
-      pendingSpawns: [{ atMs: 0, typeId: 'pawn', file: 3 }],
+      pendingSpawns: [{ atMs: 0, typeId: 'pawn', tier: 'green', file: 3 }],
     }
 
     // Generous: 1 damage per 900ms hop into the Wall's 45 health (towerRanks.ts)
@@ -399,7 +387,7 @@ describe('the Staging rank is one-way', () => {
             for (const hunting of [false, true]) {
               for (const slideBonus of [0, 1]) {
                 const outcome = nextMove(
-                  { typeId, from: square, moveCount, handedness, slideBonus, hunting },
+                  { typeId, from: square, moveCount, handedness, slideBonus, hunting, tier: 'green' },
                   board,
                   core.square,
                   new Map(),
@@ -471,7 +459,7 @@ describe("the Staging rank is safe from damage, except a Joker's Clear", () => {
     let state: GameState = {
       ...built,
       phase: 'inProgress',
-      pendingSpawns: [{ atMs: 0, typeId: 'pawn', file: 3 }],
+      pendingSpawns: [{ atMs: 0, typeId: 'pawn', tier: 'green', file: 3 }],
     }
 
     // Long enough that a vulnerable Pawn (maxHealth 3, pieceTypes.ts) would

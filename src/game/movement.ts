@@ -1,3 +1,4 @@
+import { tierDef } from '../data/tiers'
 import { isInBounds, squareKey, squaresEqual } from './board'
 import {
   DIAGONAL_OFFSETS,
@@ -10,7 +11,7 @@ import {
   queenDistanceField,
   rookDistanceField,
 } from './distanceFields'
-import type { BoardSpec, Handedness, Piece, PieceTypeId, Square, Tower } from './types'
+import type { BoardSpec, Handedness, Piece, PieceTier, PieceTypeId, Square, Tower } from './types'
 
 /**
  * What a Piece does when its move interval elapses.
@@ -57,10 +58,12 @@ export interface MoveRequest {
   readonly slideBonus: number
   /**
    * Whether this Piece has already latched into hunting the Core. Pawns are
-   * the only type that never reads it — they promote instead. See `huntCore`
+   * the only type that never reads it — they promote instead. See `huntByOffsets`
    * and `huntByField` for what hunting does per type.
    */
   readonly hunting: boolean
+  /** The tier this Piece was born with. Read by the red seek in `nextMove`. */
+  readonly tier: PieceTier
 }
 
 /**
@@ -191,8 +194,8 @@ function travel(
  *
  * Once every forward candidate above would leave the board — always true at
  * rank 0 — or the Knight is already hunting, direction comes from
- * `huntCore` instead: see `hunting` on `Piece` in types.ts for why that
- * switch is one-way, and `huntCore`'s own comment for the field it follows.
+ * `huntByOffsets` instead: see `hunting` on `Piece` in types.ts for why that
+ * switch is one-way, and `huntByOffsets`'s own comment for the field it follows.
  */
 function knightMove(
   from: Square,
@@ -224,57 +227,66 @@ function knightMove(
     }
   }
 
-  return huntCore(from, board, coreSquare, towerBySquare)
+  return huntByOffsets(from, board, coreSquare, towerBySquare, knightDistanceField(board, coreSquare), KNIGHT_OFFSETS, true)
 }
 
 /**
- * Once a Knight is hunting, direction comes from a knight-move distance
- * field rather than the zig-zag order above: the first offset, in
- * `KNIGHT_OFFSETS`'s fixed order, whose destination is exactly one hop
- * closer to the Core than `from` is.
+ * One hop down a distance field, resolved the way the Knight hunts: the first
+ * offset, in the fixed order, whose destination is exactly one move closer to
+ * `targetSquare` than `from` is. That "exactly one closer" rule is the whole
+ * convergence argument, not a style choice. A breadth-first field guarantees
+ * every square at distance `d > 0` has a neighbour at `d − 1` — that is what
+ * BFS layering means — so this loop can never fall through to the final
+ * `stuck` on a board where every square is connected to the target, which an
+ * 8x8 board is for the Knight (pinned exhaustively in movement.test.ts's
+ * "strictly decreases" test). Because the distance strictly decreases on every
+ * hop, a repeating cycle is impossible by construction.
  *
- * That "exactly one closer" rule is the whole convergence argument, not a
- * style choice. A breadth-first field guarantees every square at distance
- * `d > 0` has a neighbour at `d − 1` — that is what BFS layering means — so
- * this loop can never fall through to the final `stuck` on a board where
- * every square is knight-connected to the Core, which an 8x8 board is (pinned
- * exhaustively in movement.test.ts's "strictly decreases" test). Because the
- * distance strictly decreases on every hop, a repeating cycle is impossible
- * by construction — the Knight arrives within its own starting distance, in
- * hops, at most six here.
- *
- * The field itself never sees Towers — see `distanceFields.ts` — and this
+ * `stampHunting` controls whether the outcome carries `hunting: true`: true
+ * for a real hunt, false for a red Piece's Tower seek, which must not latch
+ * the hunt. The field never sees Towers — see `distanceFields.ts` — and this
  * function only ever consults `towerBySquare` for the ONE candidate it has
- * already committed to. A Tower there is attacked, exactly like every other
- * blocked Piece; this never falls through to try the next-best offset, which
- * is what keeps a hunting Knight walled rather than herded.
+ * already committed to. The blocker check runs BEFORE the target check,
+ * matching `huntByField`: a Tower on the destination is attacked, not leaked
+ * through. For a core hunt this never fires (nothing can build on the Core);
+ * for a red seek the target square IS the Tower, so the blocker check is
+ * exactly how red grinds it. Either way it never falls through to try the
+ * next-best offset, which is what keeps a hunting Piece walled rather than
+ * herded.
  */
-function huntCore(
+function huntByOffsets(
   from: Square,
   board: BoardSpec,
-  coreSquare: Square,
+  targetSquare: Square,
   towerBySquare: ReadonlyMap<string, Tower>,
+  field: ReadonlyMap<string, number>,
+  offsets: readonly Square[],
+  stampHunting: boolean,
 ): MoveOutcome {
-  const field = knightDistanceField(board, coreSquare)
   const ownDistance = field.get(squareKey(from))
 
-  // Undefined only if `from` is not knight-connected to the Core at all — not
+  // Undefined only if `from` is not connected to the target at all — not
   // possible on the current 8x8 board, but a future board shape or Core
   // placement should fail safe as a genuinely immobile Piece rather than
   // throw.
   if (ownDistance === undefined) return { kind: 'stuck' }
+  if (ownDistance === 0) return { kind: 'reachCore' }
 
-  for (const offset of KNIGHT_OFFSETS) {
+  for (const offset of offsets) {
     const to: Square = { file: from.file + offset.file, rank: from.rank + offset.rank }
     if (!isInBounds(board, to)) continue
     if (field.get(squareKey(to)) !== ownDistance - 1) continue
 
-    if (squaresEqual(to, coreSquare)) return { kind: 'reachCore' }
-
     const blocker = towerBySquare.get(squareKey(to))
-    if (blocker) return { kind: 'attackTower', towerId: blocker.id, hunting: true }
+    if (blocker) {
+      return stampHunting
+        ? { kind: 'attackTower', towerId: blocker.id, hunting: true }
+        : { kind: 'attackTower', towerId: blocker.id }
+    }
 
-    return { kind: 'move', to, hunting: true }
+    if (squaresEqual(to, targetSquare)) return { kind: 'reachCore' }
+
+    return stampHunting ? { kind: 'move', to, hunting: true } : { kind: 'move', to }
   }
 
   // Unreachable given the BFS guarantee above, kept only so the function is
@@ -284,7 +296,7 @@ function huntCore(
 
 /**
  * How the King and the sliders hunt: direction from a distance field over
- * their own movement, exactly as the Knight's `huntCore` does, adapted to
+ * their own movement, exactly as the Knight's `huntByOffsets` does, adapted to
  * pieces that move along lines.
  *
  * Direction choice: the first direction, in the fixed order of `directions`,
@@ -324,7 +336,9 @@ function huntByField(
   field: ReadonlyMap<string, number>,
   directions: readonly Square[],
   maxSteps: number,
+  stampHunting: boolean,
 ): MoveOutcome {
+  const stamp = stampHunting ? { hunting: true as const } : {}
   const ownDistance = field.get(squareKey(from))
 
   // Undefined only if `from` is not connected to the target at all under this
@@ -351,8 +365,8 @@ function huntByField(
       const blocker = towerBySquare.get(squareKey(next))
       if (blocker) {
         return squaresEqual(square, from)
-          ? { kind: 'attackTower', towerId: blocker.id, hunting: true }
-          : { kind: 'move', to: square, hunting: true }
+          ? { kind: 'attackTower', towerId: blocker.id, ...stamp }
+          : { kind: 'move', to: square, ...stamp }
       }
 
       if (squaresEqual(next, targetSquare)) return { kind: 'reachCore' }
@@ -360,7 +374,7 @@ function huntByField(
       square = next
     }
 
-    return { kind: 'move', to: square, hunting: true }
+    return { kind: 'move', to: square, ...stamp }
   }
 
   // Unreachable on the current board: every hunt wired today is connected to
@@ -394,11 +408,92 @@ function rangeToCloserSquare(
   }
 }
 
+/** The distance field a red Piece uses to seek Towers — its own movement. */
+function towerField(typeId: PieceTypeId, board: BoardSpec, seed: Square): ReadonlyMap<string, number> {
+  switch (typeId) {
+    case 'knight':
+      return knightDistanceField(board, seed)
+    case 'rook':
+      return rookDistanceField(board, seed)
+    case 'bishop':
+      return bishopDistanceField(board, seed)
+    case 'queen':
+      return queenDistanceField(board, seed)
+    case 'king':
+      return kingDistanceField(board, seed)
+    case 'pawn':
+      throw new Error('pawns never seek Towers')
+  }
+}
+
+/**
+ * The Tower nearest to `from` under the Piece's own movement, within
+ * `reachInMoves`, or undefined. Towers are the SEED of the field, never
+ * obstacles in it — no pathfinding. Ties break on the smaller Tower id so the
+ * seek is deterministic.
+ */
+function nearestTower(
+  from: Square,
+  typeId: PieceTypeId,
+  board: BoardSpec,
+  towerBySquare: ReadonlyMap<string, Tower>,
+  reachInMoves: number,
+): Tower | undefined {
+  let best: Tower | undefined
+  let bestDistance = Infinity
+
+  for (const tower of towerBySquare.values()) {
+    const distance = towerField(typeId, board, tower.square).get(squareKey(from))
+    if (distance === undefined || distance > reachInMoves) continue
+    if (distance < bestDistance || (distance === bestDistance && (best === undefined || tower.id < best.id))) {
+      best = tower
+      bestDistance = distance
+    }
+  }
+
+  return best
+}
+
+/**
+ * A red Piece's move decision: detour toward the nearest reachable Tower.
+ * Pawns never seek — their movement has no way to detour — so they fall
+ * through to green. When no Tower is in reach, returns undefined and the
+ * Piece behaves exactly as green. Red seeks even while hunting: a hunting red
+ * Piece detours to a Tower if one is near, and resumes the hunt once it is
+ * gone, because these outcomes never stamp `hunting`.
+ */
+function seekTower(
+  request: MoveRequest,
+  board: BoardSpec,
+  towerBySquare: ReadonlyMap<string, Tower>,
+): MoveOutcome | undefined {
+  if (request.typeId === 'pawn') return undefined
+
+  const target = nearestTower(request.from, request.typeId, board, towerBySquare, tierDef('red').reachInMoves)
+  if (!target) return undefined
+
+  const field = towerField(request.typeId, board, target.square)
+  const maxSteps = request.typeId === 'king' ? 1 : 1 + request.slideBonus
+
+  if (request.typeId === 'knight') {
+    return huntByOffsets(request.from, board, target.square, towerBySquare, field, KNIGHT_OFFSETS, false)
+  }
+
+  const directions =
+    request.typeId === 'rook'
+      ? ORTHOGONAL_OFFSETS
+      : request.typeId === 'bishop'
+        ? DIAGONAL_OFFSETS
+        : ROYAL_OFFSETS
+
+  return huntByField(request.from, board, target.square, towerBySquare, field, directions, maxSteps, false)
+}
+
 /**
  * Resolves one move for a Piece using **chess movement**, not a walk toward
  * the Core — while forward movement lasts. Once a Piece's forward move would
  * leave the board, it hunts the Core instead, guided by a distance field
- * over its own movement: see `huntCore` and `huntByField`. Pawns are the one
+ * over its own movement: see `huntByOffsets` and `huntByField`. Pawns are the one
  * type that never hunts — they promote.
  */
 export function nextMove(
@@ -407,11 +502,27 @@ export function nextMove(
   coreSquare: Square,
   towerBySquare: ReadonlyMap<string, Tower>,
 ): MoveOutcome {
+  // A Piece on the Staging rank is still entering the board. Hunting fields
+  // have no entry off-board, so a yellow Piece born `hunting: true` must
+  // march its first hop — hunting engages the moment it is on the board.
+  // This is the one carve-out that lets yellow exist at all; see the
+  // chess-tiers spec.
+  const hunting = request.hunting && isInBounds(board, request.from)
+
+  // Red overrides the march or the hunt: detour toward the nearest reachable
+  // Tower, if any. This runs before the type switch so every red non-Pawn
+  // seeks the same way; a Piece with no Tower in reach falls through to its
+  // ordinary green behaviour.
+  if (request.tier === 'red') {
+    const detour = seekTower(request, board, towerBySquare)
+    if (detour) return detour
+  }
+
   switch (request.typeId) {
     case 'pawn':
       return pawnMove(request.from, board, coreSquare, towerBySquare)
     case 'rook':
-      return request.hunting || forwardLeavesBoard(request.from, board)
+      return hunting || forwardLeavesBoard(request.from, board)
         ? huntByField(
             request.from,
             board,
@@ -420,6 +531,7 @@ export function nextMove(
             rookDistanceField(board, coreSquare),
             ORTHOGONAL_OFFSETS,
             1 + request.slideBonus,
+            true,
           )
         : travel(
             request.from,
@@ -431,7 +543,7 @@ export function nextMove(
             towerBySquare,
           )
     case 'bishop': {
-      if (request.hunting || forwardLeavesBoard(request.from, board)) {
+      if (hunting || forwardLeavesBoard(request.from, board)) {
         // A Bishop stays on its own colour, so a Core on the other colour is
         // a square it can never stand on — no leak from it is possible. Such
         // a Bishop hunts the square directly in front of the Core instead,
@@ -453,6 +565,7 @@ export function nextMove(
           bishopDistanceField(board, target),
           DIAGONAL_OFFSETS,
           1 + request.slideBonus,
+          true,
         )
       }
 
@@ -471,7 +584,7 @@ export function nextMove(
         request.from,
         request.moveCount,
         request.handedness,
-        request.hunting,
+        hunting,
         board,
         coreSquare,
         towerBySquare,
@@ -481,7 +594,7 @@ export function nextMove(
     // leaves the board she hunts with full queen movement instead; the
     // alternation is forward-march behaviour only.
     case 'queen':
-      return request.hunting || forwardLeavesBoard(request.from, board)
+      return hunting || forwardLeavesBoard(request.from, board)
         ? huntByField(
             request.from,
             board,
@@ -490,6 +603,7 @@ export function nextMove(
             queenDistanceField(board, coreSquare),
             ROYAL_OFFSETS,
             1 + request.slideBonus,
+            true,
           )
         : travel(
             request.from,
@@ -504,7 +618,7 @@ export function nextMove(
     // grants slide distance, it does not receive it. Once forward leaves the
     // board the King hunts: one royal step at a time down the field.
     case 'king':
-      return request.hunting || forwardLeavesBoard(request.from, board)
+      return hunting || forwardLeavesBoard(request.from, board)
         ? huntByField(
             request.from,
             board,
@@ -513,6 +627,7 @@ export function nextMove(
             kingDistanceField(board, coreSquare),
             ROYAL_OFFSETS,
             1,
+            true,
           )
         : travel(request.from, request.handedness, 1, forwardFileStep, board, coreSquare, towerBySquare)
   }
@@ -572,6 +687,7 @@ export function isStuck(
     handedness: piece.handedness,
     slideBonus: 0,
     hunting: piece.hunting,
+    tier: piece.tier,
   }
   return nextMove(request, board, coreSquare, towerBySquare).kind === 'stuck'
 }

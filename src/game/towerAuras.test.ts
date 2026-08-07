@@ -313,7 +313,12 @@ describe('the Freezer in a live round', () => {
     // (2 damage per 750ms volley here, 6 volleys in the window = 12 total) —
     // a Pawn's 3 health would not survive that, and a dead Piece stops
     // grinding, undercounting attacks rather than measuring the interval.
-    const perAttackDamage = PIECE_TYPES.rook.attackDamage * BLOCKED_ATTACK_MULTIPLIER
+    //
+    // The Rook deals FULL attack damage to the Wall it grinds, under the
+    // universal combat rule — the two-attack arithmetic is unchanged (2 x 4 =
+    // 8, far under the Wall's 45 health, so the Wall survives and the count
+    // still reads from health lost).
+    const perAttackDamage = PIECE_TYPES.rook.attackDamage
     const singleInterval = PIECE_TYPES.rook.moveIntervalMs * FREEZE_MULTIPLIER
     const stackedInterval = PIECE_TYPES.rook.moveIntervalMs * FREEZE_MULTIPLIER * FREEZE_MULTIPLIER
     const windowMs = 4800

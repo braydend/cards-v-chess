@@ -23,6 +23,7 @@ function move(
     handedness: 1,
     slideBonus: 0,
     hunting: false,
+    tier: 'green',
     ...overrides,
   }
   return nextMove(request, BOARD, CORE_SQUARE, towers)
@@ -469,7 +470,7 @@ describe('knight hunting', () => {
   it('strictly decreases distance to the Core on every hunting hop, for every square on the board', () => {
     // Exhaustive rather than a hand-picked square: this is exactly the
     // property the design's convergence argument depends on. If any square
-    // existed where huntCore failed to find a distance-minus-one neighbour,
+    // existed where huntByOffsets failed to find a distance-minus-one neighbour,
     // or picked one at the same or greater distance, this would be the test
     // to catch it — a single missed square would break the "arrives within
     // its own distance, in hops" guarantee that rules out cycles.
@@ -497,7 +498,7 @@ describe('knight hunting', () => {
   it('is Tower-blind: no Tower placement changes which square a hunting Knight chooses', () => {
     // moveCount: 1 so the zig-zag a non-hunting Knight would take from here —
     // (3,4) — is a different square from the hunting target below. Without
-    // that, a version of `huntCore` that was never actually wired in could
+    // that, a version of `huntByOffsets` that was never actually wired in could
     // still pass by coincidence, because the default zig-zag from this square
     // happens to land on the same square hunting does.
     const from = { file: 4, rank: 6 }

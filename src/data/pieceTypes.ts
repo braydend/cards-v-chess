@@ -4,8 +4,10 @@ import type { PieceTypeDef, PieceTypeId } from '../game/types'
  * The Chess roster. Each Piece's threat comes from the design doc; the numbers
  * are PLACEHOLDER balance, not design decisions.
  *
- * Tower targeting is settled: every Piece attacks a Tower that blocks it, at
- * `BLOCKED_ATTACK_MULTIPLIER`. There is no designated Tower-hunter.
+ * Tower combat is settled by the universal combat rule: every Piece deals FULL
+ * attack damage to a Tower on one of its attack tiles, and a Pawn blocked
+ * straight ahead — whose blocker is not on an attack tile — is the one
+ * carve-out still at `BLOCKED_ATTACK_MULTIPLIER`. See the chess-tiers spec.
  *
  * The Rook has no armour stat — high health *is* its armour. `coverage.ts` is
  * explicit that piercing is not part of the design, and flat reduction against
@@ -21,12 +23,15 @@ export const PIECE_TYPES: Record<PieceTypeId, PieceTypeDef> = {
 }
 
 /**
- * A Piece blocked by a Tower attacks at half strength. Attacking is an
- * incidental action forced on it, not what it is for — which is what lets a
- * Tower function as an obstacle rather than a speed bump.
+ * The Pawn-straight-ahead multiplier. The universal combat rule gives every
+ * Piece full damage to a Tower on one of its attack tiles — a Pawn's attack
+ * tiles are its forward diagonals, so a Pawn blocked STRAIGHT ahead is the one
+ * case where a Tower blocks a Piece without standing on an attack tile. That
+ * genuinely stuck attack stays at half. Every other Piece's blocking Tower
+ * sits on an attack tile, so it deals full damage.
  *
- * Kept as a multiplier rather than baked into `attackDamage` so that a future
- * Piece designed to demolish Towers can attack at full effect.
+ * Kept as a multiplier rather than baked into `attackDamage` so that the one
+ * carve-out reads as what it is — an exception, not the rule.
  */
 export const BLOCKED_ATTACK_MULTIPLIER = 0.5
 

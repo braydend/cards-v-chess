@@ -95,6 +95,7 @@ export function pieceAt(typeId: PieceTypeId, id: string, square: Square): Piece 
   return {
     id,
     typeId,
+    tier: 'green',
     square,
     prevSquare: square,
     health: PIECE_TYPES[typeId].maxHealth,

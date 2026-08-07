@@ -271,7 +271,7 @@ This has large consequences that are accepted deliberately:
 
 ### Pawn
 
-Advances one square down its file. **Captures the Core diagonally forward**, as a pawn takes in chess. A Tower directly ahead blocks it, and it attacks that Tower instead of advancing. A Tower off to the diagonal is ignored while the path ahead is clear — the pawn's job is to advance, not to detour. Reaching rank 0 **promotes** it to a Queen rather than stranding it — see Promotion, below.
+Advances one square down its file. **Captures the Core diagonally forward**, as a pawn takes in chess. A Tower directly ahead blocks it, and it attacks that Tower instead of advancing (at half damage — a Pawn's forward square is not one of its attack tiles). A Tower off to the diagonal is ignored while the path ahead is clear — the pawn's job is to advance, not to detour. Reaching rank 0 **promotes** it to a Queen rather than stranding it — see Promotion, below.
 
 ### Knight
 
@@ -303,11 +303,15 @@ A Pawn reaching rank 0 becomes a Queen, at full Queen health, instead of strandi
 
 Once a Piece's forward move would leave the board — for every type, that is rank 0 — it **hunts the Core** the rest of the way, moving by its own chess movement. Pawns are the one exception: they promote instead.
 
+**Yellow** Pieces are born hunting — a yellow Queen, Knight, or slider seeks the Core from its first hop on the board, marching only the entry hop off the Staging rank, which no field covers.
+
 **The state latches.** `hunting: boolean` on the Piece is set true the moment hunting starts, and it never clears. Without the latch the feature does not terminate: a same-colour Bishop's first hunting hop goes *away* from rank 0, up to the diagonal intersection that routes it back down to the Core, and at that intersection it has a legal forward diagonal again. An unlatched flag would let it revert to marching, reach rank 0 elsewhere, start hunting again, and oscillate forever. (The Knight's version of the same argument: its first hunting hop goes backwards.) The Queen hunts with full queen movement; her rook/bishop alternation is forward-march behaviour only.
 
 **Direction comes from a per-type distance field.** A breadth-first search over the Piece's own movement gives every square its distance to the target in *moves* — a slide of any length counts as one — computed once per board, seed square, and type, and memoised (`src/game/distanceFields.ts`). A hunting King steps onto the first neighbour, in a fixed order, at distance one less. A hunting slider picks the first direction, in a fixed order, whose line reaches a square one move closer, and slides along it — at most its normal slide distance, King aura included, and **capped at the closer square** so a long slide cannot overshoot its phase target. A BFS field guarantees the closer square exists at every distance `d > 0`, and distance strictly decreases between phases (2→1→0); within a phase every hop advances along a shortest-path line toward that phase's target — arriving on it, exhausting the slide count en route, or grinding the Tower blocking the line. Arrival is bounded and a cycle is impossible by construction; the walk from every square is pinned exhaustively in `movement.test.ts`.
 
 **The fields never see Towers.** They are computed on an empty board, which is what keeps hunting from reopening the mazing risk: Tower placement cannot change which square a hunting Piece is aiming for. A Tower on the chosen line is attacked exactly as any other blocked Piece attacks one — the Piece grinds rather than trying another line. The player can wall a hunting Piece; the player still cannot herd one.
+
+**The red carve-out.** A red Piece's field is still Tower-blind as *geometry* — Towers are never obstacles in it — but red fields are *seeded* at Towers, which is what lets Tower placement attract a red Piece. That is a deliberate inversion of the no-mazing invariant: placing a decoy Tower spends a card and draws aggression toward it.
 
 **The colour-locked Bishop.** A Bishop stays on its own colour, so a Core on the other colour is a square it can never stand on. Such a Bishop hunts the square directly in front of the Core instead — always the Bishop's own colour — and **leaks from there**, standard leak damage, counted in the leaks counter: every Piece meets the Core the same way. Issue #13's literal caveat — a standing half-damage forward attack from that square — was set aside for exactly that uniformity, and is worth revisiting if leaks ever deal Piece-specific damage.
 
@@ -334,6 +338,15 @@ Two Pieces project a passive effect onto others nearby, rather than fighting onl
 
 **The Bishop** heals every *other* Piece within Chebyshev distance 2, on a fixed cadence, capped at each target's own maximum health. It never heals itself — the designed counter is "kill it first", and a self-healing Bishop would blunt that outright. Unlike the King's aura, Bishops **do** stack: two Bishops in range of the same Piece heal it independently, as two separate sources rather than one effect applied twice.
 
+### Tiers
+
+Every spawn is assigned a tier — **green**, **yellow**, **red**, or **black** — a per-Piece set of behaviour flags, never stats or Ink. Any type can be any tier. Green is the baseline; the mix shifts toward the higher tiers as rounds progress (tier unlock rounds and mix weights are placeholder tuning in `src/data/rounds.ts`).
+
+- **Green — dumb.** Exactly the baseline behaviour.
+- **Yellow — smart.** Hunts the Core from its first on-board hop (Pawns still promote; the Queen they become inherits yellow).
+- **Red — aggressive.** Detours toward the nearest Tower reachable by its own movement (a distance field over its own move set, seeded at each Tower, capped by a placeholder reach radius in `src/data/tiers.ts`), grinds a Tower blocking its line rather than routing around it, and resumes marching once its target falls.
+- **Black — sneaky.** Each Tower shot at it rolls the seeded `rng.combat` stream: a 50% chance the shot is negated (placeholder). A Joker's Clear is a board wipe, not damage, so it is never dodged.
+
 ## Towers
 
 **Towers are destructible.** They have health, take damage from Pieces, are repaired with ♥ cards, and can be shielded by a Jack. A shield absorbs before health and never regenerates.
@@ -342,15 +355,13 @@ Two Pieces project a passive effect onto others nearby, rather than fighting onl
 
 ### Towers block, and blocked Pieces attack
 
-**No Piece type is a designated Tower-hunter.** One rule covers every Piece:
-
-> A Piece whose next square holds a Tower **does not advance**. It attacks that Tower instead, at **half** its attack damage.
+**The universal combat rule.** Any Piece deals **full** damage to a Tower that stands on one of its **attack tiles** — a square the Piece could capture onto by its chess movement (a Pawn's forward diagonals, a Knight's L-squares, a slider's lines, a King's neighbouring squares). The one carve-out is **a Pawn blocked straight ahead**: its forward square is not an attack tile, so that attack stays at half (`BLOCKED_ATTACK_MULTIPLIER`). This is a deliberate buff to every Piece's Tower-killing power, and it interacts with "Repair versus the wall" — Towers fall faster under the roster now.
 
 **Towers block movement.** This reverses an earlier decision that they never do. The earlier wording was self-contradictory — it declared Towers non-blocking and then defined them as stopping Pieces in the same breath.
 
-Half damage is what makes the mechanic work: Pieces are poor demolitionists, so a Tower is a real obstacle rather than a speed bump. The multiplier is kept separate from a Piece's base attack damage so that a future Piece *designed* to demolish Towers can attack at full effect.
+Half damage for the straight-ahead Pawn is what keeps the mechanic working for it: a Pawn's forward square is genuinely stuck territory — neither a capture nor an attack — so it is the one Piece that demolishes poorly, and its attack stays at `BLOCKED_ATTACK_MULTIPLIER` rather than the full rate every other Piece pays.
 
-**There is no pathfinding.** A blocked Piece waits and grinds; it never routes around. This is deliberate — routing around would let the player steer Pieces by placing Towers, which is exactly the mazing the design rejects. The player can *wall*, but cannot *herd*.
+**There is no pathfinding.** A blocked Piece waits and grinds; it never routes around. This is deliberate — routing around would let the player steer Pieces by placing Towers, which is exactly the mazing the design rejects. The player can *wall*, but cannot *herd*. Red is the only tier that *deliberately seeks* attack positions; the other tiers only ever attack a Tower that happens to block them. The combat rule itself is universal; the seeking is red's alone.
 
 Every Piece therefore contributes anti-Tower pressure, so repair reliably has a job.
 
@@ -392,4 +403,5 @@ This is a **coverage** tower defense, not a **maze** one: defense is about which
 | **♦ Speed and ♣ Damage on a gunless Tower** | **Reachable now — rank 7 is the Wall.** `canSupport` checks only rank match, so a 7♦ or 7♣ is a legal play against a rank-7 Tower, and `applySupport` dutifully raises its `damage` or lowers its `fireIntervalMs`. `fireTowers` in `src/game/tick.ts` skips a gunless Tower before either field is ever read, so the play changes nothing the Tower can act on. Because a numbered Card supports only a Tower of its own rank, a 7♦ or 7♣ has **no other legal suit target in the game** — those two cards are currently dead weight the moment a rank-7 Wall exists. `TowerPanel` compounds it: it prints a damage figure and a fire interval directly under the label "Never fires — it blocks and soaks," stats the Wall can never use. Should `canSupport` (or `applySupport`) refuse ♦ Speed and ♣ Damage against a gunless Tower, or is spending them there an accepted bad play the player is free to make, the same way any card is free to be wasted? Decide deliberately; do not guess. |
 | **Capping stacked supports** | **Reachable now.** Supports stack additively with no limit, so a Tower fed every ♠ in a Deck grows without bound — and with flat values, *n* supports is exactly *n* × the flat amount, which makes the growth easy to reason about but does not bound it. The rank match narrows how many Cards can reach one Tower, which is a constraint but not a cap. Candidate answers: a hard cap per Tower, diminishing returns per stack, or a cap per round. Deliberately left open by the rank-matching work — do not resolve it by guessing. |
 | **Board geometry** | Growable, starting at a literal 8x8 — an Ace adds a rank. Square colour is no longer load-bearing, since the Knight is damageable everywhere, so the checkerboard is preserved for chess-authenticity alone. Whether that argument carries enough weight on its own is undecided. |
+| **Tier tuning numbers** | The tier unlock rounds, mix weights, red reach radius, and black dodge chance are all placeholders in `src/data/rounds.ts` and `src/data/tiers.ts`. The shapes are settled; the numbers await play experience. |
 | **Multiplayer scope** | Still assumed single-player versus AI, no backend, no netcode. |

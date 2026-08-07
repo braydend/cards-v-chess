@@ -30,8 +30,10 @@ export interface PieceTypeDef {
   readonly maxHealth: number
   /**
    * Damage dealt to a Tower. A Piece blocked by a Tower attacks it instead of
-   * moving, at `BLOCKED_ATTACK_MULTIPLIER` of this value — Pieces are poor at
-   * demolition, which is what makes a Tower a real obstacle.
+   * moving. Under the universal combat rule a blocking Tower sits on one of
+   * the Piece's attack tiles, so it deals this FULL value — the one carve-out
+   * is a Pawn blocked straight ahead, whose blocker is not on an attack tile,
+   * at `BLOCKED_ATTACK_MULTIPLIER` of this value. See the chess-tiers spec.
    */
   readonly attackDamage: number
   /**
@@ -52,6 +54,29 @@ export interface PieceTypeDef {
    * exist yet — see "Ink income values" in the design doc's open questions.
    */
   readonly inkReward: number
+}
+
+/** The four difficulty tiers a spawn can be assigned. Green is the baseline. */
+export type PieceTier = 'green' | 'yellow' | 'red' | 'black'
+
+export interface TierDef {
+  readonly id: PieceTier
+  readonly label: string
+  /**
+   * Whether the Piece hunts the Core from its first on-board hop. Yellow.
+   * Pawns never read it — they promote — so a yellow Pawn marches and the
+   * promoted Queen inherits the flag.
+   */
+  readonly huntsFromSpawn: boolean
+  /** Whether the Piece detours to attack Towers within reach. Red only. */
+  readonly seeksTowers: boolean
+  /** Chance in [0, 1) a Tower shot at this Piece is negated. 0 = never. */
+  readonly dodgeChance: number
+  /**
+   * How many moves away a red Piece considers a Tower worth seeking.
+   * PLACEHOLDER tuning. 0 for every non-red tier (never read).
+   */
+  readonly reachInMoves: number
 }
 
 /**
@@ -85,9 +110,25 @@ export interface ExitRecord {
   readonly from: Square
 }
 
+/**
+ * One negated Tower shot, recorded for the renderer.
+ *
+ * A dodge changes no field the renderer diffs — a hit is a `damageTaken` rise,
+ * a death is an absence, but a negated shot leaves the Piece untouched — so it
+ * must be recorded or the whiff can never be shown. Never cleared, capped at
+ * `DODGE_RING_SIZE` in `tick.ts` exactly as `recentExits` is.
+ */
+export interface DodgeRecord {
+  readonly pieceId: string
+  readonly roundNumber: number
+  readonly roundElapsedMs: number
+}
+
 export interface Piece {
   readonly id: string
   readonly typeId: PieceTypeId
+  /** Set at spawn and inherited through promotion. Behavioural only — never stats or Ink. */
+  readonly tier: PieceTier
   readonly square: Square
   /**
    * The square this piece hopped from. Exists purely so the renderer can
@@ -114,7 +155,7 @@ export interface Piece {
    * distance field over its own movement — instead of its forward march.
    * Knights hunt once their forward hops run out; the King and the sliders
    * hunt once their forward move would leave the board; Pawns promote instead
-   * and never hunt. See `huntCore` and `huntByField` in movement.ts.
+   * and never hunt. See `huntByOffsets` and `huntByField` in movement.ts.
    *
    * Latches true and never reverts. A same-colour Bishop's first hunting hop
    * goes *away* from rank 0, up to the diagonal intersection that routes it
@@ -244,6 +285,8 @@ export interface Spawn {
   /** Milliseconds into the round at which this piece appears. */
   readonly atMs: number
   readonly typeId: PieceTypeId
+  /** The difficulty tier this Piece is born with. */
+  readonly tier: PieceTier
   readonly file: number
 }
 
@@ -292,6 +335,21 @@ export interface GameState {
    * FROM WHERE.
    */
   readonly recentExits: readonly ExitRecord[]
+  /**
+   * The most recent negated Tower shots, for the renderer to show a whiff.
+   *
+   * A dodge is invisible to the structural key — the Piece ends the tick with
+   * the same square, health, and flags it started with — so it must be recorded
+   * or the whiff can never be drawn. Lookup is by `pieceId`, unique within a
+   * run, so a stale record can never match a live Piece.
+   *
+   * NEVER CLEARED, and deliberately excluded from `structuralKey`: a dodge is a
+   * pure render cue, and keying it would publish a store update for every
+   * negated shot. Capped at `DODGE_RING_SIZE` in `tick.ts` instead, exactly as
+   * `recentExits` is. A Joker's Clear is a board wipe, not damage, so it never
+   * rolls and never lands here.
+   */
+  readonly recentDodges: readonly DodgeRecord[]
   /**
    * How many Joker Clears have resolved this run. Monotonic.
    *
@@ -346,12 +404,15 @@ export interface GameState {
   readonly seed: string
   /**
    * The run's PRNG streams, each derived from `seed` and independent of the
-   * others. Packs are the only consumer today; a second random consumer takes a
-   * new named stream rather than sharing this one, so adding it cannot shift
-   * what an existing seed deals. See `src/game/rng.ts`.
+   * others. Packs draw from their own stream and the black dodge from its own —
+   * each new consumer takes a new named stream rather than sharing an existing
+   * one, so adding it cannot shift what an existing seed deals or dodges. See
+   * `src/game/rng.ts`.
    */
   readonly rng: {
     readonly packs: Rng
+    /** The black dodge's draws. Independent of `packs` — see `src/game/rng.ts`. */
+    readonly combat: Rng
   }
   /**
    * Monotonic counter for Card ids.
