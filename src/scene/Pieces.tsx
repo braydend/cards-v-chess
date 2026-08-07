@@ -8,13 +8,14 @@ import {
   type Mesh,
 } from 'three'
 import { pieceType } from '../data/pieceTypes'
-import type { BoardSpec, PieceTypeId } from '../game'
+import type { BoardSpec, PieceTier, PieceTypeId } from '../game'
 import { getState } from '../state/simulation'
 import { useGameStore } from '../state/store'
 import { fileToWorldX, rankToWorldZ } from './coords'
-import { PIECE_COLOURS } from './pieceColours'
+import { BUFF_RING_COLOUR, PIECE_COLOURS } from './pieceColours'
 import { GEOMETRY_BY_TYPE, PIECE_TYPE_IDS, REST_Y_BY_TYPE } from './pieceGeometry'
 import { PROMOTION_POP_MS, promotionPopLift, promotionPopScale } from './promotionPop'
+import { TIER_COLOURS } from './tierColours'
 
 /**
  * How long the visual hop takes. Deliberately much shorter than a piece's move
@@ -33,7 +34,14 @@ export function Pieces({ board }: { board: BoardSpec }) {
   // per CLAUDE.md. Built once, disposed on unmount.
   const resources = useMemo(() => {
     const ring = new RingGeometry(0.34, 0.42, 16)
-    const ringMaterial = new MeshStandardMaterial({ color: '#f1c40f', emissive: '#f1c40f' })
+    const ringMaterial = new MeshStandardMaterial({ color: BUFF_RING_COLOUR, emissive: BUFF_RING_COLOUR })
+    const tierRingMaterials = new Map<keyof typeof TIER_COLOURS, Material>()
+    for (const [tier, colour] of Object.entries(TIER_COLOURS)) {
+      tierRingMaterials.set(
+        tier as keyof typeof TIER_COLOURS,
+        new MeshStandardMaterial({ color: colour, emissive: colour }),
+      )
+    }
     const byType = new Map<PieceTypeId, { geometry: BufferGeometry; material: Material }>()
 
     for (const typeId of PIECE_TYPE_IDS) {
@@ -43,7 +51,7 @@ export function Pieces({ board }: { board: BoardSpec }) {
       })
     }
 
-    return { byType, ring, ringMaterial }
+    return { byType, ring, ringMaterial, tierRingMaterials }
   }, [])
 
   useEffect(
@@ -54,6 +62,7 @@ export function Pieces({ board }: { board: BoardSpec }) {
       }
       resources.ring.dispose()
       resources.ringMaterial.dispose()
+      for (const material of resources.tierRingMaterials.values()) material.dispose()
     },
     [resources],
   )
@@ -69,12 +78,14 @@ export function Pieces({ board }: { board: BoardSpec }) {
             key={piece.id}
             pieceId={piece.id}
             typeId={piece.typeId}
+            tier={piece.tier}
             promoted={piece.promoted}
             board={board}
             geometry={shared.geometry}
             material={shared.material}
             ringGeometry={resources.ring}
             ringMaterial={resources.ringMaterial}
+            tierRingMaterials={resources.tierRingMaterials}
           />
         )
       })}
@@ -85,24 +96,29 @@ export function Pieces({ board }: { board: BoardSpec }) {
 function PieceMesh({
   pieceId,
   typeId,
+  tier,
   promoted,
   board,
   geometry,
   material,
   ringGeometry,
   ringMaterial,
+  tierRingMaterials,
 }: {
   pieceId: string
   typeId: PieceTypeId
+  tier: PieceTier
   promoted: boolean
   board: BoardSpec
   geometry: BufferGeometry
   material: Material
   ringGeometry: BufferGeometry
   ringMaterial: Material
+  tierRingMaterials: Map<keyof typeof TIER_COLOURS, Material>
 }) {
   const ref = useRef<Mesh>(null)
   const ringRef = useRef<Mesh>(null)
+  const tierRingRef = useRef<Mesh>(null)
   const firstSeenAt = useRef(-1)
 
   // Reads live simulation state and mutates the mesh transform directly. No
@@ -164,6 +180,15 @@ function PieceMesh({
         ring.position.set(mesh.position.x, 0.02, mesh.position.z)
       }
     }
+
+    // The tier ring follows the mesh and stays visible whenever the Piece is
+    // alive — unlike the buff ring it does not depend on `phase`, because the
+    // tier is the Piece's own identity, not a transient aura.
+    const tierRing = tierRingRef.current
+    if (tierRing) {
+      tierRing.visible = true
+      tierRing.position.set(mesh.position.x, 0.01, mesh.position.z)
+    }
   })
 
   return (
@@ -176,6 +201,15 @@ function PieceMesh({
         rotation={[-Math.PI / 2, 0, 0]}
         visible={false}
       />
+      {tier !== 'green' && (
+        <mesh
+          ref={tierRingRef}
+          geometry={ringGeometry}
+          material={tierRingMaterials.get(tier)}
+          rotation={[-Math.PI / 2, 0, 0]}
+          visible={false}
+        />
+      )}
     </>
   )
 }
