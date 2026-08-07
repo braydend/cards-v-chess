@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BOARD, CORE_SQUARE } from '../data/board'
 import { allSquares, squareKey, squaresEqual } from './board'
-import { knightDistanceField } from './distanceFields'
+import { kingDistanceField, knightDistanceField } from './distanceFields'
 import { nextMove } from './movement'
 import type { MoveRequest } from './movement'
 import type { PieceTypeId, Square, Tower } from './types'
@@ -483,12 +483,72 @@ describe('king movement', () => {
       handedness: 1,
     })
   })
+})
 
-  it('sweeps the back rank rather than stranding', () => {
-    expect(move('king', { file: 5, rank: 0 }, NO_TOWERS, { handedness: -1 })).toEqual({
+describe('king hunting', () => {
+  it('steps toward the Core instead of sweeping the back rank', () => {
+    expect(move('king', { file: 5, rank: 0 })).toEqual({
       kind: 'move',
       to: { file: 4, rank: 0 },
-      handedness: -1,
+      hunting: true,
     })
+  })
+
+  it('leaks into the Core when adjacent to it', () => {
+    expect(move('king', { file: 4, rank: 0 })).toEqual({ kind: 'reachCore' })
+  })
+
+  it('strictly decreases distance on every hunting step, for every square on the board', () => {
+    // The same exhaustive shape as the Knight's "strictly decreases" test: a
+    // King's hunt is a single step, so every square must have a neighbour at
+    // exactly one less, or the walk can stall.
+    const field = kingDistanceField(BOARD, CORE_SQUARE)
+
+    for (const square of allSquares(BOARD)) {
+      if (squaresEqual(square, CORE_SQUARE)) continue
+      const ownDistance = field.get(squareKey(square))
+      expect(ownDistance).toBeDefined()
+
+      const outcome = move('king', square, NO_TOWERS, { hunting: true })
+
+      if (ownDistance === 1) {
+        expect(outcome).toEqual({ kind: 'reachCore' })
+        continue
+      }
+
+      expect(outcome.kind).toBe('move')
+      if (outcome.kind === 'move') {
+        expect(field.get(squareKey(outcome.to))).toBe((ownDistance ?? 0) - 1)
+      }
+    }
+  })
+
+  it('keeps hunting even where a forward step exists, and it differs from the march', () => {
+    // The latch: from (1,1) a marching King steps forward to (1,0), but a
+    // hunting King closes the file gap instead. If the trigger ever collapsed
+    // to "forward off the board" alone and dropped the "already hunting"
+    // half, this would revert to the forward step.
+    const forward = move('king', { file: 1, rank: 1 })
+    expect(forward).toEqual({ kind: 'move', to: { file: 1, rank: 0 }, handedness: 1 })
+
+    const hunting = move('king', { file: 1, rank: 1 }, NO_TOWERS, { hunting: true })
+    expect(hunting).toEqual({ kind: 'move', to: { file: 2, rank: 1 }, hunting: true })
+  })
+
+  it('grinds a Tower blocking its chosen square rather than stepping around it', () => {
+    const towers = towersAt({ file: 4, rank: 0 })
+
+    expect(move('king', { file: 5, rank: 0 }, towers)).toEqual({
+      kind: 'attackTower',
+      towerId: 'tower-0',
+      hunting: true,
+    })
+  })
+
+  it('is Tower-blind: a Tower nowhere near the choice does not change it', () => {
+    const chosen = { kind: 'move' as const, to: { file: 4, rank: 0 }, hunting: true }
+
+    expect(move('king', { file: 5, rank: 0 })).toEqual(chosen)
+    expect(move('king', { file: 5, rank: 0 }, towersAt({ file: 0, rank: 7 }))).toEqual(chosen)
   })
 })

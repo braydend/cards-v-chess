@@ -1,5 +1,5 @@
 import { isInBounds, squareKey, squaresEqual } from './board'
-import { KNIGHT_OFFSETS, knightDistanceField } from './distanceFields'
+import { KNIGHT_OFFSETS, ROYAL_OFFSETS, kingDistanceField, knightDistanceField } from './distanceFields'
 import type { BoardSpec, Handedness, Piece, PieceTypeId, Square, Tower } from './types'
 
 /**
@@ -46,10 +46,9 @@ export interface MoveRequest {
   /** Extra squares per hop, from a King aura. Sliders only. */
   readonly slideBonus: number
   /**
-   * Whether this Knight has already latched into hunting the Core. Every
-   * other Piece type ignores this field — it exists on the shared request
-   * only so `nextMove` stays one function per Piece type rather than
-   * growing a Knight-only parameter list.
+   * Whether this Piece has already latched into hunting the Core. Pawns are
+   * the only type that never reads it — they promote instead. See `huntCore`
+   * and `huntByField` for what hunting does per type.
    */
   readonly hunting: boolean
 }
@@ -58,6 +57,17 @@ export interface MoveRequest {
  * Pieces advance from the far rank toward rank 0, so "forward" is one rank down.
  */
 const FORWARD = -1
+
+/** One square straight down the file, or no move at all. */
+const forwardFileStep: Stepper = (from, handedness, board) => {
+  const ahead: Square = { file: from.file, rank: from.rank + FORWARD }
+  return isInBounds(board, ahead) ? { to: ahead, handedness } : undefined
+}
+
+/** Whether the Piece's forward square is off the board — the hunting trigger. */
+function forwardLeavesBoard(from: Square, board: BoardSpec): boolean {
+  return !isInBounds(board, { file: from.file, rank: from.rank + FORWARD })
+}
 
 /** One legal square, plus the handedness the Piece carries away from it. */
 interface Step {
@@ -289,6 +299,118 @@ function huntCore(
 }
 
 /**
+ * How the King and the sliders hunt: direction from a distance field over
+ * their own movement, exactly as the Knight's `huntCore` does, adapted to
+ * pieces that move along lines.
+ *
+ * Direction choice: the first direction, in the fixed order of `directions`,
+ * whose ray from `from` passes through a square at field distance
+ * `ownDistance − 1`. The slide then resolves along that ray with the usual
+ * discipline — one square at a time, a Tower attacked rather than passed,
+ * the target square leaked into — for at most `maxSteps` squares, and
+ * **capped at the closer square**: `steps` never exceeds the ray distance to
+ * it, so a long slide cannot pass straight through the phase target and land
+ * beyond it, still at the same distance. That overshoot is exactly the
+ * oscillation the hunting latch exists to prevent.
+ *
+ * Convergence is argued in two levels, because a slide shorter than the ray
+ * does not drop field distance per hop: distance strictly decreases between
+ * phases (2→1→0 for the sliders, one step per decrease for the King), and
+ * within a phase every hop advances along a shortest-path line toward that
+ * phase's target — arriving on it, exhausting the slide count en route, or
+ * grinding the Tower blocking the line. The walk's arrival from every square
+ * is pinned exhaustively in movement.test.ts.
+ *
+ * The Tower check runs BEFORE the target check on purpose: the target is the
+ * Core for most hunts, which no Tower can occupy, but a colour-locked Bishop
+ * hunts the square directly in front of the Core, and a Tower CAN stand
+ * there — it must be ground down before the leak, not leaked through.
+ *
+ * The field never sees Towers — see distanceFields.ts — so this only ever
+ * consults `towerBySquare` for squares it has already committed to. A Tower
+ * there is attacked, exactly like every other blocked Piece; this never tries
+ * the next direction, which is what keeps a hunting Piece walled rather than
+ * herded.
+ */
+function huntByField(
+  from: Square,
+  board: BoardSpec,
+  targetSquare: Square,
+  towerBySquare: ReadonlyMap<string, Tower>,
+  field: ReadonlyMap<string, number>,
+  directions: readonly Square[],
+  maxSteps: number,
+): MoveOutcome {
+  const ownDistance = field.get(squareKey(from))
+
+  // Undefined only if `from` is not connected to the target at all under this
+  // movement — not possible for the hunts wired today, but a future board
+  // shape should fail safe as a genuinely immobile Piece rather than throw.
+  if (ownDistance === undefined) return { kind: 'stuck' }
+
+  // Standing ON the target is arrival. In real play a Piece never begins a
+  // hop there — the target check fires the moment a slide steps onto it —
+  // but the exhaustive walk tests finish a colour-locked Bishop's approach
+  // from the square in front of the Core, and this keeps the function total.
+  if (ownDistance === 0) return { kind: 'reachCore' }
+
+  for (const direction of directions) {
+    const closerRange = rangeToCloserSquare(from, board, direction, field, ownDistance)
+    if (closerRange === undefined) continue
+
+    const steps = Math.min(Math.max(1, maxSteps), closerRange)
+    let square = from
+
+    for (let remaining = steps; remaining > 0; remaining -= 1) {
+      const next: Square = { file: square.file + direction.file, rank: square.rank + direction.rank }
+
+      const blocker = towerBySquare.get(squareKey(next))
+      if (blocker) {
+        return squaresEqual(square, from)
+          ? { kind: 'attackTower', towerId: blocker.id, hunting: true }
+          : { kind: 'move', to: square, hunting: true }
+      }
+
+      if (squaresEqual(next, targetSquare)) return { kind: 'reachCore' }
+
+      square = next
+    }
+
+    return { kind: 'move', to: square, hunting: true }
+  }
+
+  // Unreachable on the current board: every hunt wired today is connected to
+  // its target from every square it can start on. Kept so the function is
+  // total rather than assuming its own invariant.
+  return { kind: 'stuck' }
+}
+
+/**
+ * Steps along `direction` from `from` and returns how many squares it is to
+ * the first square at field distance `ownDistance − 1`, or `undefined` if the
+ * ray leaves the board without finding one.
+ */
+function rangeToCloserSquare(
+  from: Square,
+  board: BoardSpec,
+  direction: Square,
+  field: ReadonlyMap<string, number>,
+  ownDistance: number,
+): number | undefined {
+  let steps = 0
+  let square = from
+
+  for (;;) {
+    const next: Square = { file: square.file + direction.file, rank: square.rank + direction.rank }
+    if (!isInBounds(board, next)) return undefined
+
+    steps += 1
+    if (field.get(squareKey(next)) === ownDistance - 1) return steps
+    square = next
+  }
+}
+
+/**
  * Resolves one move for a Piece using **chess movement**, not a walk toward the
  * Core.
  *
@@ -351,9 +473,20 @@ export function nextMove(
         towerBySquare,
       )
     // One square, always. Not a slider, so no aura bonus applies — the King
-    // grants slide distance, it does not receive it.
+    // grants slide distance, it does not receive it. Once forward leaves the
+    // board the King hunts: one royal step at a time down the field.
     case 'king':
-      return travel(request.from, request.handedness, 1, rookStep, board, coreSquare, towerBySquare)
+      return request.hunting || forwardLeavesBoard(request.from, board)
+        ? huntByField(
+            request.from,
+            board,
+            coreSquare,
+            towerBySquare,
+            kingDistanceField(board, coreSquare),
+            ROYAL_OFFSETS,
+            1,
+          )
+        : travel(request.from, request.handedness, 1, forwardFileStep, board, coreSquare, towerBySquare)
   }
 }
 
