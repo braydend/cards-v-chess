@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BUILDABLE_RANKS, towerRank, type TowerRankDef } from '../data/towerRanks'
 import {
   allSquares,
+  coveredSquares,
   coversSquare,
   isInBounds,
   squaresEqual,
@@ -11,7 +12,13 @@ import {
   type Tower,
 } from '../game'
 import { firstTower, withTower } from '../game/fixtures'
-import { coverageSelection, selectedFootprint, type TowerFootprint } from './towerCoverage'
+import {
+  blockerSquares,
+  coverageSelection,
+  selectedFootprint,
+  squaresListsEqual,
+  type TowerFootprint,
+} from './towerCoverage'
 
 /**
  * Towers are built through the engine rather than hand-written, so a test can
@@ -48,7 +55,13 @@ function towerOn(state: GameState, square: Square): Tower {
  */
 function footprintOf(state: GameState, towerId: string, board: BoardSpec = state.board): TowerFootprint {
   const selection = coverageSelection(state.towers, towerId)
-  const footprint = selectedFootprint(board, selection?.cardRank, selection?.file, selection?.boardRank)
+  const footprint = selectedFootprint(
+    board,
+    selection?.cardRank,
+    selection?.file,
+    selection?.boardRank,
+    blockerSquares(state.towers),
+  )
   if (!footprint) throw new Error(`expected a footprint for ${towerId}`)
 
   return footprint
@@ -131,15 +144,15 @@ describe('selectedFootprint', () => {
   const BOARD: BoardSpec = { files: 8, ranks: 8 }
 
   it('returns null when there is no selection', () => {
-    expect(selectedFootprint(BOARD, undefined, undefined, undefined)).toBeNull()
+    expect(selectedFootprint(BOARD, undefined, undefined, undefined, [])).toBeNull()
   })
 
   it('returns null when a selection is missing the square it would be drawn at', () => {
     // The component reads the three fields off a possibly-null selection, so a
     // partial one is reachable. Half a selection draws nothing, not a footprint
     // at the board's origin.
-    expect(selectedFootprint(BOARD, 3, undefined, undefined)).toBeNull()
-    expect(selectedFootprint(BOARD, 3, 4, undefined)).toBeNull()
+    expect(selectedFootprint(BOARD, 3, undefined, undefined, [])).toBeNull()
+    expect(selectedFootprint(BOARD, 3, 4, undefined, [])).toBeNull()
   })
 
   it("puts the footprint at the selected Tower's square", () => {
@@ -198,5 +211,63 @@ describe('selectedFootprint', () => {
     expect(footprintOf(state, towerId, grown).covered.length).toBeGreaterThan(
       footprintOf(state, towerId).covered.length,
     )
+  })
+})
+
+describe('selectedFootprint under occlusion', () => {
+  it('omits squares another Tower hides', () => {
+    // Rank 3 vertical at {4,7}. A rank-7 Wall at {4,5} sits between it and
+    // every square below rank 5 on the file, so those leave the footprint even
+    // though the geometry covers them.
+    const withWall = withTower(7, { file: 4, rank: 5 })
+    const state = withTower(3, { file: 4, rank: 7 }, withWall)
+    const shooter = state.towers.find((tower) => tower.cardRank === 3)
+    if (!shooter) throw new Error('expected the rank-3 Tower')
+
+    const footprint = footprintOf(state, shooter.id)
+
+    expect(footprint.covered).toContainEqual({ file: 4, rank: 6 })
+    expect(footprint.covered).not.toContainEqual({ file: 4, rank: 2 })
+  })
+
+  it('never lets a Tower hide itself', () => {
+    // The selected Tower is in the blocker list (blockerSquares returns every
+    // standing Tower), and must not occlude its own shots.
+    const state = withTower(3, CENTRE)
+    const def = towerRank(3)
+
+    const footprint = footprintOf(state, firstTower(state).id)
+
+    expect(footprint.covered).toEqual(
+      coveredSquares(state.board, def.geometry, def.range, CENTRE),
+    )
+  })
+})
+
+describe('blockerSquares', () => {
+  it('returns one square per Tower, sorted into a canonical order', () => {
+    const withFirst = withTower(3, { file: 4, rank: 5 })
+    const state = withTower(7, { file: 2, rank: 3 }, withFirst)
+
+    // Sorted by squareKey, not by build order: {2,3} then {4,5}.
+    expect(blockerSquares(state.towers)).toEqual([
+      { file: 2, rank: 3 },
+      { file: 4, rank: 5 },
+    ])
+  })
+})
+
+describe('squaresListsEqual', () => {
+  it('is true for identical lists', () => {
+    const a = [{ file: 1, rank: 2 }]
+    expect(squaresListsEqual(a, [...a])).toBe(true)
+  })
+
+  it('is false on a length mismatch', () => {
+    expect(squaresListsEqual([], [{ file: 1, rank: 2 }])).toBe(false)
+  })
+
+  it('is false when any square differs', () => {
+    expect(squaresListsEqual([{ file: 1, rank: 2 }], [{ file: 1, rank: 3 }])).toBe(false)
   })
 })
