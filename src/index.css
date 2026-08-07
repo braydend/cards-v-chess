@@ -805,6 +805,13 @@ canvas {
    block's portrait `bottom` offset (equal specificity — source order decides). */
 @media (max-width: 28rem) and (orientation: landscape),
   (max-height: 30rem) and (orientation: landscape) {
+  /* The right rail's width, defined on `.hud` so every mobile child inherits
+     it — the rails, strip and TowerPanel are siblings, so a custom property
+     set only on the rail rules would never reach the offsets below. */
+  .hud {
+    --mobile-rail: 9rem;
+  }
+
   .mobileStats {
     left: 0;
     top: 0;
@@ -812,6 +819,7 @@ canvas {
     /* Clears the portrait rule's `right: 0` — without this the rail would
        span the full width and cover the board. */
     right: auto;
+    width: var(--mobile-rail);
     flex-direction: column;
     justify-content: center;
     gap: 0.8rem;
@@ -829,6 +837,7 @@ canvas {
     bottom: 0;
     /* Clears the portrait rule's `left: 0` — same full-width trap. */
     left: auto;
+    width: var(--mobile-rail);
     flex-direction: column;
     justify-content: center;
     gap: 0.4rem;
@@ -845,16 +854,16 @@ canvas {
      right rail, bottom-aligned, thumb-near the actions. */
   .mobileStrip {
     left: auto;
-    right: calc(6rem + 0.7rem);
+    right: calc(var(--mobile-rail) + 0.7rem);
     bottom: 0.7rem;
-    width: min(24rem, calc(100% - 8rem));
+    width: min(24rem, calc(100% - var(--mobile-rail) - 1.4rem));
   }
 
   /* The inspect panel avoids the full-height right rail: anchored top-right,
      left of it. */
   .towerPanel {
     top: 0.7rem;
-    right: calc(6rem + 0.7rem);
+    right: calc(var(--mobile-rail) + 0.7rem);
     bottom: auto;
   }
 }
