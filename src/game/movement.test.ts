@@ -311,12 +311,80 @@ describe('bishop movement', () => {
       expect((outcome.to.file + outcome.to.rank) % 2).toBe((7 + 6) % 2)
     }
   })
+})
 
-  it('sweeps sideways once it reaches the back rank', () => {
-    expect(move('bishop', { file: 5, rank: 0 }, NO_TOWERS, { handedness: -1 })).toEqual({
+describe('bishop hunting', () => {
+  it('climbs to the diagonal intersection instead of sweeping the back rank', () => {
+    // (5,0) is not on a Core diagonal. The intersection that routes it back
+    // down to (3,0) is (4,1) — one rank UP, away from the back rank, which
+    // is exactly why the hunting latch has to exist.
+    expect(move('bishop', { file: 5, rank: 0 })).toEqual({
       kind: 'move',
-      to: { file: 4, rank: 0 },
-      handedness: -1,
+      to: { file: 4, rank: 1 },
+      hunting: true,
+    })
+  })
+
+  it('leaks into the Core down the Core diagonal', () => {
+    expect(move('bishop', { file: 4, rank: 1 }, NO_TOWERS, { hunting: true })).toEqual({
+      kind: 'reachCore',
+    })
+  })
+
+  it('keeps hunting at the intersection, where a forward diagonal exists again', () => {
+    // The latch, pinned: at (4,1) the Bishop has a legal forward diagonal to
+    // (5,0). Unlatched, it would take it, march back to the back rank, and
+    // oscillate forever.
+    const forward = move('bishop', { file: 4, rank: 1 })
+    expect(forward).toEqual({ kind: 'move', to: { file: 5, rank: 0 }, handedness: 1 })
+
+    const hunting = move('bishop', { file: 4, rank: 1 }, NO_TOWERS, { hunting: true })
+    expect(hunting).toEqual({ kind: 'reachCore' })
+  })
+
+  it('arrives at the Core from every square of the Core colour', () => {
+    for (const square of allSquares(BOARD)) {
+      if (squaresEqual(square, CORE_SQUARE)) continue
+      if ((square.file + square.rank) % 2 !== (CORE_SQUARE.file + CORE_SQUARE.rank) % 2) continue
+      expect(walkToCore('bishop', square)).toBe(true)
+    }
+  })
+
+  it('grinds a Tower blocking the climb rather than taking another diagonal', () => {
+    const towers = towersAt({ file: 4, rank: 1 })
+
+    expect(move('bishop', { file: 5, rank: 0 }, towers)).toEqual({
+      kind: 'attackTower',
+      towerId: 'tower-0',
+      hunting: true,
+    })
+  })
+
+  it('leaks from the square in front of the Core when colour-locked', () => {
+    // (4,0) is the opposite colour from the Core, so the Core's square is
+    // unreachable — a leak from it is impossible. The hunt targets the square
+    // directly in front of the Core instead, (3,1), and leaks from there, so
+    // the Bishop still meets the Core the same way every other Piece does.
+    expect(move('bishop', { file: 4, rank: 0 })).toEqual({ kind: 'reachCore' })
+  })
+
+  it('arrives from every colour-locked square too', () => {
+    for (const square of allSquares(BOARD)) {
+      if ((square.file + square.rank) % 2 === (CORE_SQUARE.file + CORE_SQUARE.rank) % 2) continue
+      expect(walkToCore('bishop', square)).toBe(true)
+    }
+  })
+
+  it('grinds a Tower standing on the square in front of the Core before leaking', () => {
+    // The one square a colour-locked Bishop leaks FROM can hold a Tower, and
+    // the Tower check outranks the leak check on purpose: the Bishop grinds
+    // the wall down, it does not leak through it.
+    const towers = towersAt({ file: CORE_SQUARE.file, rank: CORE_SQUARE.rank + 1 })
+
+    expect(move('bishop', { file: 4, rank: 0 }, towers)).toEqual({
+      kind: 'attackTower',
+      towerId: 'tower-0',
+      hunting: true,
     })
   })
 })

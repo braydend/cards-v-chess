@@ -1,8 +1,10 @@
 import { isInBounds, squareKey, squaresEqual } from './board'
 import {
+  DIAGONAL_OFFSETS,
   KNIGHT_OFFSETS,
   ORTHOGONAL_OFFSETS,
   ROYAL_OFFSETS,
+  bishopDistanceField,
   kingDistanceField,
   knightDistanceField,
   rookDistanceField,
@@ -455,7 +457,32 @@ export function nextMove(
             coreSquare,
             towerBySquare,
           )
-    case 'bishop':
+    case 'bishop': {
+      if (request.hunting || forwardLeavesBoard(request.from, board)) {
+        // A Bishop stays on its own colour, so a Core on the other colour is
+        // a square it can never stand on — no leak from it is possible. Such
+        // a Bishop hunts the square directly in front of the Core instead,
+        // which is always the Bishop's own colour, and leaks from there:
+        // every Piece meets the Core the same way. The field is seeded at
+        // the target in BOTH cases, which is what makes the two branches one
+        // code path. See the hunting-for-all spec.
+        const locked =
+          (request.from.file + request.from.rank) % 2 !== (coreSquare.file + coreSquare.rank) % 2
+        const target: Square = locked
+          ? { file: coreSquare.file, rank: coreSquare.rank + 1 }
+          : coreSquare
+
+        return huntByField(
+          request.from,
+          board,
+          target,
+          towerBySquare,
+          bishopDistanceField(board, target),
+          DIAGONAL_OFFSETS,
+          1 + request.slideBonus,
+        )
+      }
+
       return travel(
         request.from,
         request.handedness,
@@ -465,6 +492,7 @@ export function nextMove(
         coreSquare,
         towerBySquare,
       )
+    }
     case 'knight':
       return knightMove(
         request.from,

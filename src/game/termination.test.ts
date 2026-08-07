@@ -77,6 +77,17 @@ describe('round termination', () => {
     expect(settled.leaks).toBe(1)
   })
 
+  it('a colour-locked Bishop still leaks, from the square in front of the Core', () => {
+    // (4,0) is the opposite colour from the Core, so it can never stand on
+    // the Core's square. It hunts the square directly in front of it and
+    // leaks from there — same interaction with the Core as every other Piece.
+    const settled = settle(roundWith([pieceOn('b', 'bishop', 4, 0)]))
+
+    expect(settled.phase).toBe('gap')
+    expect(settled.pieces).toHaveLength(0)
+    expect(settled.leaks).toBe(1)
+  })
+
   it.each(
     Array.from({ length: BOARD.files }, (_, file) => file).filter(
       (file) => file !== CORE_SQUARE.file,
