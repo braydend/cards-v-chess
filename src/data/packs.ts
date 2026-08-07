@@ -3,12 +3,17 @@ import type { CardRank } from '../game/types'
 /**
  * Pack balance.
  *
- * **Every price and weight here is a PLACEHOLDER**, in exactly the sense
+ * The **prices are settled** — each value here is the BASE price, from which
+ * the escalation in `src/game/packs.ts` starts: every purchase of a pack type
+ * raises that type's price by 10%, compounding, for the rest of the run. See
+ * `packPrice` in `src/game/packs.ts` and the design doc's "Ink and packs".
+ *
+ * The **tier weights are still PLACEHOLDER**, in exactly the sense
  * `src/data/ink.ts` means it. Ink's worth is set by what it buys and packs are
- * what buy it, so prices and Ink income have to be tuned against each other in
+ * what buy it, so weights and Ink income have to be tuned against each other in
  * one pass — see "Pack weighting and prices" and "Ink income values" in the
- * design doc's open questions. Both remain open. Numbers exist here because a
- * purchase cannot happen without them, not because they are right.
+ * design doc's open questions. Numbers exist here because a deal cannot happen
+ * without them, not because they are right.
  *
  * The **sizes** are not placeholders. They come from the design doc's pack table
  * and the cull arithmetic depends on them.
@@ -57,7 +62,7 @@ export interface PackDef {
   readonly label: string
   /** How many cards it deals. Not a placeholder — the cull maths reads it. */
   readonly size: number
-  /** PLACEHOLDER price, in Ink. */
+  /** BASE price, in Ink — escalated per purchase by `packPrice`. */
   readonly price: number
   /** Whether it deals a single suit of the player's choosing. */
   readonly suited: boolean
@@ -77,21 +82,21 @@ export const PACKS: Record<PackType, PackDef> = {
   scrap: {
     label: 'Scrap',
     size: 3,
-    price: 15,
+    price: 50,
     suited: false,
     tierBoost: FLAT,
   },
   base: {
     label: 'Base',
     size: 10,
-    price: 40,
+    price: 100,
     suited: false,
     tierBoost: FLAT,
   },
   court: {
     label: 'Court',
     size: 10,
-    price: 85,
+    price: 400,
     suited: false,
     // Shifts mass into the scarce tier — it does not exclude 2-10, so a Court
     // is better odds and never a guarantee.
@@ -100,7 +105,7 @@ export const PACKS: Record<PackType, PackDef> = {
   suited: {
     label: 'Suited',
     size: 10,
-    price: 60,
+    price: 200,
     // The only pack that lets a player commit to a strategy rather than simply
     // get better numbers.
     suited: true,
