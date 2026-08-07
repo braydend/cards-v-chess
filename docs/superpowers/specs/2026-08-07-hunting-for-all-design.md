@@ -98,19 +98,16 @@ cannot herd one.
   movement; her rook/bishop alternation is forward-march behaviour only.
 - **Colour-locked Bishop.** If the Core sits on a colour the Bishop can never
   reach, the Core's field does not cover the Bishop at all. It instead follows
-  a bishop field seeded at the square directly *behind* the Core —
+  a bishop field seeded at the square directly in front of the Core —
   `(core.file, core.rank + 1)` — which is always the opposite colour from the
-  Core and therefore always on the Bishop's colour. On arrival the Core is
-  directly in front, and each move interval the Bishop attacks the square
-  directly ahead at `attackDamage × BLOCKED_ATTACK_MULTIPLIER` — half damage,
-  the same multiplier every blocked Piece uses — hitting whatever occupies it.
-  In practice that is always the Core: the square ahead is the Core's own
-  square, which no Tower can occupy, and any Tower on the approach path is
-  ground down by the usual blocking rule before the Bishop arrives. The rule is
-  nonetheless "attack whatever is ahead", so the two cases stay one code path.
-  The attack is an attack, not a leak: the Bishop stays where it stands, and
-  the leaks counter does not count it. Core health can therefore go
-  fractional; the HUD shows `Math.ceil`.
+  Core and therefore always on the Bishop's colour. For the hunt, that square
+  stands in for the Core itself: reaching it **leaks as usual** — the standard
+  leak damage, the leaks counter, the exit — so the Bishop interacts with the
+  Core exactly as every other Piece does, only from one square away. A Tower
+  standing on the square is ground down by the usual blocking rule before the
+  Bishop can leak. Issue #13's literal caveat was a standing half-damage
+  forward attack from that square; it is set aside — for now — in favour of
+  uniform Core interaction. See Rejected alternatives.
 
 ## Invariant change
 
@@ -133,18 +130,23 @@ now for every type instead of just the Knight.
   file while pacing the back rank — but by a long, visible detour. Hunting goes
   straight.
 - **The Bishop keeps its colour.** Its hunt is diagonal-only; the colour-lock
-  exception attacks from a distance rather than ever stepping onto a wrong
-  colour.
-- **A colour-locked Bishop is a slow siege, not a leak.** At 0.5 Core damage
-  per move interval it is the weakest threat on the roster, but it is a threat
-  that never stops, and several of them stack. It is acting the whole time, so
-  a round with one still standing cannot end early either.
-- **Core health can go fractional**, from the Bishop's half-damage attacks.
-  Displayed rounded up; kept fractional underneath rather than inventing a
-  rounding rule for damage.
+  exception leaks from the square in front of the Core rather than ever
+  stepping onto a wrong colour.
+- **Every Piece interacts with the Core the same way.** Every leak is the
+  standard one damage and an exit; the colour-locked Bishop is the only Piece
+  that leaks from a square adjacent to the Core rather than the Core's own
+  square.
 
 ## Rejected alternatives
 
+- **The issue's literal caveat: a standing half-damage forward attack.** The
+  colour-locked Bishop would stand on the square in front of the Core and
+  attack it each move interval at half `attackDamage` — a slow siege rather
+  than a leak. Rejected — for now — because it introduces a second way to
+  damage the Core: a new move outcome, fractional Core health, a HUD change,
+  and a Piece that interacts with the Core unlike any other. A uniform leak
+  keeps every Piece's interaction identical. Worth revisiting if leaks ever
+  deal Piece-specific damage.
 - **Rank-0 geometry.** Hunting always starts on rank 0, so each type's route to
   the Core could be hardcoded: slide along the rank toward the Core's file,
   Bishop via a closed-form diagonal intersection. Less code than four BFS
