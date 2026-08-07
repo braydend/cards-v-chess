@@ -639,7 +639,6 @@ canvas {
     right: 0;
     align-items: center;
     justify-content: center;
-    gap: 1.4rem;
     padding: 0.45rem 0.7rem;
     padding-top: calc(0.45rem + env(safe-area-inset-top));
     border-bottom-left-radius: 0.6rem;
@@ -770,59 +769,6 @@ canvas {
   }
 }
 
-/* Landscape: stats become a full-height left rail, actions a full-height
-   right rail, so the board keeps the full vertical centre. */
-@media (max-width: 28rem) and (orientation: landscape),
-  (max-height: 30rem) and (orientation: landscape) {
-  .mobileStats {
-    left: 0;
-    top: 0;
-    bottom: 0;
-    flex-direction: column;
-    justify-content: center;
-    gap: 0.8rem;
-    padding: 0.7rem 0.45rem;
-    padding-left: calc(0.45rem + env(safe-area-inset-left));
-    border-top-right-radius: 0.6rem;
-    border-bottom-right-radius: 0.6rem;
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-  }
-
-  .mobileActions {
-    right: 0;
-    top: 0;
-    bottom: 0;
-    flex-direction: column;
-    justify-content: center;
-    gap: 0.4rem;
-    padding: 0.7rem 0.45rem;
-    padding-right: calc(0.45rem + env(safe-area-inset-right));
-    border-top-left-radius: 0.6rem;
-    border-bottom-left-radius: 0.6rem;
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
-  }
-
-  /* The selected-card strip follows the actions. In landscape the rail is too
-     narrow for the mode-toggle labels, so the strip floats just left of the
-     right rail, bottom-aligned, thumb-near the actions. */
-  .mobileStrip {
-    left: auto;
-    right: calc(6rem + 0.7rem);
-    bottom: 0.7rem;
-    width: min(24rem, calc(100% - 8rem));
-  }
-
-  /* The inspect panel avoids the full-height right rail: anchored top-right,
-     left of it. */
-  .towerPanel {
-    top: 0.7rem;
-    right: calc(6rem + 0.7rem);
-    bottom: auto;
-  }
-}
-
 /* Touch hygiene — under the mobile media query, interactive chrome must not
    zoom on double-tap, must not fire iOS's callout on long-press, and must not
    scroll the page when a deck is scrolled. The canvas keeps its global
@@ -850,5 +796,65 @@ canvas {
   /* The Tower panel moves above the bar so the two never overlap. */
   .towerPanel {
     bottom: calc(3.6rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* Landscape: stats become a full-height left rail, actions a full-height
+   right rail, so the board keeps the full vertical centre. Placed after the
+   touch-hygiene block so the landscape .towerPanel `bottom: auto` beats that
+   block's portrait `bottom` offset (equal specificity — source order decides). */
+@media (max-width: 28rem) and (orientation: landscape),
+  (max-height: 30rem) and (orientation: landscape) {
+  .mobileStats {
+    left: 0;
+    top: 0;
+    bottom: 0;
+    /* Clears the portrait rule's `right: 0` — without this the rail would
+       span the full width and cover the board. */
+    right: auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.8rem;
+    padding: 0.7rem 0.45rem;
+    padding-left: calc(0.45rem + env(safe-area-inset-left));
+    border-top-right-radius: 0.6rem;
+    border-bottom-right-radius: 0.6rem;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  .mobileActions {
+    right: 0;
+    top: 0;
+    bottom: 0;
+    /* Clears the portrait rule's `left: 0` — same full-width trap. */
+    left: auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.7rem 0.45rem;
+    padding-right: calc(0.45rem + env(safe-area-inset-right));
+    border-top-left-radius: 0.6rem;
+    border-bottom-left-radius: 0.6rem;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  /* The selected-card strip follows the actions. In landscape the rail is too
+     narrow for the mode-toggle labels, so the strip floats just left of the
+     right rail, bottom-aligned, thumb-near the actions. */
+  .mobileStrip {
+    left: auto;
+    right: calc(6rem + 0.7rem);
+    bottom: 0.7rem;
+    width: min(24rem, calc(100% - 8rem));
+  }
+
+  /* The inspect panel avoids the full-height right rail: anchored top-right,
+     left of it. */
+  .towerPanel {
+    top: 0.7rem;
+    right: calc(6rem + 0.7rem);
+    bottom: auto;
   }
 }
