@@ -43,6 +43,15 @@ const NODE_NAME_BY_TYPE: Record<PieceTypeId, string> = {
 const ROTATE_ON_X: ReadonlySet<PieceTypeId> = new Set(['knight', 'king', 'bishop'])
 
 /**
+ * The Knight's head faces sideways in the source (along ±X after extraction);
+ * the board runs along Z and Pieces march toward the Core at the low-rank end.
+ * Rotating it −90° about Y turns its head toward the Core end (−Z), so the
+ * horse reads as facing the direction it moves. Picked from a browser preview
+ * of all four rotations; the other types are already facing correctly.
+ */
+const KNIGHT_FACING: ReadonlySet<PieceTypeId> = new Set(['knight'])
+
+/**
  * Uniform scale so the pieces fit 1-unit board squares. Placeholder for visual
  * review — see the design doc's open question; 0.65 is the fallback.
  */
@@ -104,6 +113,7 @@ export function extractPieceGeometry(scene: Object3D, typeId: PieceTypeId): Buff
   if (!merged) throw new Error(`Could not merge "${NODE_NAME_BY_TYPE[typeId]}" parts`)
 
   if (ROTATE_ON_X.has(typeId)) merged.rotateX(-Math.PI / 2)
+  if (KNIGHT_FACING.has(typeId)) merged.rotateY(-Math.PI / 2)
   merged.scale(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE)
   merged.computeBoundingBox()
   const minY = merged.boundingBox?.min.y ?? 0

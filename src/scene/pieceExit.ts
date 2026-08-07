@@ -1,11 +1,13 @@
-import type { GameState, PieceTypeId } from '../game'
+import type { GameState, PieceTier, PieceTypeId } from '../game'
 
 /**
  * A Piece that has left `GameState`, held briefly so its exit is visible.
  *
- * Carries its own square and type for the reason `Ghost` in towerDiff.ts and
- * `FirePulse` in firePulse.ts both do: once the Piece leaves state, this record
- * is the only place the renderer still knows what it was or where it stood.
+ * Carries its own square, type, and tier for the reason `Ghost` in towerDiff.ts
+ * and `FirePulse` in firePulse.ts both do: once the Piece leaves state, this
+ * record is the only place the renderer still knows what it was or where it
+ * stood. Tier rides along so a ghost bursts in the colour the Piece's tier
+ * carries, matching the live piece.
  */
 export interface PieceGhost {
   readonly id: string
@@ -17,6 +19,7 @@ export interface PieceGhost {
    */
   readonly meshKey: string
   readonly typeId: PieceTypeId
+  readonly tier: PieceTier
   readonly reason: 'leak' | 'kill'
   readonly file: number
   readonly boardRank: number
@@ -33,6 +36,7 @@ export interface PieceExitDiff {
 
 interface SeenPiece {
   readonly typeId: PieceTypeId
+  readonly tier: PieceTier
   readonly file: number
   readonly boardRank: number
 }
@@ -97,6 +101,7 @@ export function diffPieceExits(tracker: ExitTracker, snapshot: GameState): Piece
     live.add(piece.id)
     tracker.seen.set(piece.id, {
       typeId: piece.typeId,
+      tier: piece.tier,
       file: piece.square.file,
       boardRank: piece.square.rank,
     })
@@ -121,6 +126,7 @@ export function diffPieceExits(tracker: ExitTracker, snapshot: GameState): Piece
         id,
         meshKey: `ghost:${id}`,
         typeId: record.typeId,
+        tier: seen.tier,
         reason: 'leak',
         // From the record, not from `seen`: the Piece can have hopped more than
         // once inside the tick it leaked, and the engine recorded where it
@@ -135,6 +141,7 @@ export function diffPieceExits(tracker: ExitTracker, snapshot: GameState): Piece
       id,
       meshKey: `ghost:${id}`,
       typeId: seen.typeId,
+      tier: seen.tier,
       reason: 'kill',
       file: seen.file,
       boardRank: seen.boardRank,

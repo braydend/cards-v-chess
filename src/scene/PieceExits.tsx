@@ -1,12 +1,12 @@
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { MeshStandardMaterial, type BufferGeometry, type Material, type Mesh } from 'three'
-import type { BoardSpec, PieceTypeId, Square } from '../game'
+import type { BoardSpec, PieceTier, Square } from '../game'
 import { useGameStore } from '../state/store'
 import { fileToWorldX, rankToWorldZ } from './coords'
 import type { CoreFlash } from './coreFlash'
-import { PIECE_COLOURS } from './pieceColours'
-import { PIECE_TYPE_IDS, REST_Y, usePieceModels } from './pieceModels'
+import { REST_Y, usePieceModels } from './pieceModels'
+import { TIER_COLOURS } from './tierColours'
 import {
   GHOST_EXPIRY_SLACK_MS,
   GHOST_LIFETIME_MS,
@@ -46,33 +46,31 @@ export function PieceExits({
   const tracker = useRef(createExitTracker())
   const expiryTimers = useRef(new Set<ReturnType<typeof setTimeout>>())
 
-  // One geometry and one material per type, shared across every ghost of it,
-  // per CLAUDE.md. Ghosts fade by scale rather than opacity, which is what lets
-  // them share an opaque material at all — see `ghostScale`.
+  // One geometry per type (from `pieceModels`) and one material per tier,
+  // shared across every ghost of it, per CLAUDE.md. Ghosts fade by scale rather
+  // than opacity, which is what lets them share an opaque material at all —
+  // see `ghostScale`.
   const models = usePieceModels()
   const resources = useMemo(() => {
-    const byType = new Map<PieceTypeId, { geometry: BufferGeometry; material: Material }>()
+    const byTier = new Map<PieceTier, Material>()
 
-    for (const typeId of PIECE_TYPE_IDS) {
-      byType.set(typeId, {
-        geometry: models[typeId],
-        material: new MeshStandardMaterial({
-          color: PIECE_COLOURS[typeId],
-          emissive: PIECE_COLOURS[typeId],
-          emissiveIntensity: 0.6,
-          flatShading: true,
-        }),
-      })
+    for (const [tier, colour] of Object.entries(TIER_COLOURS)) {
+      byTier.set(tier as PieceTier, new MeshStandardMaterial({
+        color: colour,
+        emissive: colour,
+        emissiveIntensity: 0.6,
+        flatShading: true,
+      }))
     }
 
-    return byType
-  }, [models])
+    return byTier
+  }, [])
 
   useEffect(
     () => () => {
       // The model geometries are owned by pieceModels.ts and shared with
       // Pieces.tsx, so dispose only what this component created.
-      for (const { material } of resources.values()) material.dispose()
+      for (const material of resources.values()) material.dispose()
     },
     [resources],
   )
@@ -133,8 +131,9 @@ export function PieceExits({
   return (
     <>
       {ghosts.map((ghost) => {
-        const shared = resources.get(ghost.typeId)
-        if (!shared) return null
+        const geometry = models[ghost.typeId]
+        const material = resources.get(ghost.tier)
+        if (!geometry || !material) return null
 
         return (
           <GhostMesh
@@ -142,8 +141,8 @@ export function PieceExits({
             ghost={ghost}
             board={board}
             coreSquare={coreSquare}
-            geometry={shared.geometry}
-            material={shared.material}
+            geometry={geometry}
+            material={material}
             flash={flash}
           />
         )
