@@ -4,7 +4,7 @@ import { PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { BISHOP_HEAL_INTERVAL_MS, KING_SPEED_MULTIPLIER } from './auras'
 import { liveRound, pawnAt, withTower } from './fixtures'
-import { createInitialState, step, tick } from './index'
+import { createInitialState, stagingRank, step, tick } from './index'
 import { roundIncome } from './ink'
 import { EXIT_RING_SIZE } from './tick'
 import type { GameState, Handedness, Piece, PieceTypeId, Square, Tower } from './types'
@@ -111,10 +111,10 @@ describe('tick: spawning', () => {
     expect(state.pendingSpawns.length).toBeGreaterThan(0)
   })
 
-  it('spawns pieces on the far rank', () => {
+  it('spawns pieces on the Staging rank', () => {
     const state = tick(startedRound(), DT)
 
-    expect(state.pieces[0]?.square.rank).toBe(state.board.ranks - 1)
+    expect(state.pieces[0]?.square.rank).toBe(stagingRank(state.board))
   })
 
   it('eventually spawns the whole round', () => {

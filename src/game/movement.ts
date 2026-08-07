@@ -64,7 +64,7 @@ export interface MoveRequest {
 }
 
 /**
- * Pieces advance from the far rank toward rank 0, so "forward" is one rank down.
+ * Pieces advance from the Staging rank toward rank 0, so "forward" is one rank down.
  */
 const FORWARD = -1
 

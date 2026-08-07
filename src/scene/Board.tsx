@@ -9,6 +9,7 @@ import { SQUARE_SIZE, fileToWorldX, rankToWorldZ, worldXToFile, worldZToRank } f
 import { CoveragePreview } from './CoveragePreview'
 import { FirePulses } from './FirePulses'
 import { SelectionMarker } from './SelectionMarker'
+import { StagingRank } from './StagingRank'
 import { TowerCoverage } from './TowerCoverage'
 
 const LIGHT_SQUARE = '#e6e0cf'
@@ -55,6 +56,12 @@ export function Board({ board }: { board: BoardSpec }) {
           />
         ))}
       </Instances>
+
+      {/* Above the overlay block on purpose: the ledge is a solid, depth-writing
+          box like the board squares themselves, not one of the flat overlays the
+          comment below governs. Putting it in that list would make that comment
+          false about its own first entry. */}
+      <StagingRank board={board} />
 
       {/* Every flat overlay below writes no depth, so neither JSX order nor the
           height each of them sits at decides what draws on top — each declares an

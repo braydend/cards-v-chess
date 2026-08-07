@@ -6,6 +6,7 @@
  * Card it costs.
  */
 import { PIECE_TYPES } from '../data/pieceTypes'
+import { squareKey } from './board'
 import { createInitialState } from './state'
 import { step } from './step'
 import type {
@@ -56,6 +57,34 @@ export function withTower(
   if (built === seeded) throw new Error('withTower: build was refused, no Tower was added')
 
   return built
+}
+
+/**
+ * A Tower on every one of these squares, built directly rather than through
+ * `withTower` — a test walling a whole rank or board wants a `Map` it can
+ * hand straight to movement code, not a Deck to seed one Card at a time.
+ *
+ * Only `id` is read by the movement code under test; the rest of the shape
+ * exists so the map is a real `Map<string, Tower>` rather than a cast.
+ */
+export function towersAt(...squares: Square[]): Map<string, Tower> {
+  return new Map(
+    squares.map((square, index) => [
+      squareKey(square),
+      {
+        id: `tower-${index}`,
+        square,
+        cardRank: 2 as const,
+        fireCooldownMs: 0,
+        health: 8,
+        maxHealth: 8,
+        damage: 1,
+        fireIntervalMs: 600,
+        shield: 0,
+        damageTaken: 0,
+      },
+    ]),
+  )
 }
 
 /**

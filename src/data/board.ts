@@ -14,8 +14,9 @@ export const BOARD: BoardSpec = { files: 8, ranks: 8 }
 
 /**
  * The Core sits on the player's back rank, and stays there. Pieces spawn from
- * whatever the far rank currently is — an Ace grows the board, so the spawn rank
- * is read from state rather than fixed here.
+ * the Staging rank (`stagingRank` in `src/game/board.ts`), one past whatever the
+ * far rank currently is — an Ace grows the board, so the spawn rank is read
+ * from state rather than fixed here.
  */
 export const CORE_SQUARE: Square = { file: 3, rank: 0 }
 

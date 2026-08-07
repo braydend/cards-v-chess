@@ -2,29 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { BOARD, CORE_SQUARE } from '../data/board'
 import { allSquares, squareKey, squaresEqual } from './board'
 import { kingDistanceField, knightDistanceField, rookDistanceField } from './distanceFields'
+import { towersAt } from './fixtures'
 import { nextMove } from './movement'
 import type { MoveRequest } from './movement'
 import type { PieceTypeId, Square, Tower } from './types'
-
-function towersAt(...squares: Square[]): Map<string, Tower> {
-  return new Map(
-    squares.map((square, index) => [
-      squareKey(square),
-      {
-        id: `tower-${index}`,
-        square,
-        cardRank: 2 as const,
-        fireCooldownMs: 0,
-        health: 8,
-        maxHealth: 8,
-        damage: 1,
-        fireIntervalMs: 600,
-        shield: 0,
-        damageTaken: 0,
-      },
-    ]),
-  )
-}
 
 const NO_TOWERS = new Map<string, Tower>()
 
