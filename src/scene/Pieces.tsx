@@ -13,7 +13,7 @@ import { getState } from '../state/simulation'
 import { useGameStore } from '../state/store'
 import { fileToWorldX, rankToWorldZ } from './coords'
 import { BUFF_RING_COLOUR, PIECE_COLOURS } from './pieceColours'
-import { GEOMETRY_BY_TYPE, PIECE_TYPE_IDS, REST_Y_BY_TYPE } from './pieceGeometry'
+import { PIECE_TYPE_IDS, REST_Y, usePieceModels } from './pieceModels'
 import { PROMOTION_POP_MS, promotionPopLift, promotionPopScale } from './promotionPop'
 import { TIER_COLOURS } from './tierColours'
 import { createWhiffTracker, whiffAgeMs, whiffScale } from './whiff'
@@ -31,6 +31,11 @@ export function Pieces({ board }: { board: BoardSpec }) {
   // dies, not when one moves. Movement is handled by mutation below.
   const pieces = useGameStore((store) => store.snapshot.pieces)
 
+  // The shared model geometries, one per type, cached module-wide. Suspends
+  // until the GLTF is loaded — the `<Suspense>` in GameScene holds the board
+  // up while it streams in.
+  const models = usePieceModels()
+
   // One geometry and one material per type, shared across every instance of it,
   // per CLAUDE.md. Built once, disposed on unmount.
   const resources = useMemo(() => {
@@ -47,20 +52,19 @@ export function Pieces({ board }: { board: BoardSpec }) {
 
     for (const typeId of PIECE_TYPE_IDS) {
       byType.set(typeId, {
-        geometry: GEOMETRY_BY_TYPE[typeId](),
+        geometry: models[typeId],
         material: new MeshStandardMaterial({ color: PIECE_COLOURS[typeId], flatShading: true }),
       })
     }
 
     return { byType, ring, ringMaterial, tierRingMaterials }
-  }, [])
+  }, [models])
 
   useEffect(
     () => () => {
-      for (const { geometry, material } of resources.byType.values()) {
-        geometry.dispose()
-        material.dispose()
-      }
+      // The model geometries are owned by pieceModels.ts and shared with
+      // PieceExits.tsx, so dispose only what this component created.
+      for (const { material } of resources.byType.values()) material.dispose()
       resources.ring.dispose()
       resources.ringMaterial.dispose()
       for (const material of resources.tierRingMaterials.values()) material.dispose()
@@ -78,7 +82,6 @@ export function Pieces({ board }: { board: BoardSpec }) {
           <PieceMesh
             key={piece.id}
             pieceId={piece.id}
-            typeId={piece.typeId}
             tier={piece.tier}
             promoted={piece.promoted}
             board={board}
@@ -96,7 +99,6 @@ export function Pieces({ board }: { board: BoardSpec }) {
 
 function PieceMesh({
   pieceId,
-  typeId,
   tier,
   promoted,
   board,
@@ -107,7 +109,6 @@ function PieceMesh({
   tierRingMaterials,
 }: {
   pieceId: string
-  typeId: PieceTypeId
   tier: PieceTier
   promoted: boolean
   board: BoardSpec
@@ -151,7 +152,7 @@ function PieceMesh({
     const toX = fileToWorldX(board, piece.square.file)
     const toZ = rankToWorldZ(board, piece.square.rank)
 
-    const restY = REST_Y_BY_TYPE[typeId]
+    const restY = REST_Y
 
     mesh.position.set(
       fromX + (toX - fromX) * progress,
