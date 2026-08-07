@@ -110,6 +110,20 @@ export interface ExitRecord {
   readonly from: Square
 }
 
+/**
+ * One negated Tower shot, recorded for the renderer.
+ *
+ * A dodge changes no field the renderer diffs — a hit is a `damageTaken` rise,
+ * a death is an absence, but a negated shot leaves the Piece untouched — so it
+ * must be recorded or the whiff can never be shown. Never cleared, capped at
+ * `DODGE_RING_SIZE` in `tick.ts` exactly as `recentExits` is.
+ */
+export interface DodgeRecord {
+  readonly pieceId: string
+  readonly roundNumber: number
+  readonly roundElapsedMs: number
+}
+
 export interface Piece {
   readonly id: string
   readonly typeId: PieceTypeId
@@ -322,6 +336,21 @@ export interface GameState {
    */
   readonly recentExits: readonly ExitRecord[]
   /**
+   * The most recent negated Tower shots, for the renderer to show a whiff.
+   *
+   * A dodge is invisible to the structural key — the Piece ends the tick with
+   * the same square, health, and flags it started with — so it must be recorded
+   * or the whiff can never be drawn. Lookup is by `pieceId`, unique within a
+   * run, so a stale record can never match a live Piece.
+   *
+   * NEVER CLEARED, and deliberately excluded from `structuralKey`: a dodge is a
+   * pure render cue, and keying it would publish a store update for every
+   * negated shot. Capped at `DODGE_RING_SIZE` in `tick.ts` instead, exactly as
+   * `recentExits` is. A Joker's Clear is a board wipe, not damage, so it never
+   * rolls and never lands here.
+   */
+  readonly recentDodges: readonly DodgeRecord[]
+  /**
    * How many Joker Clears have resolved this run. Monotonic.
    *
    * The renderer's signal to flash the whole board rather than burst every
@@ -375,12 +404,15 @@ export interface GameState {
   readonly seed: string
   /**
    * The run's PRNG streams, each derived from `seed` and independent of the
-   * others. Packs are the only consumer today; a second random consumer takes a
-   * new named stream rather than sharing this one, so adding it cannot shift
-   * what an existing seed deals. See `src/game/rng.ts`.
+   * others. Packs draw from their own stream and the black dodge from its own —
+   * each new consumer takes a new named stream rather than sharing an existing
+   * one, so adding it cannot shift what an existing seed deals or dodges. See
+   * `src/game/rng.ts`.
    */
   readonly rng: {
     readonly packs: Rng
+    /** The black dodge's draws. Independent of `packs` — see `src/game/rng.ts`. */
+    readonly combat: Rng
   }
   /**
    * Monotonic counter for Card ids.

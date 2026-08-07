@@ -6,6 +6,7 @@ import { isInBounds, squareKey, stagingRank } from './board'
 import { coversSquare } from './coverage'
 import { roundIncome, totalKillReward } from './ink'
 import { isStuck, nextMove } from './movement'
+import { next, type Rng } from './rng'
 import { step } from './step'
 import {
   FREEZE_MULTIPLIER,
@@ -13,7 +14,16 @@ import {
   amplifierIdsByPiece,
   frozenPieceIds,
 } from './towerAuras'
-import type { BoardSpec, ExitRecord, GameState, Piece, PieceTier, Square, Tower } from './types'
+import type {
+  BoardSpec,
+  DodgeRecord,
+  ExitRecord,
+  GameState,
+  Piece,
+  PieceTier,
+  Square,
+  Tower,
+} from './types'
 
 /**
  * How many exit records `GameState.recentExits` keeps.
@@ -25,6 +35,13 @@ import type { BoardSpec, ExitRecord, GameState, Piece, PieceTier, Square, Tower 
  * times over.
  */
 export const EXIT_RING_SIZE = 32
+
+/**
+ * How many dodge records `GameState.recentDodges` keeps. Sized like the exit
+ * ring: the renderer reads it live each frame, so it only needs to outlast a
+ * publish cycle.
+ */
+export const DODGE_RING_SIZE = 32
 
 /**
  * Appends to the exit ring, dropping the oldest past `EXIT_RING_SIZE`.
@@ -41,6 +58,23 @@ function appendExits(
   const next = [...current, ...added]
 
   return next.length > EXIT_RING_SIZE ? next.slice(next.length - EXIT_RING_SIZE) : next
+}
+
+/**
+ * Appends to the dodge ring, dropping the oldest past `DODGE_RING_SIZE`.
+ *
+ * Returns the SAME array when there is nothing to append, so the overwhelming
+ * majority of ticks allocate nothing here.
+ */
+function appendDodges(
+  current: readonly DodgeRecord[],
+  added: readonly DodgeRecord[],
+): readonly DodgeRecord[] {
+  if (added.length === 0) return current
+
+  const next = [...current, ...added]
+
+  return next.length > DODGE_RING_SIZE ? next.slice(next.length - DODGE_RING_SIZE) : next
 }
 
 /**
@@ -132,7 +166,15 @@ export function tick(state: GameState, dtMs: number): GameState {
     state.board,
     state.core.square,
     dtMs,
+    state.rng.combat,
   )
+
+  const dodgeRecords: DodgeRecord[] = fired.dodged.map((pieceId) => ({
+    pieceId,
+    roundNumber: state.roundNumber,
+    roundElapsedMs,
+  }))
+  const recentDodges = appendDodges(state.recentDodges, dodgeRecords)
 
   // After firing, so a Bishop can top up survivors but never resurrect the dead.
   const healed = applyHealing(fired.pieces, dtMs)
@@ -157,6 +199,8 @@ export function tick(state: GameState, dtMs: number): GameState {
       core,
       leaks,
       recentExits,
+      recentDodges,
+      rng: { ...state.rng, combat: fired.rng },
       ink,
       roundElapsedMs,
       pieces: healed,
@@ -208,6 +252,8 @@ export function tick(state: GameState, dtMs: number): GameState {
       core,
       leaks,
       recentExits,
+      recentDodges,
+      rng: { ...state.rng, combat: fired.rng },
       // `state.roundNumber`, NOT the incremented value on the next line: this
       // pays for the round just played, not the one about to start.
       ink: ink + roundIncome(state.roundNumber),
@@ -223,6 +269,8 @@ export function tick(state: GameState, dtMs: number): GameState {
     core,
     leaks,
     recentExits,
+    recentDodges,
+    rng: { ...state.rng, combat: fired.rng },
     ink,
     roundElapsedMs,
     pieces: healed,
@@ -260,13 +308,24 @@ function fireTowers(
   board: BoardSpec,
   coreSquare: Square,
   dtMs: number,
-): { towers: Tower[]; pieces: Piece[]; destroyed: Piece[] } {
-  if (towers.length === 0) return { towers: [...towers], pieces: [...pieces], destroyed: [] }
+  combat: Rng,
+): {
+  towers: Tower[]
+  pieces: Piece[]
+  destroyed: Piece[]
+  rng: Rng
+  dodged: string[]
+} {
+  if (towers.length === 0) {
+    return { towers: [...towers], pieces: [...pieces], destroyed: [], rng: combat, dodged: [] }
+  }
 
   // Damage accumulates here so that several Towers can share a target within a
   // single tick without one of them shooting a Piece that is already dead.
   const remainingHealth = new Map(pieces.map((piece) => [piece.id, piece.health]))
   const nextTowers: Tower[] = []
+  let combatRng = combat
+  const dodged: string[] = []
 
   // Derived once, from the Piece and Tower lists as passed in, so no Piece's
   // damage depends on which Tower fired first.
@@ -300,6 +359,20 @@ function fireTowers(
       cooldown -= tower.fireIntervalMs
 
       for (const target of targets) {
+        // A black Piece dodges each incoming shot on a seeded roll. The roll
+        // order is deterministic: towers iterate in array order and targets in
+        // selectTargets's sorted order. Clear is a board wipe, not damage, so
+        // it never reaches this loop and can never be dodged.
+        const dodgeChance = tierDef(target.tier).dodgeChance
+        if (dodgeChance > 0) {
+          const [roll, advanced] = next(combatRng)
+          combatRng = advanced
+          if (roll < dodgeChance) {
+            dodged.push(target.id)
+            continue
+          }
+        }
+
         const multiplier = amplificationFor(tower.id, target.id, amplifiers)
         remainingHealth.set(
           target.id,
@@ -324,7 +397,7 @@ function fireTowers(
     else destroyed.push(piece)
   }
 
-  return { towers: nextTowers, pieces: survivors, destroyed }
+  return { towers: nextTowers, pieces: survivors, destroyed, rng: combatRng, dodged }
 }
 
 /**
