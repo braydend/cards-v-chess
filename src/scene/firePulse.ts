@@ -285,7 +285,7 @@ export function accumulatePulses(
         // square the Tower can see but not hit is not a square its shot can
         // light. `isOccluded` skips the origin, so the shooter never blocks
         // its own pulse.
-        if (isOccluded(scratchOrigin, scratchTarget, scratchBlockers)) continue
+        if (isOccluded(scratchOrigin, scratchTarget, scratchBlockers, geometry)) continue
 
         const intensity = 1 - age / FADE_SECONDS
         const base = (boardRank * board.files + file) * 3

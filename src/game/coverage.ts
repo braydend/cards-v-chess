@@ -111,7 +111,10 @@ export function coveredSquares(
  * shooter's own square and one beyond the target are both not between. A
  * target not on any compass ray (a ring or band square off the eight
  * directions) can never be occluded at all: there is no line to sit between
- * on. See the design spec for how this reads per geometry.
+ * on. See the design spec for how this reads per geometry. When passed a
+ * `geometry` of `'band'`, a target is occluded instead by any Tower on the
+ * target's own rank, file strictly between `from` and `target` — the toll gate
+ * fires a beam along each covered rank.
  *
  * Reads only the positions of the blocker set, so the answer cannot depend on
  * which Tower a caller happened to process first — the same order-independence
@@ -121,7 +124,29 @@ export function isOccluded(
   from: Square,
   target: Square,
   blockers: readonly Square[],
+  geometry?: TowerGeometry,
 ): boolean {
+  const between = (a: number, b: number, c: number): boolean =>
+    (a < b && b < c) || (c < b && b < a)
+
+  // Rank 10's toll gate fires a horizontal beam along every covered rank, so
+  // a band target on rank `r` is blocked by a Tower on that same rank `r`,
+  // file strictly between the gate and the target. At the band's range of 1
+  // this subsumes the compass-ray test on every band square: same-rank
+  // targets are caught by both, and the file and diagonal squares the ray
+  // test could see have no square strictly between. If the band's range is
+  // ever raised, the two tests stop agreeing at diagonal distance 2 and need
+  // merging again.
+  if (geometry === 'band') {
+    if (target.file === from.file) return false
+    for (const blocker of blockers) {
+      if (blocker.rank === target.rank && between(from.file, blocker.file, target.file)) {
+        return true
+      }
+    }
+    return false
+  }
+
   const fileDelta = target.file - from.file
   const rankDelta = target.rank - from.rank
   const onFile = fileDelta === 0 && rankDelta !== 0
@@ -131,9 +156,6 @@ export function isOccluded(
   // A target on no compass ray cannot be occluded by anything. That is the
   // ring and band off-ray squares, and it is a property, not a gap.
   if (!onFile && !onRank && !onDiagonal) return false
-
-  const between = (a: number, b: number, c: number): boolean =>
-    (a < b && b < c) || (c < b && b < a)
 
   for (const blocker of blockers) {
     if (squaresEqual(blocker, from)) continue
@@ -182,6 +204,6 @@ export function reachableSquares(
   blockers: readonly Square[],
 ): Square[] {
   return coveredSquares(board, geometry, range, from).filter(
-    (square) => !isOccluded(from, square, blockers),
+    (square) => !isOccluded(from, square, blockers, geometry),
   )
 }
