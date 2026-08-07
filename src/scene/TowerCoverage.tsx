@@ -105,12 +105,14 @@ const RENDER_ORDER = 1
  * thin?" is answered by seeing a new teal footprint against the existing amber
  * one, and hiding either would make the comparison impossible.
  *
- * **An aura shares this footprint**, which the rebalanced ladder makes the more
- * valuable half. `TowerRankDef.aura` applies to every Piece its Tower covers, so
- * these squares are exactly the rank-8 Amplifier's amplified zone and the rank-9
- * Freezer's slowed zone — roles whose whole value is the area rather than the
- * shot. The rank-7 Wall is the opposite case and lights nothing at all, which is
- * correct rather than broken: `none` geometry covers no square.
+ * **For aura ranks this footprint is the aura zone, not the shot zone.** An
+ * aura (rank 8 Amplify, rank 9 Freeze) applies to every Piece its Tower covers
+ * regardless of what stands between, so those footprints draw the full covered
+ * area — a Wall between the Amplifier and a Piece in its ring hides the shot,
+ * never the field. For firing ranks the footprint is `reachableSquares`: a
+ * square the Tower can see but cannot hit is not lit. The rank-7 Wall is the
+ * opposite case and lights nothing at all, which is correct rather than broken:
+ * `none` geometry covers no square.
  *
  * This shows coverage, not targeting. A shot is capped at `targetsPerShot` and
  * picks the Pieces nearest the Core, so a footprint of dozens of squares can

@@ -1,16 +1,14 @@
 import { Instance, Instances } from '@react-three/drei'
 import { useMemo } from 'react'
-import { towerRank } from '../data/towerRanks'
 import {
   canBuildOn,
   findCard,
   isBuildableRank,
   isInBounds,
-  reachableSquares,
   squareKey,
   type BoardSpec,
 } from '../game'
-import { blockerSquares, squaresListsEqual } from './towerCoverage'
+import { blockerSquares, overlaySquares, squaresListsEqual } from './towerCoverage'
 import { useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { SQUARE_SIZE, fileToWorldX, rankToWorldZ } from './coords'
@@ -85,16 +83,16 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
     const card = findCard(deck, selectedCardId)
     if (!card || card.kind !== 'standard' || !isBuildableRank(card.rank)) return null
 
-    const { geometry, range } = towerRank(card.rank)
-
     return {
       // The engine's own footprint, shared with the selected-Tower overlay so
       // the two cannot clip differently. It excludes the origin, because
       // `coversSquare` never covers its own square — so `hoveredSquare` is
       // never in here, and the red marker below cannot land on a teal one.
-      // Reachable, not merely covered: the candidate's own square is never in
-      // the blocker list (it is not built yet), and every standing Tower is.
-      covered: reachableSquares(board, geometry, range, hoveredSquare, blockers),
+      // Decided by `overlaySquares`, the one place that picks what an overlay
+      // draws: firing ranks light `reachableSquares`, aura ranks the full
+      // covered zone — the same rule the amber footprint follows, so the teal
+      // promise and the amber fact always agree.
+      covered: overlaySquares(board, card.rank, hoveredSquare, blockers),
       origin: hoveredSquare,
     }
   }, [board, blockers, deck, hoveredSquare, playMode, selectedCardId])

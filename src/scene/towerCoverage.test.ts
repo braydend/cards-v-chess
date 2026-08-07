@@ -244,6 +244,40 @@ describe('selectedFootprint under occlusion', () => {
   })
 })
 
+describe('aura ranks draw the full covered zone', () => {
+  it('a Wall between an Amplifier and a ring square does not hide that square', () => {
+    // Rank 8's ring from {4,4} covers Chebyshev distance 3-4, so {4,7} is in
+    // the ring. The Wall at {4,5} sits in the hollow core (distance 1) and its
+    // presence would occlude the SHOT to {4,7} — but the aura field passes
+    // through, so the overlay still lights it.
+    const withWall = withTower(7, { file: 4, rank: 5 })
+    const state = withTower(8, { file: 4, rank: 4 }, withWall)
+    const amplifier = state.towers.find((tower) => tower.cardRank === 8)
+    if (!amplifier) throw new Error('expected the rank-8 Tower')
+
+    const footprint = footprintOf(state, amplifier.id)
+    const def = towerRank(8)
+
+    expect(footprint.covered).toEqual(coveredSquares(state.board, def.geometry, def.range, { file: 4, rank: 4 }))
+    expect(footprint.covered).toContainEqual({ file: 4, rank: 7 })
+  })
+
+  it('a Wall between a Freezer and a disc square does not hide that square', () => {
+    // Rank 9 adjacent range 2 from {4,2} covers {4,4} (distance 2). The Wall at
+    // {4,3} is strictly between for a shot, but the slow field passes through.
+    const withWall = withTower(7, { file: 4, rank: 3 })
+    const state = withTower(9, { file: 4, rank: 2 }, withWall)
+    const freezer = state.towers.find((tower) => tower.cardRank === 9)
+    if (!freezer) throw new Error('expected the rank-9 Tower')
+
+    const footprint = footprintOf(state, freezer.id)
+    const def = towerRank(9)
+
+    expect(footprint.covered).toEqual(coveredSquares(state.board, def.geometry, def.range, { file: 4, rank: 2 }))
+    expect(footprint.covered).toContainEqual({ file: 4, rank: 4 })
+  })
+})
+
 describe('blockerSquares', () => {
   it('returns one square per Tower, sorted into a canonical order', () => {
     const withFirst = withTower(3, { file: 4, rank: 5 })

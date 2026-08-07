@@ -383,6 +383,15 @@ describe('isOccluded', () => {
     // does not exist. This is the hollow-core socket case.
     expect(isOccluded({ file: 4, rank: 4 }, { file: 7, rank: 5 }, [{ file: 4, rank: 5 }])).toBe(false)
   })
+
+  it('does not block a Tower beyond the target on the diagonal', () => {
+    expect(isOccluded({ file: 2, rank: 2 }, { file: 4, rank: 4 }, [{ file: 6, rank: 6 }])).toBe(false)
+  })
+
+  it('never blocks when the target is the shooter', () => {
+    const from = { file: 4, rank: 4 }
+    expect(isOccluded(from, from, [{ file: 4, rank: 5 }])).toBe(false)
+  })
 })
 
 describe('reachableSquares', () => {
