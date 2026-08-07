@@ -421,7 +421,7 @@ describe('reachableSquares', () => {
  * too, so they would agree with the overlay and both would be wrong. This drives
  * the real engine instead and asks what actually took damage.
  */
-describe('coveredSquares agrees with what a Tower shoots', () => {
+describe('reachableSquares agrees with what a Tower shoots', () => {
   // Under a Pawn's 900ms move interval, so the Piece never moves or promotes
   // during the window, and over rank 3's 600ms fire interval, so the Tower
   // definitely gets a shot off.
@@ -443,10 +443,14 @@ describe('coveredSquares agrees with what a Tower shoots', () => {
     return probe === undefined || probe.health < before
   }
 
-  it('damages a Piece on every covered square and spares one on every other square', () => {
+  it('damages a Piece on every reachable square and spares one on every other square', () => {
     const board = { files: 8, ranks: 8 }
     const def = towerRank(3)
-    const covered = coveredSquares(board, def.geometry, def.range, ORIGIN)
+    // The shooter alone is the blocker list: a single Tower never occludes
+    // itself, so with this one-Tower arrangement reachableSquares equals
+    // coveredSquares — but the overlay now reads reachableSquares, so that is
+    // what must agree with the shot.
+    const covered = reachableSquares(board, def.geometry, def.range, ORIGIN, [ORIGIN])
     const isCovered = (square: Square) =>
       covered.some((lit) => lit.file === square.file && lit.rank === square.rank)
 
@@ -462,5 +466,44 @@ describe('coveredSquares agrees with what a Tower shoots', () => {
     for (const square of probes) {
       expect(damagedAt(square), `file ${square.file}, rank ${square.rank}`).toBe(isCovered(square))
     }
+  })
+})
+
+/**
+ * The same claim under occlusion: reachableSquares — not coveredSquares — is
+ * what the overlay lights, so a Piece a Tower can see but not hit must be
+ * spared, and one it can hit must not.
+ */
+describe('reachableSquares agrees with what a Tower shoots under occlusion', () => {
+  const SHOOTER = { file: 4, rank: 7 }
+  const WALL = { file: 4, rank: 5 }
+  const WINDOW_MS = 704
+  const DT_MS = 16
+
+  function damagedAt(square: Square): boolean {
+    const withWall = withTower(7, WALL)
+    const state = withTower(3, SHOOTER, withWall)
+    let live = liveRound(state, [pawnAt('probe', square)])
+    const before = PIECE_TYPES.pawn.maxHealth
+
+    for (let elapsed = 0; elapsed < WINDOW_MS; elapsed += DT_MS) live = tick(live, DT_MS)
+
+    const probe = live.pieces.find((piece) => piece.id === 'probe')
+
+    return probe === undefined || probe.health < before
+  }
+
+  it('spares a covered-but-hidden Piece and damages a reachable one', () => {
+    const board = { files: 8, ranks: 8 }
+    const def = towerRank(3)
+    const reachable = reachableSquares(board, def.geometry, def.range, SHOOTER, [WALL])
+
+    // {4,6} is between the shooter and the Wall — reachable. {4,2} is beyond
+    // the Wall on the same file — covered, but occluded.
+    expect(reachable).toContainEqual({ file: 4, rank: 6 })
+    expect(reachable).not.toContainEqual({ file: 4, rank: 2 })
+
+    expect(damagedAt({ file: 4, rank: 6 })).toBe(true)
+    expect(damagedAt({ file: 4, rank: 2 })).toBe(false)
   })
 })
