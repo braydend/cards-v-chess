@@ -178,12 +178,21 @@ export function extractPieceGeometry(scene: Object3D, typeId: PieceTypeId): Buff
   if (!node) throw new Error(`No "${NODE_NAME_BY_TYPE[typeId]}" node in ${MODEL_URL}`)
 
   node.updateMatrixWorld(true)
+  // The piece node's own matrix places it in the scene layout — a 100x scale,
+  // an axis rotation, and a row offset, all baked into the FBX-to-glTF export.
+  // We want the geometry in the piece node's LOCAL space, so invert its world
+  // matrix and premultiply it into each part's world transform. That strips
+  // everything above the piece node and leaves only each mesh's transform
+  // relative to it (identity in this model), so the part lands in the natural
+  // per-piece orientation measured from the accessor bounds.
+  const worldToLocal = node.matrixWorld.clone().invert()
+
   const parts: BufferGeometry[] = []
   node.traverse((child) => {
     if (!(child as Mesh).isMesh) return
     const mesh = child as Mesh
     const part = mesh.geometry.clone()
-    part.applyMatrix4(mesh.matrixWorld)
+    part.applyMatrix4(worldToLocal.clone().multiply(mesh.matrixWorld))
     parts.push(part)
   })
 
@@ -225,11 +234,12 @@ const SCALE = 0.75
 for (const [typeId, name] of Object.entries(NODE)) {
   const node = gltf.scene.getObjectByName(name)
   node.updateMatrixWorld(true)
+  const worldToLocal = node.matrixWorld.clone().invert()
   const parts = []
   node.traverse((child) => {
     if (!child.isMesh) return
     const g = child.geometry.clone()
-    g.applyMatrix4(child.matrixWorld)
+    g.applyMatrix4(worldToLocal.clone().multiply(child.matrixWorld))
     parts.push(g)
   })
   const merged = mergeGeometries(parts)
@@ -245,18 +255,26 @@ for (const [typeId, name] of Object.entries(NODE)) {
 ```
 
 Run: `node verify-models.mjs`
-Expected (matches the design table, `baseY` at 0 means the base-translate works):
+Expected (heights and footprints match the design table). `baseY` is measured
+BEFORE the module's base-translate — the script skips it — so a small negative
+value (~−0.003, the native base at −0.004 × 0.75) is expected; the module's
+`translate(0, -minY, 0)` zeroes it at runtime:
 
 ```
-pawn     H: 0.617 foot: 0.344 baseY: 0.0000
-rook     H: 0.738 foot: 0.415 baseY: 0.0000
-knight   H: 0.824 foot: 0.434 baseY: 0.0000
-bishop   H: 0.997 foot: 0.402 baseY: 0.0000
-queen    H: 1.117 foot: 0.470 baseY: 0.0000
-king     H: 1.309 foot: 0.468 baseY: 0.0000
+pawn     H: 0.617 foot: 0.344 baseY: -0.0028
+rook     H: 0.738 foot: 0.415 baseY: -0.0028
+knight   H: 0.824 foot: 0.434 baseY: -0.0028
+bishop   H: 0.997 foot: 0.402 baseY: -0.0014
+queen    H: 1.117 foot: 0.470 baseY: -0.0028
+king     H: 1.309 foot: 0.468 baseY: -0.0014
 ```
 
-If `baseY` is large-negative and `foot` is the height (or the heights look inverted for knight/king/bishop), the rotateX sign is wrong — flip `-Math.PI / 2` to `Math.PI / 2` in both the script and the module and re-run.
+If the heights come out ~25× too small (≈0.02–0.06), the extraction baked in
+the piece node's scene-layout matrix (the 100× scale / row offset) — the fix is
+the `worldToLocal` premultiply above, not a scale tweak. If `foot` is the height
+(or the heights look inverted for knight/king/bishop), the rotateX sign is
+wrong — flip `-Math.PI / 2` to `Math.PI / 2` in both the script and the module
+and re-run.
 
 Delete the script when it passes.
 
