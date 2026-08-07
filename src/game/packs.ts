@@ -129,8 +129,8 @@ export function packPrice(pack: PackType, count: number): number {
   return price
 }
 
-export function canAfford(ink: number, pack: PackType): boolean {
-  return ink >= PACKS[pack].price
+export function canAfford(ink: number, pack: PackType, count: number): boolean {
+  return ink >= packPrice(pack, count)
 }
 
 /**
@@ -149,7 +149,7 @@ export function buyPack(
   // cannot grow mid-round, so a repaired Tower still runs out of repairs and the
   // round still ends.
   if (state.phase !== 'gap') return state
-  if (!canAfford(state.ink, pack)) return state
+  if (!canAfford(state.ink, pack, state.packPurchases[pack])) return state
 
   // A Suited pack needs a suit; every other type must not carry one, so a
   // mistaken suit is refused rather than silently ignored.
@@ -169,7 +169,8 @@ export function buyPack(
 
   return {
     ...state,
-    ink: state.ink - PACKS[pack].price,
+    ink: state.ink - packPrice(pack, state.packPurchases[pack]),
+    packPurchases: { ...state.packPurchases, [pack]: state.packPurchases[pack] + 1 },
     deck: [...kept, ...dealt.cards],
     rng: { ...state.rng, packs: dealt.rng },
     nextCardId: dealt.nextCardId,

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { SUITS } from '../data/cards'
 import { PACK_TYPES, PACKS, type PackType } from '../data/packs'
-import { canAfford, cullCountFor, type Card, type Suit } from '../game'
+import { canAfford, cullCountFor, packPrice, type Card, type Suit } from '../game'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { CardFace, SUIT_GLYPH } from './CardFace'
@@ -28,6 +28,7 @@ export function PackShop() {
   const deck = useGameStore((store) => store.snapshot.deck)
   const ink = useGameStore((store) => store.snapshot.ink)
   const phase = useGameStore((store) => store.snapshot.phase)
+  const packPurchases = useGameStore((store) => store.snapshot.packPurchases)
 
   const [pack, setPack] = useState<PackType | null>(null)
   const [suit, setSuit] = useState<Suit | null>(null)
@@ -148,7 +149,15 @@ export function PackShop() {
   if (!open) return null
 
   const needed = pack ? cullCountFor(deck.length, pack) : 0
-  const button = commitState({ deckSize: deck.length, ink, phase, pack, suit, markedIds: marked })
+  const button = commitState({
+    deckSize: deck.length,
+    ink,
+    phase,
+    pack,
+    suit,
+    markedIds: marked,
+    packPurchases,
+  })
 
   return (
     <div
@@ -199,13 +208,13 @@ export function PackShop() {
                     <button
                       type="button"
                       className={`modal__pack${pack === type ? ' modal__pack--active' : ''}${
-                        !canAfford(ink, type) ? ' modal__pack--poor' : ''
+                        !canAfford(ink, type, packPurchases[type]) ? ' modal__pack--poor' : ''
                       }`}
                       onClick={() => choose(type)}
                     >
                       <strong>{def.label}</strong>
                       <span className="hud__muted">{def.size} cards</span>
-                      <span className="modal__ink">{def.price}</span>
+                      <span className="modal__ink">{packPrice(type, packPurchases[type])}</span>
                     </button>
                   </li>
                 )

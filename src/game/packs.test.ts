@@ -179,10 +179,11 @@ describe('cullCountFor', () => {
 })
 
 describe('canAfford', () => {
-  it('needs the full price', () => {
-    expect(canAfford(PACKS.base.price - 1, 'base')).toBe(false)
-    expect(canAfford(PACKS.base.price, 'base')).toBe(true)
-    expect(canAfford(PACKS.base.price + 1, 'base')).toBe(true)
+  it('needs the current, possibly escalated price', () => {
+    expect(canAfford(49, 'scrap', 0)).toBe(false)
+    expect(canAfford(50, 'scrap', 0)).toBe(true)
+    expect(canAfford(54, 'scrap', 1)).toBe(false)
+    expect(canAfford(55, 'scrap', 1)).toBe(true)
   })
 })
 

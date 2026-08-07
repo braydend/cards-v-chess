@@ -1,5 +1,5 @@
 import { PACKS, type PackType } from '../data/packs'
-import { canAfford, cullCountFor, type Card, type RoundPhase, type Suit } from '../game'
+import { canAfford, cullCountFor, packPrice, type Card, type RoundPhase, type Suit } from '../game'
 
 /**
  * What the pack shop's commit button says and whether it can be pressed.
@@ -26,6 +26,7 @@ export function commitState(args: {
   readonly pack: PackType | null
   readonly suit: Suit | null
   readonly markedIds: readonly string[]
+  readonly packPurchases: Record<PackType, number>
 }): CommitState {
   const { deckSize, ink, phase, pack, suit, markedIds } = args
 
@@ -44,7 +45,7 @@ export function commitState(args: {
   if (!pack) return { enabled: false, label: 'Open pack', reason: 'Pick a pack.' }
 
   const def = PACKS[pack]
-  const price = def.price
+  const price = packPrice(pack, args.packPurchases[pack])
   const needed = cullCountFor(deckSize, pack)
   const label = needed > 0
     ? `Destroy ${needed} & open ${def.label} — ${price} Ink`
@@ -52,7 +53,7 @@ export function commitState(args: {
 
   // Affordability is reported before the cull, so the player is never asked to
   // choose cards to destroy for a pack they cannot buy.
-  if (!canAfford(ink, pack)) {
+  if (!canAfford(ink, pack, args.packPurchases[pack])) {
     return { enabled: false, label, reason: `${def.label} costs ${price} Ink — you have ${ink}.` }
   }
 

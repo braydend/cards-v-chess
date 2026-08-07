@@ -126,7 +126,7 @@ describe('buyPack: a purchase that needs no cull', () => {
   it('advances the packs stream, so the next pack differs', () => {
     expect(after.rng.packs).not.toEqual(before.rng.packs)
 
-    const third = step({ ...after, ink: 100 }, { kind: 'buyPack', pack: 'base', cullCardIds: [] })
+    const third = step({ ...after, ink: 999 }, { kind: 'buyPack', pack: 'base', cullCardIds: [] })
     const firstRanks = after.deck.slice(5).map((card) => card.kind === 'standard' && card.rank)
     const secondRanks = third.deck.slice(15).map((card) => card.kind === 'standard' && card.rank)
 
@@ -137,6 +137,47 @@ describe('buyPack: a purchase that needs no cull', () => {
     expect(step(before, { kind: 'buyPack', pack: 'base', cullCardIds: [] }).deck).toEqual(
       after.deck,
     )
+  })
+})
+
+describe('buyPack: escalation', () => {
+  it('charges the base price on the first purchase, then an escalated price', () => {
+    const first = ready(filler(5), 999)
+    const after = step(first, { kind: 'buyPack', pack: 'scrap', cullCardIds: [] })
+
+    expect(after).not.toBe(first)
+    expect(after.ink).toBe(999 - 50)
+    expect(after.packPurchases.scrap).toBe(1)
+
+    const second = step(after, { kind: 'buyPack', pack: 'scrap', cullCardIds: [] })
+
+    expect(second).not.toBe(after)
+    expect(second.ink).toBe(999 - 50 - 55)
+    expect(second.packPurchases.scrap).toBe(2)
+  })
+
+  it('escalates each pack type independently', () => {
+    const state = ready(filler(5), 999)
+    const afterScrap = step(state, { kind: 'buyPack', pack: 'scrap', cullCardIds: [] })
+
+    // Scrap bought once — a Base bought next costs its own base, not 55.
+    expect(afterScrap.packPurchases.scrap).toBe(1)
+    expect(afterScrap.packPurchases.base).toBe(0)
+
+    const afterBase = step(afterScrap, { kind: 'buyPack', pack: 'base', cullCardIds: [] })
+
+    expect(afterBase.packPurchases.base).toBe(1)
+    expect(afterBase.ink).toBe(999 - 50 - 100)
+  })
+
+  it('refuses a second purchase it cannot afford at the escalated price', () => {
+    const first = ready(filler(5), 50)
+    const after = step(first, { kind: 'buyPack', pack: 'scrap', cullCardIds: [] })
+
+    expect(after).not.toBe(first)
+    expect(after.ink).toBe(0)
+    // The second Scrap costs 55; only 0 held, so it is refused by identity.
+    expect(step(after, { kind: 'buyPack', pack: 'scrap', cullCardIds: [] })).toBe(after)
   })
 })
 
