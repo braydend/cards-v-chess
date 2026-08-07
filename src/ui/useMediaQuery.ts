@@ -18,6 +18,16 @@ export const MOBILE_LAYOUT_QUERY = '(max-width: 28rem), (max-height: 30rem)'
 export const COARSE_POINTER_QUERY = '(pointer: coarse)'
 
 /**
+ * Whether the viewport is landscape. The mobile layout query matches both
+ * phone orientations; this is the refinement that picks landscape out of
+ * them — the landscape-only behaviours (the strip auto-shift, the deck's
+ * right-side panel) branch on it. Unlike `MOBILE_LAYOUT_QUERY` it has no
+ * CSS counterpart: the orientation is expressed inline in the landscape
+ * `@media` block.
+ */
+export const LANDSCAPE_QUERY = '(orientation: landscape)'
+
+/**
  * Subscribes to a media query and returns whether it currently matches.
  * Client-only — the app is a Vite SPA with no SSR, so `window` exists by the
  * time any component calls this.
