@@ -610,3 +610,169 @@ canvas {
   background: #1d3a38;
   color: #4fd1c5;
 }
+
+/* Mobile layout — the query is mirrored verbatim in src/ui/useMediaQuery.ts
+   (MOBILE_LAYOUT_QUERY). Keep the two strings identical.
+   The HUD becomes a thin bottom bar plus a deck overlay; the desktop panel
+   never mounts (Hud.tsx branches), so no part of the desktop layout is hidden
+   here — these rules style the mobile components and are inactive on desktop
+   because the media query does not match. */
+@media (max-width: 28rem), (max-height: 30rem) {
+  .mobileBar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.5rem 0.7rem;
+    padding-left: calc(0.7rem + env(safe-area-inset-left));
+    padding-right: calc(0.7rem + env(safe-area-inset-right));
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+    border-top: 1px solid rgb(255 255 255 / 12%);
+    background: rgb(16 20 26 / 88%);
+    color: #e8edf4;
+  }
+
+  .mobileStats {
+    display: flex;
+    gap: 0.8rem;
+    margin: 0;
+  }
+
+  .mobileStats dt {
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8fa0b5;
+  }
+
+  .mobileStats dd {
+    margin: 0.1rem 0 0;
+    font-size: 1.05rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .mobileActions {
+    display: flex;
+    gap: 0.4rem;
+  }
+
+  .hud__button--quiet {
+    background: #2a323d;
+  }
+
+  /* The selected-card strip: sits above the bar, is dismissible, and carries
+     the mode toggle. On touch the strip is what replaces the Deck detail. */
+  .mobileStrip {
+    position: absolute;
+    left: 0.7rem;
+    right: 0.7rem;
+    bottom: calc(3.2rem + env(safe-area-inset-bottom));
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid rgb(255 255 255 / 12%);
+    border-radius: 0.5rem;
+    background: rgb(16 20 26 / 92%);
+    color: #e8edf4;
+  }
+
+  .mobileStrip__card {
+    position: relative;
+    flex: none;
+    width: 2.6rem;
+  }
+
+  .mobileStrip__cancel {
+    position: absolute;
+    top: -0.5rem;
+    right: -0.5rem;
+    width: 1.3rem;
+    height: 1.3rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: #2a323d;
+    color: #b9c6d6;
+    font: inherit;
+    line-height: 1;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .mobileStrip__modes {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .mobileStrip__modes .deck__mode {
+    font-size: 0.7rem;
+    padding: 0.4rem 0.5rem;
+  }
+
+  .mobileStrip .hud__hint {
+    flex: 1;
+    max-width: none;
+  }
+
+  /* The deck overlay reuses the modal shell; the panel is a bottom sheet. */
+  .deckOverlay {
+    align-items: flex-end;
+  }
+
+  .deckOverlay__panel {
+    width: 100%;
+    max-height: 70%;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  /* Touch-sized targets, shared by the deck overlay and the pack-shop cull. */
+  .deck__cards--touch {
+    grid-template-columns: repeat(auto-fill, minmax(3rem, 1fr));
+  }
+
+  .deck__cards--touch .deck__card {
+    font-size: 0.95rem;
+    min-height: 2.6rem;
+  }
+}
+
+/* Touch hygiene — under the mobile media query, interactive chrome must not
+   zoom on double-tap, must not fire iOS's callout on long-press, and must not
+   scroll the page when a deck is scrolled. The canvas keeps its global
+   `touch-action: none` so orbit and pinch stay on the board. */
+@media (max-width: 28rem), (max-height: 30rem) {
+  .hud button,
+  .hud .deck__card,
+  .modal button,
+  .mobileBar,
+  .mobileStrip {
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  .deck__cards,
+  .modal__panel,
+  .towerPanel {
+    touch-action: pan-y;
+    overscroll-behavior: contain;
+  }
+
+  /* The Tower panel moves above the bar so the two never overlap. */
+  .towerPanel {
+    bottom: calc(3.6rem + env(safe-area-inset-bottom));
+  }
+}
