@@ -318,6 +318,15 @@ export interface GameState {
    * `src/game/ink.ts`.
    */
   readonly ink: number
+  /**
+   * How many packs of each type have been bought this run.
+   *
+   * The price of a pack escalates with this — `packPrice(pack, count)` in
+   * `src/game/packs.ts` — so it must live on the same object as the Ink it is
+   * spent with. Per run: reset with the run, no persistence. The opening deal
+   * is free and never goes through `buyPack`, so it never increments this.
+   */
+  readonly packPurchases: Record<PackType, number>
   readonly pendingSpawns: readonly Spawn[]
   /**
    * Monotonic counter so entity ids are deterministic, never random.

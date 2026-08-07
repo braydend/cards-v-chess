@@ -219,8 +219,17 @@ describe('packPrice', () => {
 })
 
 describe('the run opening', () => {
-  it('opens with a Base pack', () => {
-    expect(createInitialState('run-a').deck).toHaveLength(PACKS.base.size)
+  it('opens with a Scrap pack', () => {
+    expect(createInitialState('run-a').deck).toHaveLength(PACKS.scrap.size)
+  })
+
+  it('counts no pack purchases yet, so the first bought pack costs its base', () => {
+    expect(createInitialState('run-a').packPurchases).toEqual({
+      scrap: 0,
+      base: 0,
+      court: 0,
+      suited: 0,
+    })
   })
 
   it('is free — Ink starts at zero and the opening deal does not charge', () => {
@@ -234,7 +243,7 @@ describe('the run opening', () => {
   })
 
   it('advances the card counter past the opening deal', () => {
-    expect(createInitialState('run-a').nextCardId).toBe(PACKS.base.size + 1)
+    expect(createInitialState('run-a').nextCardId).toBe(PACKS.scrap.size + 1)
   })
 
   // The counter Piece handedness is derived from must be untouched by the deal.
