@@ -1,6 +1,7 @@
 import {
   canSupport,
   commandFor,
+  isBuildableRank,
   squaresEqual,
   type Card,
   type Command,
@@ -56,6 +57,10 @@ export interface BoardClickContext {
   readonly playMode: PlayMode
   /** The Tower a Queen will copy, once its first click has picked one. */
   readonly echoSourceTowerId: string | null
+  /** How the pointer engages: `fine` is click-to-play, `coarse` is tap-to-preview. */
+  readonly pointer: 'fine' | 'coarse'
+  /** The square already previewed by a previous tap, or null. */
+  readonly previewedSquare: Square | null
 }
 
 export type BoardAction =
@@ -67,6 +72,8 @@ export type BoardAction =
   | { readonly kind: 'pickEchoSource'; readonly towerId: string }
   /** Play the picked Card. */
   | { readonly kind: 'play'; readonly command: Command }
+  /** On touch, the first tap on a square previews its coverage instead of playing. */
+  | { readonly kind: 'preview'; readonly square: Square }
 
 /**
  * What a click on a board square does — the whole decision, in one pure
@@ -90,7 +97,8 @@ export type BoardAction =
  * play or the panel gets it.
  */
 export function resolveBoardAction(context: BoardClickContext): BoardAction {
-  const { square, towers, selectedTowerId, card, playMode, echoSourceTowerId } = context
+  const { square, towers, selectedTowerId, card, playMode, echoSourceTowerId, pointer, previewedSquare } =
+    context
 
   const inspect = resolveBoardClick(square, towers, selectedTowerId)
 
@@ -101,6 +109,25 @@ export function resolveBoardAction(context: BoardClickContext): BoardAction {
   const panel: BoardAction = inspect.kind === 'build' ? { kind: 'deselect' } : inspect
 
   if (!card) return panel
+
+  // On a coarse pointer the first tap previews instead of playing: touch has no
+  // hover, so this tap and the teal/red CoveragePreview it triggers are the
+  // only way the player learns a square's footprint — or that a square is
+  // illegal — before committing. Preview fires on ANY square, legal or not,
+  // exactly as desktop hover does; the red marker is what teaches illegality,
+  // and the second tap's play is refused by the engine with the selection
+  // preserved. A fine pointer never previews: hover already shows the preview.
+  // Support-mode and face-card plays have no footprint to preview, so the gate
+  // is restricted to a buildable rank in build mode.
+  if (
+    pointer === 'coarse' &&
+    playMode === 'build' &&
+    card.kind === 'standard' &&
+    isBuildableRank(card.rank) &&
+    !(previewedSquare && squaresEqual(previewedSquare, square))
+  ) {
+    return { kind: 'preview', square }
+  }
 
   const clickedTower = towers.find((tower) => squaresEqual(tower.square, square))
 

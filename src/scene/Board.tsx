@@ -136,6 +136,10 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
           card: selectedCardId === null ? null : (findCard(state.deck, selectedCardId) ?? null),
           playMode,
           echoSourceTowerId,
+          // Task 4 supplies the live pointer and tracked previewed square; a
+          // fine pointer here keeps the existing click-to-play behaviour.
+          pointer: 'fine',
+          previewedSquare: null,
         })
 
         if (action.kind === 'select') {
@@ -152,6 +156,10 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
           setEchoSourceTowerId(action.towerId)
           return
         }
+
+        // Unreachable until Task 4 supplies a coarse pointer; the action
+        // exists so the pure module can unit-test the tap-to-preview rule.
+        if (action.kind === 'preview') return
 
         // `dispatch` reports whether the play actually landed. A refusal (an
         // occupied square, the Core square, an Echo source Tower that died
