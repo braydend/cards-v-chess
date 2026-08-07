@@ -873,4 +873,23 @@ canvas {
     right: calc(var(--mobile-rail) + 0.7rem);
     bottom: auto;
   }
+
+  /* The deck overlay becomes a full-height right-side panel instead of the
+     bottom sheet portrait uses, with the cards stacked as a single vertical
+     column so the whole deck reads in one glance. */
+  .deckOverlay {
+    justify-content: flex-end;
+    align-items: stretch;
+  }
+
+  .deckOverlay__panel {
+    width: min(26rem, 85vw);
+    height: 100%;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  .deck__cards--touch {
+    grid-template-columns: 1fr;
+  }
 }
