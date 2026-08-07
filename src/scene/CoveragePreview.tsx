@@ -3,13 +3,14 @@ import { useMemo } from 'react'
 import { towerRank } from '../data/towerRanks'
 import {
   canBuildOn,
-  coveredSquares,
   findCard,
   isBuildableRank,
   isInBounds,
+  reachableSquares,
   squareKey,
   type BoardSpec,
 } from '../game'
+import { blockerSquares, squaresListsEqual } from './towerCoverage'
 import { useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { SQUARE_SIZE, fileToWorldX, rankToWorldZ } from './coords'
@@ -62,6 +63,13 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
   // snapshot means a Piece hop, which changes the snapshot on every hop, does
   // not touch this value and so cannot force a recompute of the footprint.
   const deck = useGameStore((store) => store.snapshot.deck)
+  // Identity-stable blocker squares, for the same reason as TowerCoverage:
+  // this reference changes only on build/destroy, so a Piece hop or a hit
+  // cannot recompute the footprint below.
+  const blockers = useGameStore(
+    (store) => blockerSquares(store.snapshot.towers),
+    squaresListsEqual,
+  )
   // The engine's own predicate, deliberately: a narrower copy here would
   // disagree with the refusal in `cardPlays.ts`. It reads false for a Piece,
   // the Core square and an existing Tower alike. Selected on its own, not
@@ -84,10 +92,12 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
       // the two cannot clip differently. It excludes the origin, because
       // `coversSquare` never covers its own square — so `hoveredSquare` is
       // never in here, and the red marker below cannot land on a teal one.
-      covered: coveredSquares(board, geometry, range, hoveredSquare),
+      // Reachable, not merely covered: the candidate's own square is never in
+      // the blocker list (it is not built yet), and every standing Tower is.
+      covered: reachableSquares(board, geometry, range, hoveredSquare, blockers),
       origin: hoveredSquare,
     }
-  }, [board, deck, hoveredSquare, playMode, selectedCardId])
+  }, [board, blockers, deck, hoveredSquare, playMode, selectedCardId])
 
   if (!footprint) return null
 
