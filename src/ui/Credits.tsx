@@ -20,8 +20,8 @@ const MODEL_LICENSE_URL = 'https://creativecommons.org/licenses/by/4.0/'
  *
  * A modal for consistency with the pack shop's interaction (scrim + Escape to
  * close), not because it needs modal semantics — it holds no form and no
- * state. The simpler of the two: no focus trap, just move focus in on open and
- * hand it back on close, following `PackShop.tsx`.
+ * state. Like PackShop, Tab is confined to the dialog so the `aria-modal`
+ * assertion holds, and focus is moved in on open and handed back on close.
  */
 export function Credits() {
   const open = useUiStore((store) => store.creditsOpen)
@@ -45,7 +45,31 @@ export function Credits() {
     if (!open) return
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key === 'Escape') {
+        setOpen(false)
+        return
+      }
+
+      if (event.key !== 'Tab') return
+
+      // `aria-modal` asserts focus is confined to this dialog, so confine it —
+      // otherwise Tab walks into the HUD behind. The scrim sits outside the
+      // panel, exactly as in `PackShop`, so it is not part of the trap.
+      const panel = panelRef.current
+      if (!panel) return
+
+      const focusable = panel.querySelectorAll<HTMLElement>('button:not([disabled]), a[href]')
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (!first || !last) return
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
     }
 
     window.addEventListener('keydown', onKeyDown)
