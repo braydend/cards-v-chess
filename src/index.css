@@ -758,9 +758,12 @@ canvas {
     border-bottom-right-radius: 0;
   }
 
-  /* Touch-sized targets, shared by the deck overlay and the pack-shop cull. */
+  /* Touch-sized targets, shared by the deck overlay and the pack-shop cull.
+     Fixed 3.5rem tracks — no `1fr` — so cards render the same size whatever
+     the panel width or how many cards the deck holds, like the pack reveal. */
   .deck__cards--touch {
-    grid-template-columns: repeat(auto-fill, minmax(3rem, 1fr));
+    grid-template-columns: repeat(auto-fill, 3.5rem);
+    justify-content: center;
   }
 
   .deck__cards--touch .deck__card {
@@ -887,10 +890,5 @@ canvas {
     height: 100%;
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
-  }
-
-  .deck__cards--touch {
-    grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
-    justify-content: center;
   }
 }
