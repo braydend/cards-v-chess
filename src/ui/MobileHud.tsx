@@ -38,66 +38,64 @@ export function MobileHud() {
 
   return (
     <>
-      <div className="mobileBar">
-        <dl className="mobileStats">
-          <div>
-            <dt>Round</dt>
-            <dd>{roundNumber}</dd>
-          </div>
-          <div>
-            <dt>Ink</dt>
-            <dd>{ink}</dd>
-          </div>
-          <div>
-            <dt>Core</dt>
-            <dd>
-              {core.health}
-              <span className="hud__muted"> / {core.maxHealth}</span>
-            </dd>
-          </div>
-        </dl>
+      <dl className="mobileStats">
+        <div>
+          <dt>Round</dt>
+          <dd>{roundNumber}</dd>
+        </div>
+        <div>
+          <dt>Ink</dt>
+          <dd>{ink}</dd>
+        </div>
+        <div>
+          <dt>Core</dt>
+          <dd>
+            {core.health}
+            <span className="hud__muted"> / {core.maxHealth}</span>
+          </dd>
+        </div>
+      </dl>
 
-        <div className="mobileActions">
-          {phase === 'defeated' ? (
-            <button type="button" className="hud__button" onClick={resetRun}>
-              Play again
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="hud__button"
-              disabled={phase !== 'gap'}
-              onClick={() => dispatch({ kind: 'startRound' })}
-            >
-              {phase === 'gap' ? `Start round ${roundNumber}` : 'In progress'}
-            </button>
-          )}
-
+      <div className="mobileActions">
+        {phase === 'defeated' ? (
+          <button type="button" className="hud__button" onClick={resetRun}>
+            Play again
+          </button>
+        ) : (
           <button
             type="button"
             className="hud__button"
             disabled={phase !== 'gap'}
-            onClick={() => setPackShopOpen(true)}
+            onClick={() => dispatch({ kind: 'startRound' })}
           >
-            Packs
+            {phase === 'gap' ? `Start round ${roundNumber}` : 'In progress'}
           </button>
+        )}
 
-          <button
-            type="button"
-            className="hud__button hud__button--quiet"
-            onClick={() => setDeckOpen(true)}
-          >
-            Deck
-          </button>
+        <button
+          type="button"
+          className="hud__button"
+          disabled={phase !== 'gap'}
+          onClick={() => setPackShopOpen(true)}
+        >
+          Packs
+        </button>
 
-          <button
-            type="button"
-            className="hud__button hud__button--quiet"
-            onClick={() => setCreditsOpen(true)}
-          >
-            Credits
-          </button>
-        </div>
+        <button
+          type="button"
+          className="hud__button hud__button--quiet"
+          onClick={() => setDeckOpen(true)}
+        >
+          Deck
+        </button>
+
+        <button
+          type="button"
+          className="hud__button hud__button--quiet"
+          onClick={() => setCreditsOpen(true)}
+        >
+          Credits
+        </button>
       </div>
 
       {selected ? (
