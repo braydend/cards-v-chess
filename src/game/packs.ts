@@ -106,6 +106,29 @@ export function cullCountFor(deckSize: number, pack: PackType): number {
   return Math.max(0, deckSize + PACKS[pack].size - DECK_CAP)
 }
 
+/**
+ * What a pack of this type currently costs, after `count` purchases of that
+ * type this run.
+ *
+ * Compounding 1.10x per purchase, rounded UP at every step: 50 → 55 → 61 → …
+ * Each pack type escalates off its own count — buying Scraps never raises Base.
+ * Unbounded: a type the player keeps buying eventually prices itself out of
+ * reach, which is the intent.
+ *
+ * The multiply is integer arithmetic on purpose. `floor((price * 11 + 9) / 10)`
+ * is exactly `ceil(price * 11 / 10)` for an integer price, while
+ * `Math.ceil(price * 1.1)` drifts on IEEE 754 — 50 × 1.1 is 55.00000000000001,
+ * so a floating ceil gives 56 instead of the 55 the issue's example demands,
+ * and every later step compounds the drift.
+ */
+export function packPrice(pack: PackType, count: number): number {
+  let price = PACKS[pack].price
+  for (let i = 0; i < count; i += 1) {
+    price = Math.floor((price * 11 + 9) / 10)
+  }
+  return price
+}
+
 export function canAfford(ink: number, pack: PackType): boolean {
   return ink >= PACKS[pack].price
 }

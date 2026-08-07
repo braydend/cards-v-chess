@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DECK_CAP } from '../data/deck'
 import { PACK_TYPES, PACKS } from '../data/packs'
-import { canAfford, cullCountFor, dealPack } from './packs'
+import { canAfford, cullCountFor, dealPack, packPrice } from './packs'
 import { streamFor, type Rng } from './rng'
 import { createInitialState } from './state'
 
@@ -183,6 +183,38 @@ describe('canAfford', () => {
     expect(canAfford(PACKS.base.price - 1, 'base')).toBe(false)
     expect(canAfford(PACKS.base.price, 'base')).toBe(true)
     expect(canAfford(PACKS.base.price + 1, 'base')).toBe(true)
+  })
+})
+
+describe('packPrice', () => {
+  it('is the base price before any purchase', () => {
+    expect(packPrice('scrap', 0)).toBe(50)
+    expect(packPrice('base', 0)).toBe(100)
+    expect(packPrice('court', 0)).toBe(400)
+    expect(packPrice('suited', 0)).toBe(200)
+  })
+
+  it('compounds 1.10x per purchase, rounding up each step', () => {
+    // The issue's example: 50 → 55 → 61 → 68 → 75 → 83 → 92 → 102.
+    expect(packPrice('scrap', 1)).toBe(55)
+    expect(packPrice('scrap', 2)).toBe(61)
+    expect(packPrice('scrap', 3)).toBe(68)
+    expect(packPrice('scrap', 4)).toBe(75)
+    expect(packPrice('scrap', 5)).toBe(83)
+    expect(packPrice('scrap', 6)).toBe(92)
+    expect(packPrice('scrap', 7)).toBe(102)
+  })
+
+  // 50 × 1.1 is 55.00000000000001 in IEEE 754, so Math.ceil(50 * 1.1) is 56 —
+  // NOT the 55 the issue demands. The integer formula must give 55.
+  it('rounds exactly, with no floating-point drift', () => {
+    expect(packPrice('scrap', 1)).toBe(55)
+  })
+
+  it('escalates each type off its own base', () => {
+    expect(packPrice('base', 1)).toBe(110)
+    expect(packPrice('suited', 1)).toBe(220)
+    expect(packPrice('court', 1)).toBe(440)
   })
 })
 
