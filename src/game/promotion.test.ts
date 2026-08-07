@@ -60,7 +60,7 @@ describe('pawn promotion', () => {
     expect(state.pieces[0]?.square).toEqual({ file: 0, rank: 0 })
   })
 
-  it('leaves the round active, because the Queen can still sweep', () => {
+  it('leaves the round active, because the Queen can still hunt', () => {
     const state = runFor(withPawn(0, 0), PIECE_TYPES.pawn.moveIntervalMs + DT)
 
     expect(state.phase).toBe('inProgress')

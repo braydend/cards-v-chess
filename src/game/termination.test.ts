@@ -6,7 +6,7 @@ import type { GameState, Piece, PieceTypeId } from './types'
 
 const DT = 1000 / 60
 
-/** Generous: the slowest Piece sweeping the full rank needs well under this. */
+/** Generous: the slowest hunt — a Bishop's diagonal climb — needs well under this. */
 const CAP_MS = 300_000
 
 function pieceOn(id: string, typeId: PieceTypeId, file: number, rank: number): Piece {
@@ -56,9 +56,10 @@ describe('round termination', () => {
     expect(settled.phase).not.toBe('inProgress')
   })
 
-  it('a sweeper left of the Core file still reaches it, thanks to reflection', () => {
-    // File 1 sweeping toward file 0 would oscillate 0-1 forever without the
-    // handedness flip. It must reflect and cross file 3.
+  it('a Piece left of the Core file still reaches it, hunting rightward', () => {
+    // Before hunting, this case needed the handedness flip off the file-0
+    // edge to keep the sweep from oscillating. Direction now comes from the
+    // field, not from handedness, so the Core is reached from either side.
     const settled = settle(roundWith([{ ...pieceOn('r', 'rook', 1, 0), handedness: -1 }]))
 
     expect(settled.phase).not.toBe('inProgress')

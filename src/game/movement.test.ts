@@ -592,12 +592,42 @@ describe('queen movement', () => {
       handedness: 1,
     })
   })
+})
 
-  it('sweeps the back rank once it reaches it', () => {
-    expect(move('queen', { file: 5, rank: 0 }, NO_TOWERS, { handedness: -1 })).toEqual({
+describe('queen hunting', () => {
+  it('slides toward the Core along the back rank instead of sweeping', () => {
+    expect(move('queen', { file: 5, rank: 0 })).toEqual({
       kind: 'move',
       to: { file: 4, rank: 0 },
-      handedness: -1,
+      hunting: true,
+    })
+  })
+
+  it('hunts from either alternation parity', () => {
+    // The rook/bishop alternation is forward-march behaviour only; a hunting
+    // Queen uses full queen movement regardless of which line her next hop
+    // would have been.
+    expect(move('queen', { file: 5, rank: 0 }, NO_TOWERS, { moveCount: 1 })).toEqual({
+      kind: 'move',
+      to: { file: 4, rank: 0 },
+      hunting: true,
+    })
+  })
+
+  it('arrives at the Core from every square on the board', () => {
+    for (const square of allSquares(BOARD)) {
+      if (squaresEqual(square, CORE_SQUARE)) continue
+      expect(walkToCore('queen', square)).toBe(true)
+    }
+  })
+
+  it('grinds a Tower on its chosen line rather than sliding around it', () => {
+    const towers = towersAt({ file: 4, rank: 0 })
+
+    expect(move('queen', { file: 5, rank: 0 }, towers)).toEqual({
+      kind: 'attackTower',
+      towerId: 'tower-0',
+      hunting: true,
     })
   })
 })

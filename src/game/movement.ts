@@ -7,6 +7,7 @@ import {
   bishopDistanceField,
   kingDistanceField,
   knightDistanceField,
+  queenDistanceField,
   rookDistanceField,
 } from './distanceFields'
 import type { BoardSpec, Handedness, Piece, PieceTypeId, Square, Tower } from './types'
@@ -16,22 +17,22 @@ import type { BoardSpec, Handedness, Piece, PieceTypeId, Square, Tower } from '.
  *
  * `stuck` means the Piece has no legal move. That is a real chess outcome —
  * and it is why round completion cannot simply wait for the board to empty.
- * Every Piece type now has a designed way off `stuck`, though: Pawns
- * promote, sliders and the King sweep sideways, and a Knight that runs out
- * of forward hops hunts the Core instead — see `knightMove`, below. `stuck`
- * stays part of the type for a board shape or Piece that genuinely has none.
+ * Every Piece type has a designed way off `stuck`: Pawns promote, and every
+ * other type hunts the Core once its forward move would leave the board —
+ * see `knightMove` and `huntByField`, below. `stuck` stays part of the type
+ * for a board shape or Piece that genuinely has none.
  * `promote` means a Pawn has reached the back rank: chess promotes it there,
  * rather than stranding it the way `stuck` would.
  *
- * `hunting`, on both `move` and `attackTower`, is a Knight-only detail riding
- * on the shared outcome shape: present exactly when a Knight has just started
- * hunting or continues to, so `tick.ts`'s `movePieces` can latch it onto the
- * Piece permanently. See `hunting` on `Piece` in types.ts for why the latch
- * has to be permanent. It rides on `attackTower` too, not just `move`,
- * because a Knight's very first hunting hop is exactly as likely to land on
- * a Tower-blocked square as any other — `Piece.hunting` is documented to go
- * true the moment a Knight starts hunting, full stop, not "the moment it
- * starts hunting and also happens to move that hop".
+ * `hunting`, on both `move` and `attackTower`, rides on the shared outcome
+ * shape: present exactly when a Piece has just started hunting or continues
+ * to, so `tick.ts`'s `movePieces` can latch it onto the Piece permanently.
+ * See `hunting` on `Piece` in types.ts for why the latch has to be permanent.
+ * It rides on `attackTower` too, not just `move`, because a Piece's very
+ * first hunting hop is exactly as likely to land on a Tower-blocked square as
+ * any other — `Piece.hunting` is documented to go true the moment a Piece
+ * starts hunting, full stop, not "the moment it starts hunting and also
+ * happens to move that hop".
  */
 export type MoveOutcome =
   | {
@@ -88,44 +89,18 @@ interface Step {
 type Stepper = (from: Square, handedness: Handedness, board: BoardSpec) => Step | undefined
 
 /**
- * Sideways along the rank, reflecting off the file edges.
- *
- * Reflection **flips handedness** rather than retrying the same side. Without
- * that, a Piece on file 0 preferring file −1 would bounce 0→1→0→1 forever and
- * the round would never end. Flipping makes it traverse the rank, so it crosses
- * the Core's file and leaks. Round termination depends on this.
- *
- * The direction is fixed by handedness, never chosen by where the Core is —
- * that would be goal-seeking.
- */
-function lateralStep(from: Square, handedness: Handedness, board: BoardSpec): Step | undefined {
-  const sideways: Square = { file: from.file + handedness, rank: from.rank }
-  if (isInBounds(board, sideways)) return { to: sideways, handedness }
-
-  const reflected: Handedness = handedness === 1 ? -1 : 1
-  const back: Square = { file: from.file + reflected, rank: from.rank }
-  if (isInBounds(board, back)) return { to: back, handedness: reflected }
-
-  return undefined
-}
-
-/** Straight down the file, sweeping sideways once the back rank is reached. */
-const rookStep: Stepper = (from, handedness, board) => {
-  const ahead: Square = { file: from.file, rank: from.rank + FORWARD }
-  if (isInBounds(board, ahead)) return { to: ahead, handedness }
-  return lateralStep(from, handedness, board)
-}
-
-/**
  * Forward along a diagonal, reflecting off the side edges.
  *
  * Reflection preserves square colour — bouncing off a vertical edge changes
  * file and rank by one each, which keeps `(file + rank) % 2` constant. That is
  * the same property a chess bishop has, arrived at for the same reason.
+ *
+ * At the back rank there is no forward diagonal and no fallback either: the
+ * Bishop's hunt takes over instead — see the bishop case in `nextMove`.
  */
 const bishopStep: Stepper = (from, handedness, board) => {
   const forwardRank = from.rank + FORWARD
-  if (forwardRank < 0) return lateralStep(from, handedness, board)
+  if (forwardRank < 0) return undefined
 
   const diagonal: Square = { file: from.file + handedness, rank: forwardRank }
   if (isInBounds(board, diagonal)) return { to: diagonal, handedness }
@@ -420,13 +395,11 @@ function rangeToCloserSquare(
 }
 
 /**
- * Resolves one move for a Piece using **chess movement**, not a walk toward the
- * Core.
- *
- * The consequence is deliberate and significant: a Piece can only threaten the
- * Core if chess movement can actually bring it there. A pawn is confined to its
- * file, so only the Core's own file and the two diagonally adjacent to it are
- * dangerous. Every other pawn marches to the back rank and stops.
+ * Resolves one move for a Piece using **chess movement**, not a walk toward
+ * the Core — while forward movement lasts. Once a Piece's forward move would
+ * leave the board, it hunts the Core instead, guided by a distance field
+ * over its own movement: see `huntCore` and `huntByField`. Pawns are the one
+ * type that never hunts — they promote.
  */
 export function nextMove(
   request: MoveRequest,
@@ -504,19 +477,29 @@ export function nextMove(
         towerBySquare,
       )
     // The Queen alternates the Rook's line and the Bishop's line hop by hop —
-    // the "flexible" in her roster entry. The line is picked once per hop and
-    // held for the whole slide, so she travels along one line rather than
-    // wandering mid-slide.
+    // the "flexible" in her roster entry — while she marches. Once forward
+    // leaves the board she hunts with full queen movement instead; the
+    // alternation is forward-march behaviour only.
     case 'queen':
-      return travel(
-        request.from,
-        request.handedness,
-        1 + request.slideBonus,
-        request.moveCount % 2 === 0 ? rookStep : bishopStep,
-        board,
-        coreSquare,
-        towerBySquare,
-      )
+      return request.hunting || forwardLeavesBoard(request.from, board)
+        ? huntByField(
+            request.from,
+            board,
+            coreSquare,
+            towerBySquare,
+            queenDistanceField(board, coreSquare),
+            ROYAL_OFFSETS,
+            1 + request.slideBonus,
+          )
+        : travel(
+            request.from,
+            request.handedness,
+            1 + request.slideBonus,
+            request.moveCount % 2 === 0 ? forwardFileStep : bishopStep,
+            board,
+            coreSquare,
+            towerBySquare,
+          )
     // One square, always. Not a slider, so no aura bonus applies — the King
     // grants slide distance, it does not receive it. Once forward leaves the
     // board the King hunts: one royal step at a time down the field.

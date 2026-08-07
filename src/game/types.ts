@@ -56,7 +56,7 @@ export interface PieceTypeDef {
 
 /**
  * Which way sideways. Drives the Knight's zig-zag, the Bishop's and Queen's
- * diagonal side, and the direction of a lateral sweep along a rank.
+ * diagonal side, and the reflection off a file edge during the forward march.
  */
 export type Handedness = 1 | -1
 
