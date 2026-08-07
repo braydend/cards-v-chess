@@ -290,9 +290,10 @@ describe('round termination with Pieces still on the Staging rank', () => {
       pendingSpawns: [{ atMs: 0, typeId: 'pawn', file: 3 }],
     }
 
-    // Generous: a Pawn deals 1 per 900ms hop into 20 health, then walks the
-    // board to the Core. The point is that it terminates at all — a Piece that
-    // never got onto the board must not be able to hang the round.
+    // Generous: a Pawn deals 1 per 900ms hop into rank 5's 22 health
+    // (towerRanks.ts), then walks the board to the Core. The point is that it
+    // terminates at all — a Piece that never got onto the board must not be
+    // able to hang the round.
     const after = runFor(state, 60_000)
 
     expect(after.phase).toBe('gap')
@@ -311,7 +312,7 @@ describe('round termination with Pieces still on the Staging rank', () => {
     const base = createInitialState()
     const towerSquare: Square = { file: 3, rank: base.board.ranks - 1 }
 
-    // Rank 3 is vertical with range 4 (towerRanks.ts): unlike the rank-5 Tower
+    // Rank 3 is vertical with range 5 (towerRanks.ts): unlike the rank-5 Tower
     // above, this one's geometry genuinely covers the Staging square directly
     // up-file (pinned in the immunity test below). Under the old "ordinary
     // Piece" rule that would have let the Tower finish the grinding Pawn off
@@ -325,12 +326,44 @@ describe('round termination with Pieces still on the Staging rank', () => {
       pendingSpawns: [{ atMs: 0, typeId: 'pawn', file: 3 }],
     }
 
-    // Generous, as above: 1 damage per 900ms hop into 12 health, then the walk
-    // to the Core once the wall falls.
+    // Generous, as above: 1 damage per 900ms hop into rank 3's 14 health
+    // (towerRanks.ts), then the walk to the Core once the wall falls.
     const after = runFor(state, 60_000)
 
     // Reaches the gap on the grind alone — the Tower can never repay the
     // damage it takes, so there is nothing left for it to be a race against.
+    expect(after.phase).toBe('gap')
+    expect(after.towers).toEqual([])
+    expect(after.pieces).toEqual([])
+  })
+
+  // Rank 7 is the Wall: no gun at all, and the highest maxHealth on the
+  // ladder (towerRanks.ts). Unlike the two Towers above, it cannot end this
+  // standoff from its own side even in principle — there is no shot for the
+  // Staging rank's immunity to block in the first place. That makes a Wall on
+  // the far rank blocking a staged Piece the purest invulnerable standoff the
+  // game can produce, and this pins that the grind alone is still enough.
+  it('ends the round even behind a gunless Wall, since the grind alone still wears it down', () => {
+    const base = createInitialState()
+    const towerSquare: Square = { file: 3, rank: base.board.ranks - 1 }
+
+    // The precondition that makes this the extreme case: a Wall never fires,
+    // by construction (`fireTowers` in tick.ts skips `geometry === 'none'`
+    // before its cooldown loop even starts), not merely because the Staging
+    // rank's immunity happens to block its shot.
+    expect(TOWER_RANKS[7].geometry).toBe('none')
+
+    const built = withTower(7, towerSquare, base)
+    const state: GameState = {
+      ...built,
+      phase: 'inProgress',
+      pendingSpawns: [{ atMs: 0, typeId: 'pawn', file: 3 }],
+    }
+
+    // Generous: 1 damage per 900ms hop into the Wall's 45 health (towerRanks.ts)
+    // is 40,500ms of grinding alone, then the walk to the Core once it falls.
+    const after = runFor(state, 90_000)
+
     expect(after.phase).toBe('gap')
     expect(after.towers).toEqual([])
     expect(after.pieces).toEqual([])
@@ -421,7 +454,7 @@ describe("the Staging rank is safe from damage, except a Joker's Clear", () => {
     const towerSquare: Square = { file: 3, rank: base.board.ranks - 1 }
     const stagingSquare: Square = { file: 3, rank: stagingRank(base.board) }
 
-    // Rank 3 is vertical with range 4 (src/data/towerRanks.ts), so a Tower on
+    // Rank 3 is vertical with range 5 (src/data/towerRanks.ts), so a Tower on
     // the far rank covers the Staging square directly up-file at file
     // distance 0 — unlike the diagonal rank 5 the walled tests elsewhere in
     // this file deliberately use, which cannot reach it. This precondition is
@@ -442,11 +475,11 @@ describe("the Staging rank is safe from damage, except a Joker's Clear", () => {
     }
 
     // Long enough that a vulnerable Pawn (maxHealth 3, pieceTypes.ts) would
-    // have died to rank 3's fire (1 damage every 600ms fire interval,
-    // towerRanks.ts) several times over — 8 seconds is 13 shots, over four
-    // kills' worth — while short of the roughly 10.8 seconds the Pawn's own
+    // have died to rank 3's fire (2 damage every 500ms fire interval,
+    // towerRanks.ts) several times over — 8 seconds is 16 shots, eight
+    // kills' worth — while short of the roughly 12.6 seconds the Pawn's own
     // blocked-attack grind (half of 2 damage every 900ms move interval) needs
-    // to fell the Tower's 12 health. That margin matters: it keeps the Tower
+    // to fell the Tower's 14 health. That margin matters: it keeps the Tower
     // standing and the Pawn still blocked — actively grinding, not merely
     // present — for the assertions below.
     for (let elapsed = 0; elapsed < 8_000; elapsed += DT) {
