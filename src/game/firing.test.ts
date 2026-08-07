@@ -334,3 +334,80 @@ describe('targets per shot', () => {
     expect(a).toEqual(b)
   })
 })
+
+describe('tower firing: Towers block each other', () => {
+  it('a Tower between the shooter and the Piece hides the Piece', () => {
+    // Rank 3 fires vertically up its file. A rank-7 Wall at {3,4} stands
+    // between the shooter at {3,7} and a Pawn at {3,2}: geometrically covered,
+    // actually hidden.
+    const withWall = withTower(7, { file: 3, rank: 4 })
+    const state = liveRound(withTower(3, { file: 3, rank: 7 }, withWall), [
+      pawnAt('target-0', { file: 3, rank: 2 }),
+    ])
+
+    const after = runFor(state, TOWER_RANKS[3].fireIntervalMs + DT)
+
+    expect(wasHit(state, after, 'target-0')).toBe(false)
+  })
+
+  it('still fires at the same arrangement with no blocker', () => {
+    const state = scenario(3, { file: 3, rank: 7 }, [{ file: 3, rank: 2 }])
+
+    const after = runFor(state, TOWER_RANKS[3].fireIntervalMs + DT)
+
+    expect(wasHit(state, after, 'target-0')).toBe(true)
+  })
+
+  it('retargets to the next-nearest reachable Piece when the nearest is hidden', () => {
+    // Core is at {3,0}, so distance to Core is the board rank. target-0 at
+    // {3,2} is nearer the Core than target-1 at {3,5} — but the Wall at {3,4}
+    // hides it from the shooter at {3,7}. The Tower must hit target-1: nearest
+    // REACHABLE, not nearest overall.
+    const withWall = withTower(7, { file: 3, rank: 4 })
+    const state = liveRound(withTower(3, { file: 3, rank: 7 }, withWall), [
+      pawnAt('target-0', { file: 3, rank: 2 }),
+      pawnAt('target-1', { file: 3, rank: 5 }),
+    ])
+
+    const after = runFor(state, TOWER_RANKS[3].fireIntervalMs + DT)
+
+    expect(wasHit(state, after, 'target-0')).toBe(false)
+    expect(wasHit(state, after, 'target-1')).toBe(true)
+  })
+
+  it('holds fire when every Piece it covers is hidden, and does not bank the shot', () => {
+    // The Pawn is geometrically covered but occluded, and nothing else is in
+    // range on the near side of the Wall. The Tower must fire nothing and sit
+    // clamped at "ready" — the same cooldown a Tower with no target produces,
+    // never a stored shot.
+    const withWall = withTower(7, { file: 3, rank: 4 })
+    const state = liveRound(withTower(3, { file: 3, rank: 7 }, withWall), [
+      pawnAt('target-0', { file: 3, rank: 2 }),
+    ])
+
+    const after = runFor(state, TOWER_RANKS[3].fireIntervalMs + DT)
+
+    expect(wasHit(state, after, 'target-0')).toBe(false)
+    const shooter = after.towers.find((tower) => tower.cardRank === 3)
+    expect(shooter?.fireCooldownMs).toBe(TOWER_RANKS[3].fireIntervalMs)
+  })
+
+  it('a multi-target Tower hits exactly the reachable Pieces', () => {
+    // Rank 8 ring at {3,3} covers Chebyshev distance 3-4. The Wall at {3,4}
+    // sits in the hollow core (distance 1) so it never fires, but it hides
+    // everything on the file beyond it. target-0 at {3,7} (distance 4, in the
+    // ring) is hidden; target-1 at {0,3} (distance 3, in the ring, off the
+    // file) is reachable. targetsPerShot is 3, so both would be hit without
+    // occlusion; only target-1 is now.
+    const withWall = withTower(7, { file: 3, rank: 4 })
+    const state = liveRound(withTower(8, { file: 3, rank: 3 }, withWall), [
+      pawnAt('target-0', { file: 3, rank: 7 }),
+      pawnAt('target-1', { file: 0, rank: 3 }),
+    ])
+
+    const after = runFor(state, TOWER_RANKS[8].fireIntervalMs + DT)
+
+    expect(wasHit(state, after, 'target-0')).toBe(false)
+    expect(wasHit(state, after, 'target-1')).toBe(true)
+  })
+})
