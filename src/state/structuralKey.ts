@@ -1,3 +1,4 @@
+import { PACK_TYPES } from '../data/packs'
 import type { GameState } from '../game'
 
 /**
@@ -45,6 +46,10 @@ export function structuralKey(state: GameState): string {
     // a per-tick value; adding one of those here would force a React render
     // every frame.
     state.ink,
+    // Pack purchases, because the shop prices from them. Rare-changing — a
+    // purchase already moves ink and the Deck ids, so this adds no publishes;
+    // keyed so a price change is never silently invisible.
+    PACK_TYPES.map((pack) => state.packPurchases[pack]).join(','),
     state.autoStart,
     state.pendingSpawns.length,
     // The board grows when an Ace is played, and the renderer draws from it.
