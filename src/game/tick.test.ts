@@ -27,9 +27,8 @@ function startedRound(): GameState {
 /**
  * A single Rook placed directly on the back rank, bypassing the spawn
  * pipeline entirely. `startedRound()` always drives round 1, which spawns
- * Pawns exclusively, so this is the only way to get a sliding, reflecting
- * Piece under test — a Pawn's `move` outcome never carries a `handedness`,
- * so it cannot exercise the handedness-threading fix on its own.
+ * Pawns exclusively, so this is the only way to get a back-rank slider under
+ * test — from rank 0 a Rook hunts, and a Pawn never exercises the hunt at all.
  */
 function rookOnBackRank(file: number, handedness: Handedness): GameState {
   return {
@@ -238,7 +237,7 @@ describe('tick: round completion', () => {
 describe('tick: hunting Knight latch', () => {
   it('latches hunting even when the very first hunt hop lands on a Tower', () => {
     // (5,0) has no legal forward hop, so it hunts immediately, and (4,2) is
-    // its one distance-1 neighbour (see knightDistance.ts). A Tower there
+    // its one distance-1 neighbour (see distanceFields.ts). A Tower there
     // forces the Knight's very first hunting decision down the attackTower
     // branch — exactly the path that used to leave `hunting` unpersisted on
     // the surviving Piece, because `movePieces`' attackTower branch never
@@ -278,17 +277,37 @@ describe('tick: motion state', () => {
   // A Pawn's `move` outcome never carries a `handedness` (it isn't a slider),
   // so the tests above never actually exercise threading the *returned*
   // handedness forward — they pass on spawn-parity alone, which predates this
-  // fix. A Rook does: it reflects off a file edge, which is the one place a
-  // move outcome returns a handedness that differs from the one it was given.
+  // fix. A Rook no longer reflects off file edges — it hunts from the back
+  // rank. The Bishop still reflects during her forward march, so the
+  // handedness-threading property this test pins now rides on her.
   it('carries the handedness a slide reflection returns, not just the spawned value', () => {
-    const rook = rookOnBackRank(6, 1)
-    const state = runFor(rook, PIECE_TYPES.rook.moveIntervalMs * 2 + DT)
+    const bishop: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      pieces: [
+        {
+          id: 'test-bishop',
+          typeId: 'bishop',
+          square: { file: 7, rank: 3 },
+          prevSquare: { file: 7, rank: 3 },
+          health: PIECE_TYPES.bishop.maxHealth,
+          moveCooldownMs: 0,
+          moveCount: 0,
+          handedness: 1,
+          auraCooldownMs: 0,
+          buffed: false,
+          hunting: false,
+          promoted: false,
+        },
+      ],
+    }
+    const state = runFor(bishop, PIECE_TYPES.bishop.moveIntervalMs * 2 + DT)
 
-    // Hop 1: (6,0) -> (7,0), sideways move stays in bounds, handedness stays +1.
-    // Hop 2: (7,0) has nowhere further sideways to go at +1, so it reflects
-    // back to (6,0) and the returned handedness flips to -1. Discarding that
-    // return (the bug this task fixes) would leave handedness at +1 forever.
-    expect(state.pieces[0]?.square).toEqual({ file: 6, rank: 0 })
+    // Hop 1: the diagonal to (8,2) is off the board, so the Bishop reflects
+    // to (6,2) and the returned handedness flips to -1. Hop 2 continues with
+    // that flip: (6,2) -> (5,1). Discarding the returned handedness (the bug
+    // this test guards) would send hop 2 back to (7,1) instead.
+    expect(state.pieces[0]?.square).toEqual({ file: 5, rank: 1 })
     expect(state.pieces[0]?.handedness).toBe(-1)
   })
 
@@ -296,10 +315,11 @@ describe('tick: motion state', () => {
   // This test narrows that down to the one case this task's fix addresses —
   // deliberately redundant with that future coverage, not duplication to
   // prune, because a permanent round hang is severe enough to guard twice.
-  it('lets a sweeping Rook cross the Core file and leak instead of oscillating forever', () => {
+  it('lets a back-rank Rook hunt the Core and leak', () => {
     const rook = rookOnBackRank(6, 1)
-    // Five hops: (6,0) -> (7,0) -> (6,0) -> (5,0) -> (4,0) -> Core. Without
-    // the fix the Rook oscillates 6<->7 forever and the round never ends.
+    // Three hunt hops: (6,0) -> (5,0) -> (4,0) -> Core. Before hunting this
+    // same scenario swept the whole rank; the round still ends either way,
+    // but the hunt is what issue #13 asked for.
     const state = runFor(rook, PIECE_TYPES.rook.moveIntervalMs * 5 + DT)
 
     expect(state.phase).not.toBe('inProgress')

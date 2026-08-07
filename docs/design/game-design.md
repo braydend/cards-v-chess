@@ -266,9 +266,8 @@ Every Piece is **forward-biased and deterministic**: it travels down-board, from
 
 This has large consequences that are accepted deliberately:
 
-- **A Piece can only threaten the Core if chess movement can reach it.** A pawn is confined to its file, so only the Core's own file and the two files diagonally adjacent are dangerous to it specifically. Sliders and the King reach further, because the lateral fallback below sweeps them across the whole rank once they hit the back rank.
+- **Every Piece can threaten the Core.** A pawn is confined to its file, so only the Core's own file and the two files diagonally adjacent are dangerous to it specifically — but a Pawn that reaches the back rank promotes into a Queen, and every other type hunts the Core directly once its forward move runs out; see Hunting, below.
 - **A round therefore ends when nothing on the board can still act**, not when the board is empty. Waiting for an empty board would hang the round forever.
-- **Knights hunt; nothing else does.** A Knight's hops only ever go forward, so at rank 0 all four zig-zag candidates would need to land off the board. Every other type has a designed answer already — Pawns promote, sliders and the King sweep sideways — and a Knight gets one of its own: rather than stranding there, it starts hunting the Core directly, using knight moves guided by a distance field instead of the forward zig-zag. See Promotion and Hunting, both below.
 
 ### Pawn
 
@@ -280,7 +279,7 @@ A zig-zag L-hop: it alternates `(file−1, rank−2)` and `(file+1, rank−2)`, 
 
 ### Bishop
 
-Slides forward along a diagonal, reflecting off the side edges — which keeps it on its own square colour, as a real bishop does.
+Slides forward along a diagonal, reflecting off the side edges — which keeps it on its own square colour, as a real bishop does. Once forward motion runs out it hunts the Core like every other Piece — unless the Core sits on a colour it can never reach, in which case it hunts the square directly in front of the Core and leaks from there; see Hunting, below.
 
 ### Rook
 
@@ -294,31 +293,25 @@ Slides, alternating the Rook's line and the Bishop's line hop by hop — the onl
 
 One square straight forward, always. It never slides and never gains a slide bonus of its own — see Auras, under The Chess roster below, for what it grants everyone else instead.
 
-Bishop, Rook, and Queen — the sliders — move **one square per hop**, exactly like the Pawn, **+1 while adjacent to a King**. A slide of N resolves as **N single-square steps along one committed line**: it stops early on a Tower (which it attacks) or the Core (which it leaks into), and if it reaches a board edge mid-slide it stops there too, at the corner, rather than bending onto a new line for the remaining steps.
+Bishop, Rook, and Queen — the sliders — move **one square per hop**, exactly like the Pawn, **+1 while adjacent to a King**. A slide of N resolves as **N single-square steps along one committed line**: it stops early on a Tower (which it attacks) or the Core (which it leaks into), and if it reaches the back rank mid-slide it stops there rather than bending onto a new line for the remaining steps — the hunt begins on the next hop.
 
 ### Promotion
 
 A Pawn reaching rank 0 becomes a Queen, at full Queen health, instead of stranding. This is chess-exact, and it turns the back-rank pile-up from clutter into a threat: an ignored Pawn eventually becomes the elite Piece on the roster.
 
-### Lateral fallback
-
-When a Piece's forward square is off the board, **sliders and the King sweep sideways along their rank instead**, reflecting off the file edges. Reflection **flips the Piece's `handedness`** rather than retrying the same side — without that flip, a Piece would bounce between two files forever and the round could never end. Flipping makes it traverse the whole rank instead, so it eventually crosses the Core's file and leaks.
-
-**Knights take a different fallback: hunting, not sweeping.** A Knight's hops only ever go forward, so at rank 0 every zig-zag candidate would need to land off the board, and unlike a slider or the King it has no lateral sweep of its own. See Hunting, below, for what it does instead — the reasoning is the same shape (a Piece that would otherwise have nothing left to do needs a designed way to keep threatening), but the mechanism differs because a Knight shuffling sideways one square is not a knight move.
-
-The fallback direction is always carried in `handedness`, never chosen because the Core happens to be on one side — that would be goal-seeking, the same thing forward-bias above already rules out for every Piece type. Hunting is the one deliberate exception to that rule; see Hunting for why it does not reopen the mazing risk the rule exists to close.
-
 ### Hunting
 
-Once a Knight runs out of forward hops, it **hunts the Core** using knight moves the rest of the way, rather than stranding on rank 0 forever. This is the one Piece behaviour allowed to aim at the Core directly — a narrow, explicit exception to "never choose direction because the Core lies that way," stated under Movement is chess movement, above.
+Once a Piece's forward move would leave the board — for every type, that is rank 0 — it **hunts the Core** the rest of the way, moving by its own chess movement. Pawns are the one exception: they promote instead.
 
-**The state latches.** `hunting: boolean` on the Piece is set true the moment a Knight either is already hunting or has run out of forward hops, and it never clears. Without the latch the feature does not terminate: a hunting Knight's first hop necessarily goes *backwards* — every knight move off rank 0 does — and landing further up the board it would have a legal forward hop again. An unlatched flag would let it revert to zig-zagging, march back down to rank 0, strand, start hunting backwards again, and repeat forever.
+**The state latches.** `hunting: boolean` on the Piece is set true the moment hunting starts, and it never clears. Without the latch the feature does not terminate: a same-colour Bishop's first hunting hop goes *away* from rank 0, up to the diagonal intersection that routes it back down to the Core, and at that intersection it has a legal forward diagonal again. An unlatched flag would let it revert to marching, reach rank 0 elsewhere, start hunting again, and oscillate forever. (The Knight's version of the same argument: its first hunting hop goes backwards.) The Queen hunts with full queen movement; her rook/bishop alternation is forward-march behaviour only.
 
-**Direction comes from a knight-distance field.** A breadth-first search over knight moves across the board's squares gives every square its distance to the Core, computed once per board and Core square and memoised (`src/game/knightDistance.ts`). A hunting Knight takes the first knight-move candidate — in a fixed offset order, for determinism — whose distance is exactly one less than its own square's. A BFS field guarantees a `d − 1` neighbour at every square with `d > 0`, so a hunting Knight reaches the Core within its own distance, in hops — at most six on an 8x8 board — and the strict decrease on every hop makes a cycle structurally impossible, not merely absent from testing.
+**Direction comes from a per-type distance field.** A breadth-first search over the Piece's own movement gives every square its distance to the target in *moves* — a slide of any length counts as one — computed once per board, seed square, and type, and memoised (`src/game/distanceFields.ts`). A hunting King steps onto the first neighbour, in a fixed order, at distance one less. A hunting slider picks the first direction, in a fixed order, whose line reaches a square one move closer, and slides along it — at most its normal slide distance, King aura included, and **capped at the closer square** so a long slide cannot overshoot its phase target. A BFS field guarantees the closer square exists at every distance `d > 0`, and distance strictly decreases between phases (2→1→0); within a phase every hop advances along a shortest-path line toward that phase's target — arriving on it, exhausting the slide count en route, or grinding the Tower blocking the line. Arrival is bounded and a cycle is impossible by construction; the walk from every square is pinned exhaustively in `movement.test.ts`.
 
-**The field never sees Towers.** It is computed on an empty board, which is what keeps the exception narrow: Tower placement cannot change which square a hunting Knight is aiming for. A Tower on the chosen square is attacked exactly as any other blocked Piece attacks one — the Knight grinds rather than trying a different candidate. The player can wall a hunting Knight; the player still cannot herd one.
+**The fields never see Towers.** They are computed on an empty board, which is what keeps hunting from reopening the mazing risk: Tower placement cannot change which square a hunting Piece is aiming for. A Tower on the chosen line is attacked exactly as any other blocked Piece attacks one — the Piece grinds rather than trying another line. The player can wall a hunting Piece; the player still cannot herd one.
 
-See [`docs/superpowers/specs/2026-08-06-hunting-knights-design.md`](../superpowers/specs/2026-08-06-hunting-knights-design.md) for the full reasoning, including the rejected alternatives (promoting stranded Knights, giving them the lateral sweep, and deleting stranded Pieces at round end).
+**The colour-locked Bishop.** A Bishop stays on its own colour, so a Core on the other colour is a square it can never stand on. Such a Bishop hunts the square directly in front of the Core instead — always the Bishop's own colour — and **leaks from there**, standard leak damage, counted in the leaks counter: every Piece meets the Core the same way. Issue #13's literal caveat — a standing half-damage forward attack from that square — was set aside for exactly that uniformity, and is worth revisiting if leaks ever deal Piece-specific damage.
+
+See [`docs/superpowers/specs/2026-08-07-hunting-for-all-design.md`](../superpowers/specs/2026-08-07-hunting-for-all-design.md) for the full reasoning, including the rejected alternatives (rank-0 geometry, the standing half-damage attack, and a Bishop-only fix), and [`2026-08-06-hunting-knights-design.md`](../superpowers/specs/2026-08-06-hunting-knights-design.md) for the Knight-specific origin of the mechanism.
 
 ## The Chess roster
 

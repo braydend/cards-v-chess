@@ -216,7 +216,7 @@ describe('entering the board from the Staging rank', () => {
       hunting: true,
     }
 
-    // `buildDistanceField` (knightDistance.ts) only ever visits in-bounds
+    // `knightDistanceField` (distanceFields.ts) only ever visits in-bounds
     // squares, so the Staging rank was never added to the field. `huntCore`
     // reads that absence as `stuck`. A hunting Knight on the Staging rank
     // would therefore strand there for good — and, now that damage cannot
@@ -373,10 +373,10 @@ describe('round termination with Pieces still on the Staging rank', () => {
 /**
  * A Piece that has entered the true board can never be pushed back onto the
  * Staging rank. This is not a new mechanic — it already falls out of how
- * movement is built: `rookStep`, `bishopStep`, and `lateralStep` (movement.ts)
- * only ever decrease or hold a Piece's rank, the Knight's zig-zag candidates
- * are `rank - 2` or `rank - 1`, and `huntCore` is the one place with
- * rank-increasing offsets, but it bounds-checks every candidate before
+ * movement is built: a forward march only ever decreases or holds a Piece's
+ * rank, the Knight's zig-zag candidates are `rank - 2` or `rank - 1`, and
+ * hunting (movement.ts) is the one place with rank-increasing moves, but it
+ * bounds-checks every candidate before
  * committing to one. Nothing here adds a new rule; this test turns that
  * accident of construction into an enforced invariant, checked exhaustively
  * rather than trusted from reading the code.

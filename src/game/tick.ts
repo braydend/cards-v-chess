@@ -171,12 +171,12 @@ export function tick(state: GameState, dtMs: number): GameState {
   // empty board would hang the round in that case regardless.
   //
   // Every Piece type that could once run out of legal moves for good now has
-  // a designed way off `stuck`: a Pawn promotes into a Queen, sliders and the
-  // King sweep sideways, and a Knight that exhausts its forward hops hunts
-  // the Core with knight moves instead of stranding on the back rank — see
-  // `knightMove` in movement.ts. `stillActive` still checks every Piece for
-  // `stuck` rather than assuming that, though: a designed answer is not a
-  // proof, and the check is what actually guards the invariant.
+  // a designed way off `stuck`: a Pawn promotes into a Queen, and every other
+  // type hunts the Core once its forward move would leave the board — see
+  // `knightMove` and `huntByField` in movement.ts. `stillActive` still checks
+  // every Piece for `stuck` rather than assuming that, though: a designed
+  // answer is not a proof, and the check is what actually guards the
+  // invariant.
   //
   // LOAD-BEARING INVARIANT: a Piece blocked by a Tower returns `attackTower`,
   // not `stuck`, so it counts as active and this round cannot end while it
@@ -516,10 +516,10 @@ function movePieces(
 
       if (outcome.kind === 'stuck') {
         // No legal move this hop. For every Piece type on the current board
-        // this is also permanent — Pawns promote, sliders and the King sweep
-        // sideways, and a Knight that runs out of forward hops hunts instead
-        // of stranding — so drop the cooldown rather than let a genuinely
-        // immobile Piece burn simulation work every tick for nothing.
+        // this is also permanent — Pawns promote and everything else hunts
+        // the Core once its forward move would leave the board — so drop the
+        // cooldown rather than let a genuinely immobile Piece burn simulation
+        // work every tick for nothing.
         prevSquare = square
         cooldown = 0
         break

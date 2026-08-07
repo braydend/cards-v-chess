@@ -6,7 +6,7 @@ import type { GameState, Piece, PieceTypeId } from './types'
 
 const DT = 1000 / 60
 
-/** Generous: the slowest Piece sweeping the full rank needs well under this. */
+/** Generous: the slowest hunt — a Bishop's diagonal climb — needs well under this. */
 const CAP_MS = 300_000
 
 function pieceOn(id: string, typeId: PieceTypeId, file: number, rank: number): Piece {
@@ -56,9 +56,10 @@ describe('round termination', () => {
     expect(settled.phase).not.toBe('inProgress')
   })
 
-  it('a sweeper left of the Core file still reaches it, thanks to reflection', () => {
-    // File 1 sweeping toward file 0 would oscillate 0-1 forever without the
-    // handedness flip. It must reflect and cross file 3.
+  it('a Piece left of the Core file still reaches it, hunting rightward', () => {
+    // Before hunting, this case needed the handedness flip off the file-0
+    // edge to keep the sweep from oscillating. Direction now comes from the
+    // field, not from handedness, so the Core is reached from either side.
     const settled = settle(roundWith([{ ...pieceOn('r', 'rook', 1, 0), handedness: -1 }]))
 
     expect(settled.phase).not.toBe('inProgress')
@@ -77,6 +78,17 @@ describe('round termination', () => {
     expect(settled.leaks).toBe(1)
   })
 
+  it('a colour-locked Bishop still leaks, from the square in front of the Core', () => {
+    // (4,0) is the opposite colour from the Core, so it can never stand on
+    // the Core's square. It hunts the square directly in front of it and
+    // leaks from there — same interaction with the Core as every other Piece.
+    const settled = settle(roundWith([pieceOn('b', 'bishop', 4, 0)]))
+
+    expect(settled.phase).toBe('gap')
+    expect(settled.pieces).toHaveLength(0)
+    expect(settled.leaks).toBe(1)
+  })
+
   it.each(
     Array.from({ length: BOARD.files }, (_, file) => file).filter(
       (file) => file !== CORE_SQUARE.file,
@@ -86,7 +98,7 @@ describe('round termination', () => {
     // Core's square in real play, since the Core sits there and nothing
     // spawns on rank 0. Covering every other file is what makes this a
     // property of the whole back rank rather than one lucky square: the
-    // knight-distance field in knightDistance.ts is finite everywhere else on
+    // knight-distance field in distanceFields.ts is finite everywhere else on
     // an 8x8 board, so every one of these settles by leaking, never by
     // hanging or re-stranding.
     const settled = settle(roundWith([pieceOn('n', 'knight', file, 0)]))
