@@ -198,6 +198,10 @@ A run is identified by a **seed**, making it reproducible and shareable: same se
 
 This requires a **seeded PRNG carried in `GameState`**. `Math.random` must never appear in `src/game/` — it breaks determinism and seeds alike. Streams are **named**: one run seed hashed with a stream name derives an independent generator per purpose, so adding a second random consumer later cannot shift what an existing seed deals to packs. See `src/game/rng.ts`.
 
+### Round composition
+
+> **King's Guard rounds.** Every 8th round starting at round 15 (15, 23, 31, …) replaces the normal composition with one or more **squads**: a King flanked by sliders (Bishop, Rook, Queen only) on adjacent files, spawning together so the King's aura fires as the squad enters. Both the squad count and each squad's size grow with the round number. The King and its sliders all draw tiers from the normal tier pool, so a late Guard round's King can be yellow, red, or black. Composition lives in `src/data/guardRounds.ts`; the squad and size formulas are placeholder tuning. See [`docs/superpowers/specs/2026-08-08-kings-guard-rounds-design.md`](../superpowers/specs/2026-08-08-kings-guard-rounds-design.md) for the full reasoning.
+
 ## Ink and packs
 
 **Ink** is the run currency. It buys **packs**. It is never spent to play a card.
