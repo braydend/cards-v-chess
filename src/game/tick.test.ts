@@ -757,3 +757,31 @@ describe('tick: exit records', () => {
     expect(after.recentExits.map((exit) => exit.pieceId)).toContain('leaker')
   })
 })
+
+describe('tick: yellow coverage avoidance', () => {
+  it('a yellow Knight hops to an uncovered d−1 landing rather than a covered one', () => {
+    // The rank-2 Tower at (2,1) covers (1,1) — the Knight's first d−1 landing —
+    // but not (4,2), its second.
+    const state = withTower(2, { file: 2, rank: 1 })
+    const knight = pieceAt('hop', 'knight', { file: 2, rank: 3 }, { tier: 'yellow', hunting: true })
+
+    const after = runFor(liveRound(state, [knight]), PIECE_TYPES.knight.moveIntervalMs + DT)
+
+    expect(after.pieces[0]?.square).toEqual({ file: 4, rank: 2 })
+  })
+
+  it('a round whose every d−1 landing is covered still terminates', () => {
+    // Both of the Knight's d−1 landings, (1,1) and (4,2), are covered. Avoidance
+    // falls back to today's first candidate, which sits under the Tower at
+    // (2,1): the Knight is shot down, and with nothing left to act the round
+    // completes rather than stalling.
+    const covered = withTower(2, { file: 2, rank: 1 })
+    const state = withTower(2, { file: 4, rank: 3 }, covered)
+    const knight = pieceAt('doomed', 'knight', { file: 2, rank: 3 }, { tier: 'yellow', hunting: true })
+
+    const after = runFor(liveRound(state, [knight]), 60_000)
+
+    expect(after.phase).toBe('gap')
+    expect(after.pieces).toHaveLength(0)
+  })
+})

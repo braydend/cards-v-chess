@@ -6,12 +6,14 @@ import type { MoveRequest } from './movement'
 import type { PieceTypeId, Square, Tower } from './types'
 
 const NO_TOWERS = new Map<string, Tower>()
+const EMPTY_AVOID = new Set<string>()
 
 function move(
   typeId: PieceTypeId,
   from: Square,
   towers: ReadonlyMap<string, Tower> = NO_TOWERS,
   overrides: Partial<MoveRequest> = {},
+  avoid: ReadonlySet<string> = EMPTY_AVOID,
 ) {
   const request: MoveRequest = {
     typeId,
@@ -23,7 +25,7 @@ function move(
     tier: 'green',
     ...overrides,
   }
-  return nextMove(request, BOARD, CORE_SQUARE, towers)
+  return nextMove(request, BOARD, CORE_SQUARE, towers, avoid)
 }
 
 describe('yellow — hunts from spawn', () => {

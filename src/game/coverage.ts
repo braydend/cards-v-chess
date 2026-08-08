@@ -1,5 +1,6 @@
-import { allSquares, squaresEqual } from './board'
-import type { BoardSpec, Square, TowerGeometry } from './types'
+import { towerRank } from '../data/towerRanks'
+import { allSquares, squareKey, squaresEqual } from './board'
+import type { BoardSpec, Square, Tower, TowerGeometry } from './types'
 
 /**
  * Whether a Tower at `from` with this geometry and range can hit `target`.
@@ -206,4 +207,34 @@ export function reachableSquares(
   return coveredSquares(board, geometry, range, from).filter(
     (square) => !isOccluded(from, square, blockers, geometry),
   )
+}
+
+/**
+ * Every square on the board that at least one Tower can actually hit, keyed by
+ * `squareKey`.
+ *
+ * The union of `reachableSquares` across the Tower list — occlusion-aware, so
+ * a square a Tower can see but another Tower hides is not in the set. This is
+ * the footprint the firing overlays draw, which is what makes it the right
+ * thing for yellow's hunt to dodge: the squares a shot would actually land on
+ * and the squares yellow avoids are the same set by construction. The Wall's
+ * `geometry: 'none'` contributes nothing; an aura Tower contributes its firing
+ * footprint, which is also where its aura applies.
+ *
+ * A pure function of the board and the Tower list, so the avoidance it feeds
+ * stays deterministic within a seeded run. Allocates: `movePieces` in tick.ts
+ * calls it once per tick, never from a frame loop.
+ */
+export function hittableSquares(board: BoardSpec, towers: readonly Tower[]): ReadonlySet<string> {
+  const blockers = towers.map((tower) => tower.square)
+  const covered = new Set<string>()
+
+  for (const tower of towers) {
+    const def = towerRank(tower.cardRank)
+    for (const square of reachableSquares(board, def.geometry, def.range, tower.square, blockers)) {
+      covered.add(squareKey(square))
+    }
+  }
+
+  return covered
 }
