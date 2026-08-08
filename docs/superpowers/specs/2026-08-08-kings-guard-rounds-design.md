@@ -26,7 +26,7 @@ discuss options."
 
 **Every 8th round starting at round 15 (15, 23, 31, …) is a King's Guard round
 that replaces the normal composition. A Guard round is one or more squads, each
-a single green King flanked by sliders on adjacent files, spawning together so
+a single King flanked by sliders on adjacent files, spawning together so
 the aura actually fires on entry.**
 
 This is a new *composition*, not a new game system. A Guard round produces the
@@ -52,18 +52,20 @@ of spawns.
 
 - **1 King + N sliders, all on adjacent files, all spawning at the same
   `atMs`.**
-- The King is always **green**. Its tier behaviour is not the point of the
-  round — its aura is. A green King also never hunts early or detours to
-  Towers, so the squad advances as a coherent march rather than scattering.
+- The King is **not locked to green** — it draws its tier from the same normal
+  tier pool as the sliders, so its colour shifts with the run's escalation
+  like any other Piece. A yellow King hunts the Core from its first on-board
+  hop; a red King detours toward Towers; a black King dodges Tower shots.
+  The King's own tier behaviour is part of the round's variety, and keeping
+  it varied stops a Guard round from ever reading as "the same, but bigger."
 - The sliders are **Bishop, Rook, Queen only** — the `slides: true` types.
   Only they receive the +1 slide from the aura, so only they get the full
   effect. Pawns and Knights never appear: they have no slide bonus, so they
   would ride along unbuffed and dilute the round's identity.
-- Slider **tiers come from the normal tier pool** for that round number
-  (`tierPoolFor`). A late Guard round's sliders can be yellow, red, or black —
-  a red slider seeking Towers while King-buffed is a layered threat. The tier
-  mix stays in step with the run's escalation; the King being green is the one
-  deliberate deviation.
+- **Tiers come from the normal tier pool** for that round number
+  (`tierPoolFor`), for the King and sliders alike. A late Guard round's sliders
+  can be yellow, red, or black — a red slider seeking Towers while King-buffed
+  is a layered threat. The tier mix stays in step with the run's escalation.
 - Slider types are weighted by the existing `WEIGHT` table (restricted to the
   slider subset), so a Queen is rarer than a Bishop.
 
@@ -155,7 +157,9 @@ patterns:
   - every non-King is a slider (bishop, rook, or queen);
   - each squad's files are contiguous;
   - each squad's members share a single `atMs`.
-- The King is green; slider tiers equal `tierPoolFor(roundNumber)` exactly.
+- Every squad member's tier — King and sliders alike — equals
+  `tierPoolFor(roundNumber)`'s entries exactly (same pool, same interleave, in
+  spawn order).
 - Scale: squad count and sliders-per-squad are non-decreasing with round
   number.
 - No pawns or knights anywhere in `guardRoundSpec(15)`.
