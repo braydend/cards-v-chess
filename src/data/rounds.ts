@@ -59,7 +59,7 @@ function tierWeight(tier: PieceTier, roundNumber: number): number {
  * The weighted tier pool for a round, interleaved exactly like `poolFor` so a
  * newly unlocked tier appears in the very round it unlocks.
  */
-function tierPoolFor(roundNumber: number): PieceTier[] {
+export function tierPoolFor(roundNumber: number): PieceTier[] {
   const passes = Math.max(...TIER_ORDER.map((tier) => tierWeight(tier, roundNumber)))
   const pool: PieceTier[] = []
 
