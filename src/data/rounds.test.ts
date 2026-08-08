@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { isGuardRound } from './guardRounds'
 import { INTRODUCED_AT, TIER_INTRODUCED_AT, roundSpec } from './rounds'
 import type { PieceTier, PieceTypeId } from '../game/types'
 
@@ -73,5 +74,28 @@ describe('tier composition', () => {
     expect(roundSpec(9).spawns.map((spawn) => spawn.tier)).toEqual(
       roundSpec(9).spawns.map((spawn) => spawn.tier),
     )
+  })
+})
+
+describe('round dispatch', () => {
+  it('returns Guard composition for Guard round numbers', () => {
+    const spec = roundSpec(15)
+    expect(isGuardRound(15)).toBe(true)
+    // Guard rounds are King + sliders only — no pawns, no knights.
+    for (const spawn of spec.spawns) {
+      expect(['king', 'bishop', 'rook', 'queen']).toContain(spawn.typeId)
+    }
+    expect(spec.spawns.some((spawn) => spawn.typeId === 'king')).toBe(true)
+  })
+
+  it('keeps the normal composition for non-Guard rounds', () => {
+    const spec = roundSpec(14)
+    expect(isGuardRound(14)).toBe(false)
+    // The normal pool still sends pawns.
+    expect(spec.spawns.some((spawn) => spawn.typeId === 'pawn')).toBe(true)
+  })
+
+  it('is still deterministic at a Guard round number', () => {
+    expect(roundSpec(23)).toEqual(roundSpec(23))
   })
 })
