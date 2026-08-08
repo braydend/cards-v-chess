@@ -3,7 +3,7 @@ import { tierDef } from '../data/tiers'
 import { towerRank, type TowerRankDef } from '../data/towerRanks'
 import { KING_SPEED_MULTIPLIER, applyHealing, buffedPieceIds, slideBonusFor } from './auras'
 import { isInBounds, squareKey, stagingRank } from './board'
-import { coversSquare, isOccluded } from './coverage'
+import { coversSquare, hittableSquares, isOccluded } from './coverage'
 import { roundIncome, totalKillReward } from './ink'
 import { isStuck, nextMove } from './movement'
 import { spawnHealth } from './spawnScaling'
@@ -541,6 +541,12 @@ function movePieces(
   const exits: ExitRecord[] = []
   let leaked = 0
 
+  // The squares no Piece should choose to land on, derived once for the whole
+  // tick so every yellow hunt sees the same Tower layout regardless of the
+  // order Pieces are processed in. A soft preference, never a wall: a Piece
+  // with every d−1 landing covered falls back to its ordinary first candidate.
+  const avoid = hittableSquares(board, [...towerBySquare.values()])
+
   for (const piece of pieces) {
     const { moveIntervalMs: baseInterval, attackDamage } = pieceType(piece.typeId)
     const isBuffed = buffed.has(piece.id)
@@ -587,9 +593,7 @@ function movePieces(
         board,
         coreSquare,
         towerBySquare,
-        // Task 3 threads the per-tick hittableSquares set here; until then no
-        // tier avoids anything, so movement is unchanged by the new parameter.
-        new Set(),
+        avoid,
       )
 
       if (outcome.kind === 'reachCore') {
