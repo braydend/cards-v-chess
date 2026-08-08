@@ -23,7 +23,7 @@ export type {
   Card,
   CardRank,
   Command,
-  DodgeRecord,
+  MissRecord,
   ExitRecord,
   FaceRank,
   GameState,

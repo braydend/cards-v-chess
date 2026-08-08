@@ -152,7 +152,7 @@ function PieceMesh({
     const scale = (0.55 + healthFraction * 0.45) * pop
     const flashAgeMs = whiffAgeMs(
       whiffTracker.current,
-      state.recentDodges,
+      state.recentMisses,
       pieceId,
       state.roundNumber,
       now * 1000,

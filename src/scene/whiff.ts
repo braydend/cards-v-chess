@@ -1,11 +1,11 @@
-import type { DodgeRecord } from '../game'
+import type { MissRecord } from '../game'
 
 /**
- * The dodge whiff: a short flash on a Black Piece that just negated a Tower
+ * The whiff: a short flash on a Black Piece that was undetected by a Tower
  * shot. Presentation constants, tunable by feel — nothing in the engine reads
- * them. A dodge moves no field the renderer diffs, so unlike the Tower
+ * them. A miss moves no field the renderer diffs, so unlike the Tower
  * hit-flash it cannot be diff-driven; it is read live in `useFrame` from
- * `GameState.recentDodges`.
+ * `GameState.recentMisses`.
  */
 export const WHIFF_FLASH_MS = 220
 
@@ -20,22 +20,22 @@ export function createWhiffTracker(): WhiffTracker {
 }
 
 /**
- * Advances a Piece's tracker against the dodge ring and returns the flash age
+ * Advances a Piece's tracker against the miss ring and returns the flash age
  * in milliseconds. `nowMs` is wall-clock (frame.clock.elapsedTime * 1000); the
  * records carry engine elapsed time, which is monotonic within a round — so a
- * newer `roundElapsedMs` means a newly negated shot. `roundNumber` in the
- * record keeps a previous round's dodge from re-flashing when the next round
+ * newer `roundElapsedMs` means a newly undetected shot. `roundNumber` in the
+ * record keeps a previous round's miss from re-flashing when the next round
  * reaches the same elapsed time. Mutates `tracker` in place; it lives in a ref.
  */
 export function whiffAgeMs(
   tracker: WhiffTracker,
-  dodges: readonly DodgeRecord[],
+  misses: readonly MissRecord[],
   pieceId: string,
   roundNumber: number,
   nowMs: number,
 ): number {
   let newest = -1
-  for (const record of dodges) {
+  for (const record of misses) {
     if (record.pieceId !== pieceId || record.roundNumber !== roundNumber) continue
     if (record.roundElapsedMs > newest) newest = record.roundElapsedMs
   }
@@ -53,7 +53,7 @@ export function whiffAgeMs(
   return nowMs - tracker.flashStartedAtMs
 }
 
-/** A scale multiplier: a brief swell on a fresh dodge, 1 otherwise. */
+/** A scale multiplier: a brief swell on a fresh miss, 1 otherwise. */
 export function whiffScale(ageMs: number): number {
   if (ageMs < 0 || ageMs >= WHIFF_FLASH_MS) return 1
   const progress = ageMs / WHIFF_FLASH_MS
