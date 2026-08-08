@@ -1,5 +1,6 @@
 import type { PieceTier, PieceTypeId, RoundSpec, Spawn } from '../game/types'
 import { BOARD } from './board'
+import { guardRoundSpec, isGuardRound } from './guardRounds'
 
 /**
  * Round composition.
@@ -112,7 +113,29 @@ function poolFor(roundNumber: number): PieceTypeId[] {
   return pool
 }
 
+/**
+ * The slider-only type pool a Guard round's sliders draw from: the slides:
+ * true types, interleaved by the same WEIGHT logic as `poolFor`. The Guard
+ * round uses only sliders, because only they receive the King's +1 slide —
+ * see the kings-guard-rounds spec.
+ */
+function sliderPoolFor(): PieceTypeId[] {
+  const sliders: readonly PieceTypeId[] = ['bishop', 'rook', 'queen']
+  const passes = Math.max(...sliders.map((typeId) => WEIGHT[typeId]))
+  const pool: PieceTypeId[] = []
+  for (let pass = 1; pass <= passes; pass += 1) {
+    for (const typeId of sliders) {
+      if (WEIGHT[typeId] >= pass) pool.push(typeId)
+    }
+  }
+  return pool
+}
+
 export function roundSpec(roundNumber: number): RoundSpec {
+  if (isGuardRound(roundNumber)) {
+    return guardRoundSpec(roundNumber, tierPoolFor(roundNumber), sliderPoolFor())
+  }
+
   const pool = poolFor(roundNumber)
   const tierPool = tierPoolFor(roundNumber)
   const count = 2 + roundNumber
