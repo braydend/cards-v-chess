@@ -17,9 +17,9 @@ import {
 } from './towerAuras'
 import type {
   BoardSpec,
-  DodgeRecord,
   ExitRecord,
   GameState,
+  MissRecord,
   Piece,
   PieceTier,
   Square,
@@ -38,11 +38,11 @@ import type {
 export const EXIT_RING_SIZE = 32
 
 /**
- * How many dodge records `GameState.recentDodges` keeps. Sized like the exit
+ * How many miss records `GameState.recentMisses` keeps. Sized like the exit
  * ring: the renderer reads it live each frame, so it only needs to outlast a
  * publish cycle.
  */
-export const DODGE_RING_SIZE = 32
+export const MISS_RING_SIZE = 32
 
 /**
  * Appends to the exit ring, dropping the oldest past `EXIT_RING_SIZE`.
@@ -62,20 +62,20 @@ function appendExits(
 }
 
 /**
- * Appends to the dodge ring, dropping the oldest past `DODGE_RING_SIZE`.
+ * Appends to the miss ring, dropping the oldest past `MISS_RING_SIZE`.
  *
  * Returns the SAME array when there is nothing to append, so the overwhelming
  * majority of ticks allocate nothing here.
  */
-function appendDodges(
-  current: readonly DodgeRecord[],
-  added: readonly DodgeRecord[],
-): readonly DodgeRecord[] {
+function appendMisses(
+  current: readonly MissRecord[],
+  added: readonly MissRecord[],
+): readonly MissRecord[] {
   if (added.length === 0) return current
 
   const next = [...current, ...added]
 
-  return next.length > DODGE_RING_SIZE ? next.slice(next.length - DODGE_RING_SIZE) : next
+  return next.length > MISS_RING_SIZE ? next.slice(next.length - MISS_RING_SIZE) : next
 }
 
 /**
@@ -174,12 +174,12 @@ export function tick(state: GameState, dtMs: number): GameState {
     state.rng.combat,
   )
 
-  const dodgeRecords: DodgeRecord[] = fired.dodged.map((pieceId) => ({
+  const missRecords: MissRecord[] = fired.missed.map((pieceId) => ({
     pieceId,
     roundNumber: state.roundNumber,
     roundElapsedMs,
   }))
-  const recentDodges = appendDodges(state.recentDodges, dodgeRecords)
+  const recentMisses = appendMisses(state.recentMisses, missRecords)
 
   // After firing, so a Bishop can top up survivors but never resurrect the dead.
   const healed = applyHealing(fired.pieces, dtMs)
@@ -204,7 +204,7 @@ export function tick(state: GameState, dtMs: number): GameState {
       core,
       leaks,
       recentExits,
-      recentDodges,
+      recentMisses,
       rng: { ...state.rng, combat: fired.rng },
       ink,
       roundElapsedMs,
@@ -257,7 +257,7 @@ export function tick(state: GameState, dtMs: number): GameState {
       core,
       leaks,
       recentExits,
-      recentDodges,
+      recentMisses,
       rng: { ...state.rng, combat: fired.rng },
       // `state.roundNumber`, NOT the incremented value on the next line: this
       // pays for the round just played, not the one about to start.
@@ -274,7 +274,7 @@ export function tick(state: GameState, dtMs: number): GameState {
     core,
     leaks,
     recentExits,
-    recentDodges,
+    recentMisses,
     rng: { ...state.rng, combat: fired.rng },
     ink,
     roundElapsedMs,
@@ -321,10 +321,10 @@ function fireTowers(
   pieces: Piece[]
   destroyed: Piece[]
   rng: Rng
-  dodged: string[]
+  missed: string[]
 } {
   if (towers.length === 0) {
-    return { towers: [...towers], pieces: [...pieces], destroyed: [], rng: combat, dodged: [] }
+    return { towers: [...towers], pieces: [...pieces], destroyed: [], rng: combat, missed: [] }
   }
 
   // Damage accumulates here so that several Towers can share a target within a
@@ -332,7 +332,7 @@ function fireTowers(
   const remainingHealth = new Map(pieces.map((piece) => [piece.id, piece.health]))
   const nextTowers: Tower[] = []
   let combatRng = combat
-  const dodged: string[] = []
+  const missed: string[] = []
 
   // Derived once, from the Piece and Tower lists as passed in, so no Piece's
   // damage depends on which Tower fired first.
@@ -357,6 +357,7 @@ function fireTowers(
     }
 
     let cooldown = tower.fireCooldownMs + dtMs
+    let shotsFired = tower.shotsFired
 
     while (cooldown >= tower.fireIntervalMs) {
       const targets = selectTargets(tower, def, pieces, remainingHealth, board, coreSquare, blockers)
@@ -371,21 +372,35 @@ function fireTowers(
 
       cooldown -= tower.fireIntervalMs
 
+      // Detection runs before damage: each Black target rolls the seeded
+      // stream once, and an undetected target is filtered out — its slot stays
+      // empty, no backfill with the next-nearest Piece. A miss still spends
+      // the interval (cooldown was just decremented), so the Tower rolls again
+      // at its next normal fire time — never every tick. Roll order stays
+      // deterministic: towers iterate in array order and targets in
+      // selectTargets's sorted order. Clear is a board wipe, not damage, so it
+      // never reaches this loop and can never be missed.
+      const acquired: Piece[] = []
       for (const target of targets) {
-        // A black Piece dodges each incoming shot on a seeded roll. The roll
-        // order is deterministic: towers iterate in array order and targets in
-        // selectTargets's sorted order. Clear is a board wipe, not damage, so
-        // it never reaches this loop and can never be dodged.
-        const dodgeChance = tierDef(target.tier).dodgeChance
-        if (dodgeChance > 0) {
+        const missChance = tierDef(target.tier).missChance
+        if (missChance > 0) {
           const [roll, advanced] = next(combatRng)
           combatRng = advanced
-          if (roll < dodgeChance) {
-            dodged.push(target.id)
+          if (roll < missChance) {
+            missed.push(target.id)
             continue
           }
         }
+        acquired.push(target)
+      }
 
+      // A shot event counts only if it acquired a target: a miss acquires
+      // nothing, so `shotsFired` is the renderer's ground truth for "the Tower
+      // really fired" — the cooldown alone cannot say that, since a miss spends
+      // the interval just like a shot does.
+      if (acquired.length > 0) shotsFired += 1
+
+      for (const target of acquired) {
         const multiplier = amplificationFor(tower.id, target.id, amplifiers)
         remainingHealth.set(
           target.id,
@@ -394,7 +409,7 @@ function fireTowers(
       }
     }
 
-    nextTowers.push({ ...tower, fireCooldownMs: cooldown })
+    nextTowers.push({ ...tower, fireCooldownMs: cooldown, shotsFired })
   }
 
   // Partitioned in a single pass rather than filtered twice. The dead are the
@@ -410,7 +425,7 @@ function fireTowers(
     else destroyed.push(piece)
   }
 
-  return { towers: nextTowers, pieces: survivors, destroyed, rng: combatRng, dodged }
+  return { towers: nextTowers, pieces: survivors, destroyed, rng: combatRng, missed }
 }
 
 /**

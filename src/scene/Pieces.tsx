@@ -16,7 +16,7 @@ import { BUFF_RING_COLOUR } from './pieceColours'
 import { REST_Y, usePieceModels } from './pieceModels'
 import { PROMOTION_POP_MS, promotionPopLift, promotionPopScale } from './promotionPop'
 import { TIER_COLOURS } from './tierColours'
-import { createWhiffTracker, whiffAgeMs, whiffScale } from './whiff'
+import { createCloakTracker, cloakAgeMs, cloakOpacity } from './cloakFlicker'
 
 /**
  * How long the visual hop takes. Deliberately much shorter than a piece's move
@@ -74,6 +74,7 @@ export function Pieces({ board }: { board: BoardSpec }) {
             key={piece.id}
             pieceId={piece.id}
             promoted={piece.promoted}
+            tier={piece.tier}
             board={board}
             geometry={geometry}
             material={material}
@@ -89,6 +90,7 @@ export function Pieces({ board }: { board: BoardSpec }) {
 function PieceMesh({
   pieceId,
   promoted,
+  tier,
   board,
   geometry,
   material,
@@ -97,6 +99,7 @@ function PieceMesh({
 }: {
   pieceId: string
   promoted: boolean
+  tier: PieceTier
   board: BoardSpec
   geometry: BufferGeometry
   material: Material
@@ -106,7 +109,33 @@ function PieceMesh({
   const ref = useRef<Mesh>(null)
   const ringRef = useRef<Mesh>(null)
   const firstSeenAt = useRef(-1)
-  const whiffTracker = useRef(createWhiffTracker())
+  const cloakTracker = useRef(createCloakTracker())
+
+  // Opacity is per-material, and materials are shared per tier — so only the
+  // Black tier, the one that cloak-flickers, gets a per-Piece clone. The clone
+  // is transparent so the opacity writes render; green/yellow/red keep the
+  // shared material. Disposed on unmount alongside the shared ones.
+  const meshMaterial = useMemo(() => {
+    if (tier !== 'black') return material
+    const clone = material.clone()
+    clone.transparent = true
+    return clone
+  }, [tier, material])
+
+  // The frame loop writes opacity through `meshMaterialRef.current` rather than
+  // `meshMaterial` directly: `react-hooks/immutability` treats any value that
+  // flowed through a hook as immutable, but recognises a write to a ref's
+  // `.current` — the same escape PieceExits.tsx uses for the Core flash. Tier
+  // and `material` are stable for a mounted PieceMesh, so `meshMaterial` never
+  // changes after mount and the ref is initialised once.
+  const meshMaterialRef = useRef(meshMaterial)
+
+  useEffect(
+    () => () => {
+      if (meshMaterial !== material) meshMaterial.dispose()
+    },
+    [meshMaterial, material],
+  )
 
   // Reads live simulation state and mutates the mesh transform directly. No
   // state is set here, and nothing is allocated — the sanctioned way to do
@@ -150,15 +179,17 @@ function PieceMesh({
     // allocation.
     const healthFraction = piece.health / pieceType(piece.typeId).maxHealth
     const scale = (0.55 + healthFraction * 0.45) * pop
-    const flashAgeMs = whiffAgeMs(
-      whiffTracker.current,
-      state.recentDodges,
+    const flashAgeMs = cloakAgeMs(
+      cloakTracker.current,
+      state.recentMisses,
       pieceId,
       state.roundNumber,
       now * 1000,
     )
-    const whiff = whiffScale(flashAgeMs)
-    mesh.scale.set(scale * whiff, scale * whiff, scale * whiff)
+    if (meshMaterialRef.current !== material) {
+      meshMaterialRef.current.opacity = cloakOpacity(flashAgeMs)
+    }
+    mesh.scale.set(scale, scale, scale)
 
     // Toggling `visible` rather than mounting conditionally — mounting would
     // recompile the material. No state is set here.
@@ -179,7 +210,7 @@ function PieceMesh({
 
   return (
     <>
-      <mesh ref={ref} geometry={geometry} material={material} castShadow />
+      <mesh ref={ref} geometry={geometry} material={meshMaterial} castShadow />
       <mesh
         ref={ringRef}
         geometry={ringGeometry}

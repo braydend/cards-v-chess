@@ -1,11 +1,12 @@
 import { Color } from 'three'
 import { describe, expect, it } from 'vitest'
-import { towerRank } from '../data/towerRanks'
-import { allSquares, step, tick, type BoardSpec, type BuildableRank, type Tower } from '../game'
+import { TOWER_RANKS, towerRank } from '../data/towerRanks'
+import { allSquares, step, tick, type BoardSpec, type BuildableRank, type PieceTier, type Tower } from '../game'
 import {
   firstTowerId,
   liveRound,
   pawnAt,
+  pieceAt,
   standardCard,
   withDeck,
   withTower,
@@ -48,6 +49,7 @@ function tower(overrides: Partial<Tower> = {}): Tower {
     fireIntervalMs: 600,
     shield: 0,
     damageTaken: 0,
+    shotsFired: 0,
     ...overrides,
   }
 }
@@ -58,43 +60,56 @@ describe('detectShots', () => {
 
     // No previous value means nothing to compare. A Tower built between frames
     // has no shot the renderer can honestly claim.
-    expect(detectShots(last, [tower({ fireCooldownMs: 120 })], 1)).toEqual([])
-    expect(last.get('tower-1')).toBe(120)
+    expect(detectShots(last, [tower({ shotsFired: 3 })], 1)).toEqual([])
+    expect(last.get('tower-1')).toBe(3)
   })
 
-  it('stays silent while the cooldown accumulates', () => {
+  it('stays silent while the shot counter does not move', () => {
     const last = new Map<string, number>()
-    detectShots(last, [tower({ fireCooldownMs: 120 })], 1)
+    detectShots(last, [tower({ shotsFired: 3 })], 1)
 
-    expect(detectShots(last, [tower({ fireCooldownMs: 137 })], 2)).toEqual([])
+    expect(detectShots(last, [tower({ shotsFired: 3 })], 2)).toEqual([])
   })
 
-  it('reports a shot when the cooldown decreases', () => {
+  it('reports a shot when the shot counter advances', () => {
     const last = new Map<string, number>()
-    detectShots(last, [tower({ fireCooldownMs: 590 })], 1)
+    detectShots(last, [tower({ shotsFired: 2 })], 1)
 
-    const pulses = detectShots(last, [tower({ fireCooldownMs: 7 })], 2)
+    const pulses = detectShots(last, [tower({ shotsFired: 3 })], 2)
 
     expect(pulses).toEqual([{ file: 3, boardRank: 3, cardRank: 2, startedAt: 2 }])
   })
 
-  it('stays silent when a target-less Tower clamps up to its interval', () => {
+  it('reports one pulse per shot when the counter advances by more than one', () => {
     const last = new Map<string, number>()
-    // `fireTowers` holds a Tower with nothing in range at exactly
-    // fireIntervalMs rather than banking shots, so the value rises to the
-    // interval and then stops. It never drops, so it must never read as a shot.
-    detectShots(last, [tower({ fireCooldownMs: 583 })], 1)
+    detectShots(last, [tower({ shotsFired: 0 })], 1)
 
-    expect(detectShots(last, [tower({ fireCooldownMs: 600 })], 2)).toEqual([])
-    expect(detectShots(last, [tower({ fireCooldownMs: 600 })], 3)).toEqual([])
+    const pulses = detectShots(last, [tower({ shotsFired: 2 })], 2)
+
+    expect(pulses).toEqual([
+      { file: 3, boardRank: 3, cardRank: 2, startedAt: 2 },
+      { file: 3, boardRank: 3, cardRank: 2, startedAt: 2 },
+    ])
+  })
+
+  it('stays silent when a miss spends the interval without advancing the counter', () => {
+    const last = new Map<string, number>()
+    // The very signal the counter exists to provide: a shot event that
+    // acquired no target. On the old cooldown-diff this read as a shot — a
+    // miss spends the interval exactly like a real shot — so the firing pulse
+    // played for a Tower that never fired. `shotsFired` not moving is the
+    // engine saying "no shot happened", whatever the cooldown did.
+    detectShots(last, [tower({ shotsFired: 0, fireCooldownMs: 583 })], 1)
+
+    expect(detectShots(last, [tower({ shotsFired: 0, fireCooldownMs: 7 })], 2)).toEqual([])
   })
 
   it('carries the square and card rank, so a Tower destroyed mid-flight still draws', () => {
     const last = new Map<string, number>()
     const placed = { id: 'tower-9', cardRank: 5 as const, square: { file: 6, rank: 2 } }
-    detectShots(last, [tower({ ...placed, fireCooldownMs: 480 })], 1)
+    detectShots(last, [tower({ ...placed, shotsFired: 2 })], 1)
 
-    const pulses = detectShots(last, [tower({ ...placed, fireCooldownMs: 12 })], 2)
+    const pulses = detectShots(last, [tower({ ...placed, shotsFired: 3 })], 2)
 
     // The Tower can now leave state entirely and the pulse still knows where it
     // was — the same reason `Ghost` carries its own square in towerDiff.ts.
@@ -110,8 +125,45 @@ describe('detectShots', () => {
     detectShots(last, [], 2)
 
     // Without this, `reset()` reusing `tower-1` would be compared against a
-    // stale cooldown from the previous run and report a shot that never happened.
+    // stale counter from the previous run and report a shot that never happened.
     expect(last.has('tower-1')).toBe(false)
+  })
+
+  it('fires no pulse for a shot the Tower failed to detect', () => {
+    // A black Rook under a rank-3 vertical Tower — the same arrangement
+    // miss.test.ts uses to pin the miss, so on the run's seed it is known to
+    // produce misses. A miss spends the fire interval but fires nothing, so
+    // `fireCooldownMs` drops exactly as a real shot would: the renderer cannot
+    // tell the two apart from the cooldown alone. The signal has to come from
+    // the engine — how many shot events actually acquired a target.
+    //
+    // The assertion is seed-independent: whatever the seed does, the black
+    // twin fires one pulse per shot that acquired it, i.e. total shots minus
+    // misses. The green twin is never missed, so its pulse count IS the total
+    // shot count, and `recentMisses.length` is the miss count.
+    function countPulses(tier: PieceTier): { pulses: number; misses: number } {
+      const rook = pieceAt('rook', 'sneak', { file: 3, rank: 4 })
+      let state = liveRound(withTower(3, { file: 3, rank: 2 }), [{ ...rook, tier }])
+      const windowMs = TOWER_RANKS[3].fireIntervalMs * 6 + FIXED_DT_MS
+
+      const last = new Map<string, number>()
+      let pulses = 0
+      for (let elapsed = 0; elapsed < windowMs; elapsed += FIXED_DT_MS) {
+        state = tick(state, FIXED_DT_MS)
+        pulses += detectShots(last, state.towers, elapsed / 1000).length
+      }
+
+      return { pulses, misses: state.recentMisses.length }
+    }
+
+    const green = countPulses('green')
+    const black = countPulses('black')
+
+    // The arrangement really misses on this seed; otherwise the comparison
+    // below proves nothing about the miss path.
+    expect(black.misses).toBeGreaterThan(0)
+    // The black twin fires one pulse per acquired shot, never per miss.
+    expect(black.pulses).toBe(green.pulses - black.misses)
   })
 
   it('reports a shot that a real tick produced', () => {
@@ -165,13 +217,13 @@ describe('detectShots', () => {
   })
 
   it('reports nothing when ♦ Speed lowers the interval while a Tower idles at the clamp', () => {
-    // Reproduces the Finding 1 bug from the whole-branch review: a Tower
-    // idling at "ready" holds `fireCooldownMs` at its OLD `fireIntervalMs`.
-    // `applySupport` in `src/game/support.ts` spreads the Tower when ♦ lowers
-    // `fireIntervalMs`, so it never touches `fireCooldownMs` — the very next
-    // tick then clamps DOWN to the new interval, a decrease with no shot
-    // behind it. Same Tower/Pawn arrangement as the "out of range" test
-    // above, so the Pawn never becomes a real target at any point.
+    // On the old cooldown-diff, a Tower idling at "ready" held `fireCooldownMs`
+    // at its OLD `fireIntervalMs`; ♦ lowers `fireIntervalMs` without touching
+    // the cooldown, so the next tick clamped DOWN to the new interval — a
+    // phantom "shot" with nothing behind it. The counter closes that too: it
+    // moves only on an actual shot, so a cooldown clamp is invisible to it.
+    // Same Tower/Pawn arrangement as the "out of range" test above, so the
+    // Pawn never becomes a real target at any point.
     let state = liveRound(withTower(2, { file: 3, rank: 3 }), [
       pawnAt('piece-1', { file: 7, rank: 7 }),
     ])

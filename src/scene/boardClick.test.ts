@@ -14,6 +14,7 @@ function towerAt(id: string, square: Square, cardRank: BuildableRank = 3): Tower
     fireIntervalMs: 600,
     shield: 0,
     damageTaken: 0,
+    shotsFired: 0,
   }
 }
 

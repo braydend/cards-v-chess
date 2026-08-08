@@ -492,6 +492,7 @@ describe('tick: the Bishop healing aura', () => {
       damage: rank2.damage,
       fireIntervalMs: rank2.fireIntervalMs,
       shield: 0,
+      shotsFired: 0,
     }
 
     const state: GameState = {

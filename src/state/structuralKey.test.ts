@@ -54,14 +54,14 @@ describe('structuralKey', () => {
     expect(structuralKey(recorded)).toBe(structuralKey(base))
   })
 
-  it('ignores recentDodges, which add no publish of their own', () => {
-    // A dodge changes nothing else in the key — the Piece keeps its square,
+  it('ignores recentMisses, which add no publish of their own', () => {
+    // A miss changes nothing else in the key — the Piece keeps its square,
     // health, and flags — so keying the ring would publish a store update for
-    // every negated shot. The renderer reads the ring live in useFrame instead.
+    // every undetected shot. The renderer reads the ring live in useFrame instead.
     const base = createInitialState()
     const recorded: GameState = {
       ...base,
-      recentDodges: [{ pieceId: 'dodger', roundNumber: 1, roundElapsedMs: 400 }],
+      recentMisses: [{ pieceId: 'sneak', roundNumber: 1, roundElapsedMs: 400 }],
     }
 
     expect(structuralKey(recorded)).toBe(structuralKey(base))
