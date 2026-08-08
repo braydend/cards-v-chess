@@ -163,7 +163,7 @@ describe('guardRoundSpec', () => {
   it('builds one squad of King + 2 sliders at round 15', () => {
     const squads = squadsOf(guardSpec(15))
     expect(squads).toHaveLength(1)
-    const [squad] = squads
+    const [squad] = squads as [Spawn[]]
     const kings = squad.filter((s) => s.typeId === 'king')
     expect(kings).toHaveLength(1)
     expect(squad).toHaveLength(3)
@@ -200,8 +200,8 @@ describe('guardRoundSpec', () => {
         // as a single >1 gap rather than a break.
         const gaps = []
         for (let i = 0; i < files.length; i += 1) {
-          const next = files[(i + 1) % files.length]
-          const gap = (next - files[i] + 8) % 8
+          const next = files[(i + 1) % files.length] as number
+          const gap = (next - (files[i] as number) + 8) % 8
           if (gap !== 1) gaps.push(gap)
         }
         expect(gaps).toHaveLength(1)
@@ -212,7 +212,7 @@ describe('guardRoundSpec', () => {
   it('keeps both flanking sliders adjacent to their King on the Staging rank', () => {
     for (const roundNumber of [15, 23, 31]) {
       for (const squad of squadsOf(guardSpec(roundNumber))) {
-        const king = squad.find((s) => s.typeId === 'king')
+        const king = squad.find((s) => s.typeId === 'king') as Spawn
         expect(king).toBeDefined()
         // A King on the Staging rank has exactly two squares within Chebyshev
         // distance 1: the files immediately beside it. The band is contiguous
@@ -238,6 +238,8 @@ describe('guardRoundSpec', () => {
 ```
 
 Note: the `spawns` array is built squad-by-squad, in file order within a squad, so "spawn order" for the tier assertion is the array order — the test asserts exactly that.
+
+Note: the `as [Spawn[]]`, `as number`, and `as Spawn` casts are **required** — this test must pass `pnpm typecheck`, and `noUncheckedIndexedAccess` makes the destructure, the modulo index, and the `find` possibly-undefined. Vitest (esbuild) strips types so the test runs without them, but CI runs typecheck; the casts match the style the implementation uses. Do not remove them.
 
 - [ ] **Step 2: Run test to verify it fails**
 
