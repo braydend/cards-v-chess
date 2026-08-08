@@ -4,7 +4,7 @@ import { tierPoolFor } from './rounds'
 import type { PieceTypeId, RoundSpec, Spawn } from '../game/types'
 
 describe('isGuardRound', () => {
-  it('flags rounds 15, 23, 31 and no others in that range', () => {
+  it('flags every 8th round from 15 up to 40', () => {
     for (let n = 1; n <= 40; n += 1) {
       const expected = n >= GUARD_ROUND_FIRST && (n - GUARD_ROUND_FIRST) % GUARD_ROUND_EVERY === 0
       expect(isGuardRound(n)).toBe(expected)
@@ -84,9 +84,10 @@ describe('guardRoundSpec', () => {
     for (const roundNumber of [15, 23, 31, 39]) {
       for (const squad of squadsOf(guardSpec(roundNumber))) {
         const files = squad.map((s) => s.file).sort((a, b) => a - b)
-        // Contiguous band: each pair of neighbours differs by 1. Checked
-        // circularly so a wrap (if the clamp ever lets one through) is caught
-        // as a single >1 gap rather than a break.
+        // Contiguous band: each pair of neighbours differs by 1. The circular
+        // check verifies contiguity only — a wrapped band reads identically to
+        // a legitimate edge band, so wrap prevention is the clamp's job in
+        // guardRoundSpec, asserted by the flanker-adjacency test below.
         const gaps = []
         for (let i = 0; i < files.length; i += 1) {
           const next = files[(i + 1) % files.length] as number

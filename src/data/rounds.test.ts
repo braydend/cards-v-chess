@@ -85,6 +85,7 @@ describe('round dispatch', () => {
     for (const spawn of spec.spawns) {
       expect(['king', 'bishop', 'rook', 'queen']).toContain(spawn.typeId)
     }
+    expect(spec.spawns.some((spawn) => spawn.typeId === 'king')).toBe(true)
   })
 
   it('keeps the normal composition for non-Guard rounds', () => {

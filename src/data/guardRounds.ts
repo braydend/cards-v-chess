@@ -1,3 +1,6 @@
+import { BOARD } from './board'
+import type { PieceTier, PieceTypeId, RoundSpec, Spawn } from '../game/types'
+
 /**
  * King's Guard round composition.
  *
@@ -21,9 +24,6 @@ export function isGuardRound(roundNumber: number): boolean {
   return roundNumber >= GUARD_ROUND_FIRST && (roundNumber - GUARD_ROUND_FIRST) % GUARD_ROUND_EVERY === 0
 }
 
-import { BOARD } from './board'
-import type { PieceTier, PieceTypeId, RoundSpec, Spawn } from '../game/types'
-
 /**
  * How many squads a Guard round gets. Both the squad count and the per-squad
  * slider count grow with the round number; these formulas are PLACEHOLDER
@@ -31,7 +31,8 @@ import type { PieceTier, PieceTypeId, RoundSpec, Spawn } from '../game/types'
  */
 export function squadCountFor(roundNumber: number): number {
   const guardIndex = (roundNumber - GUARD_ROUND_FIRST) / GUARD_ROUND_EVERY
-  return 1 + guardIndex
+  // The floor is a guard for non-Guard round numbers; the dispatcher never passes them.
+  return 1 + Math.floor(guardIndex)
 }
 
 /**
