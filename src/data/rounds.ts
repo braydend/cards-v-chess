@@ -1,4 +1,5 @@
 import type { PieceTier, PieceTypeId, RoundSpec, Spawn } from '../game/types'
+import { spawnGapMs } from '../game/spawnScaling'
 import { BOARD } from './board'
 
 /**
@@ -120,7 +121,10 @@ export function roundSpec(roundNumber: number): RoundSpec {
 
   for (let i = 0; i < count; i += 1) {
     spawns.push({
-      atMs: i * 1200,
+      // The gap shrinks with the round number — `spawnGapMs` — so the same
+      // round presses harder without adding Pieces. Round 1 keeps the flat
+      // 1200ms, so the opening rounds play exactly as before.
+      atMs: i * spawnGapMs(roundNumber),
       // `pool` is never empty — the Pawn is available from round 1.
       typeId: pool[i % pool.length] as PieceTypeId,
       // `tierPool` is never empty — Green is available from round 1.

@@ -18,6 +18,7 @@ function pieceOn(id: string, typeId: PieceTypeId, file: number, rank: number): P
     square,
     prevSquare: square,
     health: PIECE_TYPES[typeId].maxHealth,
+    maxHealth: PIECE_TYPES[typeId].maxHealth,
     moveCooldownMs: 0,
     moveCount: 0,
     handedness: 1,
