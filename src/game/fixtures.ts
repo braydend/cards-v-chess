@@ -99,6 +99,7 @@ export function pieceAt(typeId: PieceTypeId, id: string, square: Square): Piece 
     square,
     prevSquare: square,
     health: PIECE_TYPES[typeId].maxHealth,
+    maxHealth: PIECE_TYPES[typeId].maxHealth,
     moveCooldownMs: 0,
     moveCount: 0,
     handedness: 1,

@@ -136,6 +136,14 @@ export interface Piece {
    */
   readonly prevSquare: Square
   readonly health: number
+  /**
+   * The health this Piece spawned with — the ceiling a Bishop's heal restores
+   * to. Set at spawn to the round-scaled value (see `spawnScaling.ts`), so a
+   * scaled Piece heals back to what it actually had rather than to the
+   * authored stat, which round-5+ Pieces exceed on arrival. Never changes
+   * after spawn.
+   */
+  readonly maxHealth: number
   /** Milliseconds accumulated toward this piece's next hop. */
   readonly moveCooldownMs: number
   /** Hops completed. Drives the Knight's zig-zag and the Queen's alternation. */

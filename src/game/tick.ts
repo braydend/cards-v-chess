@@ -6,6 +6,7 @@ import { isInBounds, squareKey, stagingRank } from './board'
 import { coversSquare, isOccluded } from './coverage'
 import { roundIncome, totalKillReward } from './ink'
 import { isStuck, nextMove } from './movement'
+import { spawnHealth } from './spawnScaling'
 import { next, type Rng } from './rng'
 import { step } from './step'
 import {
@@ -130,27 +131,31 @@ export function tick(state: GameState, dtMs: number): GameState {
   // Minted after movePieces has decided which Pawns reached the back rank, and
   // numbered starting after drainDueSpawns's own ids, so a Pawn and a spawn in
   // the same tick can never collide over the same id.
-  const promotedQueens: Piece[] = moved.promotedFrom.map((entry, index) => ({
-    id: `piece-${nextEntityId + index}`,
-    typeId: 'queen',
-    tier: entry.tier,
-    square: entry.square,
-    prevSquare: entry.square,
-    health: pieceType('queen').maxHealth,
-    moveCooldownMs: 0,
-    moveCount: 0,
-    // Entity-id parity, same rule as drainDueSpawns, so promoted Queens weave
-    // opposite ways from one another too.
-    handedness: (nextEntityId + index) % 2 === 0 ? 1 : -1,
-    auraCooldownMs: 0,
-    buffed: false,
-    // A promoted Queen hunts from spawn when her tier says so — a yellow Pawn
-    // becomes a yellow Queen that hunts from the moment she appears. She spawns
-    // on the board, so the staging-rank carve-out never applies to her.
-    hunting: tierDef(entry.tier).huntsFromSpawn,
-    // Renderer-facing only. This is the one place it is ever true.
-    promoted: true,
-  }))
+  const promotedQueens: Piece[] = moved.promotedFrom.map((entry, index) => {
+    const health = spawnHealth(pieceType('queen').maxHealth, state.roundNumber)
+    return {
+      id: `piece-${nextEntityId + index}`,
+      typeId: 'queen',
+      tier: entry.tier,
+      square: entry.square,
+      prevSquare: entry.square,
+      health,
+      maxHealth: health,
+      moveCooldownMs: 0,
+      moveCount: 0,
+      // Entity-id parity, same rule as drainDueSpawns, so promoted Queens weave
+      // opposite ways from one another too.
+      handedness: (nextEntityId + index) % 2 === 0 ? 1 : -1,
+      auraCooldownMs: 0,
+      buffed: false,
+      // A promoted Queen hunts from spawn when her tier says so — a yellow Pawn
+      // becomes a yellow Queen that hunts from the moment she appears. She spawns
+      // on the board, so the staging-rank carve-out never applies to her.
+      hunting: tierDef(entry.tier).huntsFromSpawn,
+      // Renderer-facing only. This is the one place it is ever true.
+      promoted: true,
+    }
+  })
   const entityIdAfterPromotion = nextEntityId + moved.promotedFrom.length
 
   // Damage from blocked Pieces lands before Towers shoot, so a Tower destroyed
@@ -476,13 +481,15 @@ function drainDueSpawns(
     // than by a spawn-time special case. Read from state, not a constant: an
     // Ace grows the board and the Staging rank moves up with it.
     const square: Square = { file: spawn.file, rank: stagingRank(state.board) }
+    const health = spawnHealth(pieceType(spawn.typeId).maxHealth, state.roundNumber)
     spawned.push({
       id: `piece-${nextEntityId}`,
       typeId: spawn.typeId,
       tier: spawn.tier,
       square,
       prevSquare: square,
-      health: pieceType(spawn.typeId).maxHealth,
+      health,
+      maxHealth: health,
       moveCooldownMs: 0,
       moveCount: 0,
       // Entity-id parity, so consecutively spawned Pieces weave opposite ways.

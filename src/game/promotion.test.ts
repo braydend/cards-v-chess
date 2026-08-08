@@ -14,6 +14,7 @@ function pawnOn(file: number, rank: number): Piece {
     square,
     prevSquare: square,
     health: PIECE_TYPES.pawn.maxHealth,
+    maxHealth: PIECE_TYPES.pawn.maxHealth,
     moveCooldownMs: 0,
     moveCount: 0,
     handedness: 1,

@@ -11,6 +11,7 @@ function piece(id: string, typeId: PieceTypeId, square: Square, handedness: Hand
     square,
     prevSquare: square,
     health: 5,
+    maxHealth: 5,
     moveCooldownMs: 0,
     moveCount: 0,
     handedness,
@@ -86,12 +87,28 @@ describe('the Bishop healing aura', () => {
   it('never heals past a Piece maximum health', () => {
     const pieces = [
       piece('b', 'bishop', { file: 4, rank: 4 }),
-      { ...piece('p', 'pawn', { file: 4, rank: 5 }), health: PIECE_TYPES.pawn.maxHealth },
+      {
+        ...piece('p', 'pawn', { file: 4, rank: 5 }),
+        health: PIECE_TYPES.pawn.maxHealth,
+        maxHealth: PIECE_TYPES.pawn.maxHealth,
+      },
     ]
 
     const healed = applyHealing(pieces, BISHOP_HEAL_INTERVAL_MS)
 
     expect(healed.find((each) => each.id === 'p')?.health).toBe(PIECE_TYPES.pawn.maxHealth)
+  })
+
+  it('heals a scaled Piece toward its spawn-scaled maximum, not the authored stat', () => {
+    // A round-5+ Pawn arrives at 4 health (maxHealth 4) against an authored
+    // max of 3. Capping at the authored stat would pin it at 3 — stripping
+    // the round's added bulk the first time a Bishop touches it.
+    const hurt = { ...piece('p', 'pawn', { file: 4, rank: 5 }), health: 3, maxHealth: 4 }
+    const pieces = [piece('b', 'bishop', { file: 4, rank: 4 }), hurt]
+
+    const healed = applyHealing(pieces, BISHOP_HEAL_INTERVAL_MS)
+
+    expect(healed.find((each) => each.id === 'p')?.health).toBe(4)
   })
 
   it('never heals itself, so killing it first still works', () => {
