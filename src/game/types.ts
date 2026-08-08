@@ -281,6 +281,19 @@ export interface Tower {
    * breath as `health` or `shield`, both of which are already in the key.
    */
   readonly damageTaken: number
+  /**
+   * Lifetime count of shot events that actually acquired a target.
+   *
+   * Monotonic and never reset for a live Tower. The renderer's `detectShots`
+   * diffs this instead of inferring a shot from `fireCooldownMs`, which a miss
+   * also spends — so the cooldown cannot tell a real shot from an undetected
+   * one, and the firing pulse must not play for the latter. A miss acquires
+   * nothing, so it does not advance this counter.
+   *
+   * Kept out of `structuralKey` on purpose — it changes on a shot, exactly the
+   * per-tick class the key exists to exclude.
+   */
+  readonly shotsFired: number
 }
 
 /**

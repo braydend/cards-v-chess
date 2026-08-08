@@ -357,6 +357,7 @@ function fireTowers(
     }
 
     let cooldown = tower.fireCooldownMs + dtMs
+    let shotsFired = tower.shotsFired
 
     while (cooldown >= tower.fireIntervalMs) {
       const targets = selectTargets(tower, def, pieces, remainingHealth, board, coreSquare, blockers)
@@ -393,6 +394,12 @@ function fireTowers(
         acquired.push(target)
       }
 
+      // A shot event counts only if it acquired a target: a miss acquires
+      // nothing, so `shotsFired` is the renderer's ground truth for "the Tower
+      // really fired" — the cooldown alone cannot say that, since a miss spends
+      // the interval just like a shot does.
+      if (acquired.length > 0) shotsFired += 1
+
       for (const target of acquired) {
         const multiplier = amplificationFor(tower.id, target.id, amplifiers)
         remainingHealth.set(
@@ -402,7 +409,7 @@ function fireTowers(
       }
     }
 
-    nextTowers.push({ ...tower, fireCooldownMs: cooldown })
+    nextTowers.push({ ...tower, fireCooldownMs: cooldown, shotsFired })
   }
 
   // Partitioned in a single pass rather than filtered twice. The dead are the

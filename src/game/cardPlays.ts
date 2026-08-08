@@ -34,6 +34,7 @@ function newTower(id: string, square: Square, cardRank: BuildableRank): Tower {
     fireIntervalMs: def.fireIntervalMs,
     shield: 0,
     damageTaken: 0,
+    shotsFired: 0,
   }
 }
 

@@ -64,7 +64,7 @@ export const FirePulses = memo(function FirePulses({ board }: { board: BoardSpec
   // both.
   const meshes = useRef<(PositionMesh | null)[]>([])
   const pulses = useRef<FirePulse[]>([])
-  const lastCooldownMs = useRef(new Map<string, number>())
+  const lastShotsFired = useRef(new Map<string, number>())
   const lastEntityId = useRef(0)
   const flash = useRef<BoardFlash | null>(null)
   const lastClears = useRef(0)
@@ -79,11 +79,11 @@ export const FirePulses = memo(function FirePulses({ board }: { board: BoardSpec
 
     // `reset()` rewinds `nextEntityId` to 1 — the only way it goes backwards
     // within a run. Without this, a previous run's pulses would ride into the
-    // new one, and a remembered cooldown under a reused Tower id would read as
+    // new one, and a remembered counter under a reused Tower id would read as
     // a shot that never happened.
     if (liveState.nextEntityId < lastEntityId.current) {
       pulses.current.length = 0
-      lastCooldownMs.current.clear()
+      lastShotsFired.current.clear()
       // `reset()` rewinds `clears` to 0 too, and a remembered higher count
       // would swallow the new run's first Clear.
       flash.current = null
@@ -115,7 +115,7 @@ export const FirePulses = memo(function FirePulses({ board }: { board: BoardSpec
     }
     live.length = write
 
-    pulses.current.push(...detectShots(lastCooldownMs.current, liveState.towers, now))
+    pulses.current.push(...detectShots(lastShotsFired.current, liveState.towers, now))
 
     // Toggle `visible` rather than unmount, so no material ever recompiles.
     // Stale colours behind a hidden group do not cost more than one frame:

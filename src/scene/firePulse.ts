@@ -28,43 +28,29 @@ export interface FirePulse {
 }
 
 /**
- * Reconciles remembered cooldowns against live Towers and returns a pulse for
- * every Tower that has fired since the last call. Mutates `lastCooldownMs` in
- * place — seeding Towers it has not seen, updating the rest, and pruning ones
- * that have left state.
+ * Reconciles remembered shot counters against live Towers and returns a pulse
+ * for every shot the Towers have fired since the last call. Mutates
+ * `lastShotsFired` in place — seeding Towers it has not seen, updating the
+ * rest, and pruning ones that have left state.
  *
- * A DECREASE IN `fireCooldownMs` IS ALMOST ALWAYS AN EXACT SHOT SIGNAL. On
- * exit from `fireTowers` the stored value is either below `fireIntervalMs`
- * (it fired, subtracting one whole interval) or exactly `fireIntervalMs`
- * (nothing in range, clamped to "ready" rather than banking shots) — so
- * ordinarily that clamp can only hold or raise the stored value, and a
- * decrease means a shot.
+ * `Tower.shotsFired` is the engine's ground truth for "a shot really fired":
+ * it advances exactly once per shot event that acquired a target. Diffing it
+ * is exact where inferring from `fireCooldownMs` was not:
  *
- * ♦ Speed breaks that on its own. `applySupport` in `src/game/support.ts`
- * lowers a Tower's `fireIntervalMs` directly and never touches
- * `fireCooldownMs`. A Tower idling at the OLD clamp is left holding a
- * cooldown *above* its NEW interval, and the very next tick — even with
- * nothing in range — clamps that value DOWN to the new interval. That is a
- * decrease with no shot behind it: exactly the phantom pulse the guard below
- * exists to skip. See `firePulse.test.ts`'s ♦-support regression test, which
- * fails without it.
+ * - A miss spends the fire interval, so the cooldown drops on a miss just as
+ *   on a real shot — but `shotsFired` does not move. Inferring from the
+ *   cooldown would draw a pulse for an undetected shot, which is a shot the
+ *   Tower never made.
+ * - ♦ Speed lowers `fireIntervalMs` without touching `fireCooldownMs`, so a
+ *   Tower idling at the old clamp clamps DOWN on the next tick — a decrease
+ *   with no shot behind it. A counter cannot phantom: nothing moves it but an
+ *   actual shot.
+ * - A Tower that fires and then loses every target within the same frame's
+ *   later ticks has its cooldown decrease erased by the clamp. `shotsFired`
+ *   keeps the increment regardless, so the pulse is not lost.
  *
- * It also cannot under-count. A frame advances at most
- * `FIXED_DT_MS * MAX_CATCHUP_STEPS` = 83.3ms of simulation, so at the 100ms
- * `MIN_FIRE_INTERVAL_MS` floor a Tower would need a stored cooldown of 116.7ms
- * to fire twice in one frame — impossible, since it never exceeds the interval.
- * One pulse per observed decrease is right.
- *
- * The known gap is a false NEGATIVE: a Tower that fires and then loses every
- * target within the same frame's later ticks has its decrease erased by the
- * clamp. It is unreachable today, not merely rare at some frame rate: after a
- * shot the stored cooldown is at most one `FIXED_DT_MS` (16.67ms), so climbing
- * back up to the interval before the frame ends would need
- * `MAX_CATCHUP_STEPS * FIXED_DT_MS >= fireIntervalMs`, i.e. 83.3ms >= the
- * 100ms `MIN_FIRE_INTERVAL_MS` floor — false. The real invariant is
- * `MIN_FIRE_INTERVAL_MS > FIXED_DT_MS * MAX_CATCHUP_STEPS`; lowering that
- * floor or raising `MAX_CATCHUP_STEPS` would open the gap for real, and
- * nothing today would flag it. See the spec.
+ * `shotsFired` is monotonic, so a frame can never miss one: the renderer
+ * diffs a lifetime counter, not a per-tick flag that `advance` might skip.
  *
  * Returns a fresh array, and a `FirePulse` is allocated per shot. Both are
  * deliberate: a shot must allocate a record regardless, so zero allocation is
@@ -72,41 +58,41 @@ export interface FirePulse {
  * the per-entity-per-frame `new Vector3()` CLAUDE.md's rule targets.
  */
 export function detectShots(
-  lastCooldownMs: Map<string, number>,
+  lastShotsFired: Map<string, number>,
   towers: readonly Tower[],
   now: number,
 ): FirePulse[] {
   const pulses: FirePulse[] = []
 
   for (const tower of towers) {
-    const previous = lastCooldownMs.get(tower.id)
-    lastCooldownMs.set(tower.id, tower.fireCooldownMs)
+    const previous = lastShotsFired.get(tower.id)
+    lastShotsFired.set(tower.id, tower.shotsFired)
 
     if (previous === undefined) continue
-    if (tower.fireCooldownMs >= previous) continue
+    const fired = tower.shotsFired - previous
+    if (fired <= 0) continue
 
-    // ♦ Speed lowers `fireIntervalMs` without touching `fireCooldownMs`, so a
-    // Tower idling at the clamp sits at its OLD interval, above its new one.
-    // The next tick clamps DOWN to the new interval — a decrease with no shot
-    // behind it. Safe to skip: a tick that actually fired always drains the
-    // cooldown strictly below the interval, so landing at or above it after a
-    // decrease can only be the clamp.
-    if (previous > tower.fireIntervalMs && tower.fireCooldownMs >= tower.fireIntervalMs) continue
-
-    pulses.push({
-      file: tower.square.file,
-      boardRank: tower.square.rank,
-      cardRank: tower.cardRank,
-      startedAt: now,
-    })
+    // One pulse per shot event. A Tower can fire at most one shot per frame —
+    // a frame advances `FIXED_DT_MS * MAX_CATCHUP_STEPS` = 83.3ms of
+    // simulation, under the 100ms `MIN_FIRE_INTERVAL_MS` floor — so `fired`
+    // is 1 in practice. The loop exists so a burst that ever became possible
+    // would not silently drop pulses.
+    for (let i = 0; i < fired; i += 1) {
+      pulses.push({
+        file: tower.square.file,
+        boardRank: tower.square.rank,
+        cardRank: tower.cardRank,
+        startedAt: now,
+      })
+    }
   }
 
   // Only when the sizes disagree, so the common frame — nothing built, nothing
   // destroyed — does no extra work. Pruning matters because `reset()` rewinds
-  // Tower ids to 1: a stale cooldown under a reused id would read as a shot.
-  if (lastCooldownMs.size !== towers.length) {
-    for (const id of lastCooldownMs.keys()) {
-      if (!towers.some((tower) => tower.id === id)) lastCooldownMs.delete(id)
+  // Tower ids to 1: a stale counter under a reused id would read as a shot.
+  if (lastShotsFired.size !== towers.length) {
+    for (const id of lastShotsFired.keys()) {
+      if (!towers.some((tower) => tower.id === id)) lastShotsFired.delete(id)
     }
   }
 
