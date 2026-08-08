@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { BOARD } from '../data/board'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { towerRank } from '../data/towerRanks'
-import { allSquares, isInBounds } from './board'
-import { coveredSquares, coversSquare, isOccluded, reachableSquares } from './coverage'
+import { allSquares, isInBounds, squareKey } from './board'
+import { coveredSquares, coversSquare, hittableSquares, isOccluded, reachableSquares } from './coverage'
 import { liveRound, pawnAt, withTower } from './fixtures'
 import { tick } from './tick'
 import type { Square } from './types'
@@ -587,5 +588,47 @@ describe('reachableSquares agrees with what a Tower shoots under occlusion', () 
 
     expect(damagedAt({ file: 4, rank: 6 })).toBe(true)
     expect(damagedAt({ file: 4, rank: 2 })).toBe(false)
+  })
+})
+
+describe('hittableSquares', () => {
+  it("is the union of every Tower's reachable footprint", () => {
+    // Interior squares, so each adjacent footprint is the full 8 squares —
+    // corner towers would be edge-clipped and shrink the expected union.
+    const first = withTower(2, { file: 2, rank: 2 })
+    const state = withTower(2, { file: 5, rank: 5 }, first)
+
+    const set = hittableSquares(BOARD, state.towers)
+    const def = towerRank(2)
+    const blockers = state.towers.map((tower) => tower.square)
+
+    for (const square of [
+      ...reachableSquares(BOARD, def.geometry, def.range, { file: 2, rank: 2 }, blockers),
+      ...reachableSquares(BOARD, def.geometry, def.range, { file: 5, rank: 5 }, blockers),
+    ]) {
+      expect(set.has(squareKey(square))).toBe(true)
+    }
+    // Two non-overlapping adjacent footprints of 8 squares each.
+    expect(set.size).toBe(16)
+  })
+
+  it('drops a square another Tower occludes', () => {
+    // A rank-5 diagonal Tower at the corner covers (4,4), but a rank-3 vertical
+    // Tower at (2,2) stands between on the same diagonal — the shot is blocked,
+    // so (4,4) must not be in the union even though no other Tower covers it.
+    const diagonal = withTower(5, { file: 0, rank: 0 })
+    const state = withTower(3, { file: 2, rank: 2 }, diagonal)
+
+    const def = towerRank(5)
+    const covered = coveredSquares(BOARD, def.geometry, def.range, { file: 0, rank: 0 })
+    expect(covered.some((square) => square.file === 4 && square.rank === 4)).toBe(true)
+
+    expect(hittableSquares(BOARD, state.towers).has(squareKey({ file: 4, rank: 4 }))).toBe(false)
+  })
+
+  it('a Wall contributes nothing', () => {
+    const state = withTower(7, { file: 4, rank: 4 })
+
+    expect(hittableSquares(BOARD, state.towers).size).toBe(0)
   })
 })
