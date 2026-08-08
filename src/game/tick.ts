@@ -587,6 +587,9 @@ function movePieces(
         board,
         coreSquare,
         towerBySquare,
+        // Task 3 threads the per-tick hittableSquares set here; until then no
+        // tier avoids anything, so movement is unchanged by the new parameter.
+        new Set(),
       )
 
       if (outcome.kind === 'reachCore') {

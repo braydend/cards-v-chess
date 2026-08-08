@@ -14,6 +14,12 @@ import {
 import type { BoardSpec, Handedness, Piece, PieceTier, PieceTypeId, Square, Tower } from './types'
 
 /**
+ * The avoid set every non-yellow hunt passes: no preference at all. Red's Tower
+ * seek and a green late-hunt keep their exact current behaviour.
+ */
+const EMPTY_AVOID: ReadonlySet<string> = new Set()
+
+/**
  * What a Piece does when its move interval elapses.
  *
  * `stuck` means the Piece has no legal move. That is a real chess outcome —
@@ -205,6 +211,7 @@ function knightMove(
   board: BoardSpec,
   coreSquare: Square,
   towerBySquare: ReadonlyMap<string, Tower>,
+  avoid: ReadonlySet<string>,
 ): MoveOutcome {
   if (!hunting) {
     const zig = moveCount % 2 === 0 ? handedness : -handedness
@@ -227,7 +234,7 @@ function knightMove(
     }
   }
 
-  return huntByOffsets(from, board, coreSquare, towerBySquare, knightDistanceField(board, coreSquare), KNIGHT_OFFSETS, true)
+  return huntByOffsets(from, board, coreSquare, towerBySquare, knightDistanceField(board, coreSquare), KNIGHT_OFFSETS, true, avoid)
 }
 
 /**
@@ -253,6 +260,13 @@ function knightMove(
  * exactly how red grinds it. Either way it never falls through to try the
  * next-best offset, which is what keeps a hunting Piece walled rather than
  * herded.
+ *
+ * `avoid` is the one preference a yellow hunt brings: while it scans the
+ * fixed order, a covered landing is remembered as a fallback and skipped, and
+ * the first uncovered landing wins — the scan is single-pass on purpose, so a
+ * blocker or the target still commits at its own position in the order.
+ * When every landing is covered the fallback is today's first candidate, so
+ * avoidance never strands a Piece. Every other tier passes an empty set.
  */
 function huntByOffsets(
   from: Square,
@@ -262,6 +276,7 @@ function huntByOffsets(
   field: ReadonlyMap<string, number>,
   offsets: readonly Square[],
   stampHunting: boolean,
+  avoid: ReadonlySet<string>,
 ): MoveOutcome {
   const ownDistance = field.get(squareKey(from))
 
@@ -272,11 +287,23 @@ function huntByOffsets(
   if (ownDistance === undefined) return { kind: 'stuck' }
   if (ownDistance === 0) return { kind: 'reachCore' }
 
+  const destinations: Square[] = []
   for (const offset of offsets) {
     const to: Square = { file: from.file + offset.file, rank: from.rank + offset.rank }
     if (!isInBounds(board, to)) continue
     if (field.get(squareKey(to)) !== ownDistance - 1) continue
+    destinations.push(to)
+  }
 
+  // One scan of the fixed order, not a separate preference pass, so a blocker
+  // or the target still commits at its own position in the order — yellow
+  // avoids FIRE, never obstacles. A covered landing is remembered as the
+  // fallback and skipped; the first uncovered landing wins. When every landing
+  // is covered the fallback is today's first candidate, so avoidance never
+  // strands a Piece.
+  let fallback: Square | undefined
+
+  for (const to of destinations) {
     const blocker = towerBySquare.get(squareKey(to))
     if (blocker) {
       return stampHunting
@@ -286,8 +313,15 @@ function huntByOffsets(
 
     if (squaresEqual(to, targetSquare)) return { kind: 'reachCore' }
 
+    if (avoid.has(squareKey(to))) {
+      if (fallback === undefined) fallback = to
+      continue
+    }
+
     return stampHunting ? { kind: 'move', to, hunting: true } : { kind: 'move', to }
   }
+
+  if (fallback) return stampHunting ? { kind: 'move', to: fallback, hunting: true } : { kind: 'move', to: fallback }
 
   // Unreachable given the BFS guarantee above, kept only so the function is
   // total rather than assuming its own invariant.
@@ -327,6 +361,13 @@ function huntByOffsets(
  * there is attacked, exactly like every other blocked Piece; this never tries
  * the next direction, which is what keeps a hunting Piece walled rather than
  * herded.
+ *
+ * `avoid` narrows a yellow hunt's choice of landing square: it is the LANDING
+ * square of a resolved direction that the avoidance checks — intermediate
+ * squares are positions no shot can reach and stay legal to cross — and a
+ * covered landing is skipped with today's first resolved direction kept as
+ * the fallback, so avoidance never strands a Piece. Every other tier passes
+ * an empty set.
  */
 function huntByField(
   from: Square,
@@ -337,6 +378,7 @@ function huntByField(
   directions: readonly Square[],
   maxSteps: number,
   stampHunting: boolean,
+  avoid: ReadonlySet<string>,
 ): MoveOutcome {
   const stamp = stampHunting ? { hunting: true as const } : {}
   const ownDistance = field.get(squareKey(from))
@@ -351,6 +393,8 @@ function huntByField(
   // but the exhaustive walk tests finish a colour-locked Bishop's approach
   // from the square in front of the Core, and this keeps the function total.
   if (ownDistance === 0) return { kind: 'reachCore' }
+
+  let fallback: Square | undefined
 
   for (const direction of directions) {
     const closerRange = rangeToCloserSquare(from, board, direction, field, ownDistance)
@@ -374,8 +418,19 @@ function huntByField(
       square = next
     }
 
+    // The slide resolved to a landing. A blocker or the target already
+    // committed above; a covered LANDING square is skipped — intermediate
+    // squares are positions no shot can reach and stay legal to cross — and
+    // today's first resolved direction is kept as the fallback.
+    if (avoid.has(squareKey(square))) {
+      if (fallback === undefined) fallback = square
+      continue
+    }
+
     return { kind: 'move', to: square, ...stamp }
   }
+
+  if (fallback) return { kind: 'move', to: fallback, ...stamp }
 
   // Unreachable on the current board: every hunt wired today is connected to
   // its target from every square it can start on. Kept so the function is
@@ -476,7 +531,7 @@ function seekTower(
   const maxSteps = request.typeId === 'king' ? 1 : 1 + request.slideBonus
 
   if (request.typeId === 'knight') {
-    return huntByOffsets(request.from, board, target.square, towerBySquare, field, KNIGHT_OFFSETS, false)
+    return huntByOffsets(request.from, board, target.square, towerBySquare, field, KNIGHT_OFFSETS, false, EMPTY_AVOID)
   }
 
   const directions =
@@ -486,7 +541,7 @@ function seekTower(
         ? DIAGONAL_OFFSETS
         : ROYAL_OFFSETS
 
-  return huntByField(request.from, board, target.square, towerBySquare, field, directions, maxSteps, false)
+  return huntByField(request.from, board, target.square, towerBySquare, field, directions, maxSteps, false, EMPTY_AVOID)
 }
 
 /**
@@ -501,6 +556,7 @@ export function nextMove(
   board: BoardSpec,
   coreSquare: Square,
   towerBySquare: ReadonlyMap<string, Tower>,
+  avoid: ReadonlySet<string>,
 ): MoveOutcome {
   // A Piece on the Staging rank is still entering the board. Hunting fields
   // have no entry off-board, so a yellow Piece born `hunting: true` must
@@ -518,6 +574,10 @@ export function nextMove(
     if (detour) return detour
   }
 
+  // Yellow's one carve-out: while hunting, prefer a landing square no Tower
+  // can hit. Every other tier hunts with no preference — an empty set.
+  const huntAvoid = request.tier === 'yellow' ? avoid : EMPTY_AVOID
+
   switch (request.typeId) {
     case 'pawn':
       return pawnMove(request.from, board, coreSquare, towerBySquare)
@@ -532,6 +592,7 @@ export function nextMove(
             ORTHOGONAL_OFFSETS,
             1 + request.slideBonus,
             true,
+            huntAvoid,
           )
         : travel(
             request.from,
@@ -566,6 +627,7 @@ export function nextMove(
           DIAGONAL_OFFSETS,
           1 + request.slideBonus,
           true,
+          huntAvoid,
         )
       }
 
@@ -588,6 +650,7 @@ export function nextMove(
         board,
         coreSquare,
         towerBySquare,
+        huntAvoid,
       )
     // The Queen alternates the Rook's line and the Bishop's line hop by hop —
     // the "flexible" in her roster entry — while she marches. Once forward
@@ -604,6 +667,7 @@ export function nextMove(
             ROYAL_OFFSETS,
             1 + request.slideBonus,
             true,
+            huntAvoid,
           )
         : travel(
             request.from,
@@ -628,6 +692,7 @@ export function nextMove(
             ROYAL_OFFSETS,
             1,
             true,
+            huntAvoid,
           )
         : travel(request.from, request.handedness, 1, forwardFileStep, board, coreSquare, towerBySquare)
   }
@@ -689,5 +754,5 @@ export function isStuck(
     hunting: piece.hunting,
     tier: piece.tier,
   }
-  return nextMove(request, board, coreSquare, towerBySquare).kind === 'stuck'
+  return nextMove(request, board, coreSquare, towerBySquare, EMPTY_AVOID).kind === 'stuck'
 }

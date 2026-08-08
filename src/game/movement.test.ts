@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { BOARD, CORE_SQUARE } from '../data/board'
-import { allSquares, squareKey, squaresEqual } from './board'
-import { kingDistanceField, knightDistanceField, rookDistanceField } from './distanceFields'
+import { allSquares, isInBounds, squareKey, squaresEqual } from './board'
+import { kingDistanceField, knightDistanceField, rookDistanceField, KNIGHT_OFFSETS } from './distanceFields'
 import { towersAt } from './fixtures'
 import { nextMove } from './movement'
 import type { MoveRequest } from './movement'
 import type { PieceTypeId, Square, Tower } from './types'
 
 const NO_TOWERS = new Map<string, Tower>()
+const EMPTY_AVOID = new Set<string>()
 
 /** Keeps call sites readable. Defaults match a freshly spawned Piece. */
 function move(
@@ -15,6 +16,7 @@ function move(
   from: Square,
   towers: ReadonlyMap<string, Tower> = NO_TOWERS,
   overrides: Partial<MoveRequest> = {},
+  avoid: ReadonlySet<string> = EMPTY_AVOID,
 ) {
   const request: MoveRequest = {
     typeId,
@@ -26,7 +28,7 @@ function move(
     tier: 'green',
     ...overrides,
   }
-  return nextMove(request, BOARD, CORE_SQUARE, towers)
+  return nextMove(request, BOARD, CORE_SQUARE, towers, avoid)
 }
 
 /**
@@ -697,5 +699,120 @@ describe('king hunting', () => {
 
     expect(move('king', { file: 5, rank: 0 })).toEqual(chosen)
     expect(move('king', { file: 5, rank: 0 }, towersAt({ file: 0, rank: 7 }))).toEqual(chosen)
+  })
+})
+
+describe('yellow coverage avoidance', () => {
+  /**
+   * A hunting Knight at (2,3) has exactly two d−1 candidates, both found at
+   * runtime from the field so the test survives field changes: the first in
+   * KNIGHT_OFFSETS order and the second. (1,1) and (4,2) both sit one knight
+   * move from the Core at (3,0).
+   */
+  const from = { file: 2, rank: 3 }
+
+  function knightCandidates(field: ReadonlyMap<string, number>): Square[] {
+    const own = field.get(squareKey(from))
+    if (own === undefined) throw new Error('expected a knight field entry for (2,3)')
+
+    return KNIGHT_OFFSETS.map((offset) => ({ file: from.file + offset.file, rank: from.rank + offset.rank }))
+      .filter(
+        (square) => isInBounds(BOARD, square) && field.get(squareKey(square)) === own - 1,
+      )
+  }
+
+  it('prefers an uncovered d−1 landing over a covered one', () => {
+    const field = knightDistanceField(BOARD, CORE_SQUARE)
+    const candidates = knightCandidates(field)
+    if (candidates[0] === undefined || candidates[1] === undefined)
+      throw new Error('expected at least two candidates')
+
+    const avoid = new Set([squareKey(candidates[0])])
+    const outcome = move('knight', from, NO_TOWERS, { tier: 'yellow', hunting: true }, avoid)
+
+    expect(outcome).toEqual({ kind: 'move', to: candidates[1], hunting: true })
+  })
+
+  it('falls back to the first d−1 landing when every one is covered', () => {
+    const field = knightDistanceField(BOARD, CORE_SQUARE)
+    const candidates = knightCandidates(field)
+    if (candidates[0] === undefined) throw new Error('expected at least one candidate')
+
+    const avoid = new Set(candidates.map((square) => squareKey(square)))
+    const outcome = move('knight', from, NO_TOWERS, { tier: 'yellow', hunting: true }, avoid)
+
+    expect(outcome).toEqual({ kind: 'move', to: candidates[0], hunting: true })
+  })
+
+  it('grinds a Tower-blocked d−1 landing rather than routing around it', () => {
+    const field = knightDistanceField(BOARD, CORE_SQUARE)
+    const candidates = knightCandidates(field)
+    if (candidates[0] === undefined) throw new Error('expected at least one candidate')
+
+    const towers = towersAt(candidates[0])
+    const outcome = move('knight', from, towers, { tier: 'yellow', hunting: true }, new Set())
+
+    expect(outcome).toEqual({ kind: 'attackTower', towerId: 'tower-0', hunting: true })
+  })
+
+  it('a green late-hunt Piece does not avoid', () => {
+    const field = knightDistanceField(BOARD, CORE_SQUARE)
+    const candidates = knightCandidates(field)
+    if (candidates[0] === undefined) throw new Error('expected at least one candidate')
+
+    const avoid = new Set(candidates.map((square) => squareKey(square)))
+    const outcome = move('knight', from, NO_TOWERS, { tier: 'green', hunting: true }, avoid)
+
+    expect(outcome).toEqual({ kind: 'move', to: candidates[0], hunting: true })
+  })
+
+  it('a red Piece ignores the avoid set', () => {
+    const field = knightDistanceField(BOARD, CORE_SQUARE)
+    const candidates = knightCandidates(field)
+    if (candidates[0] === undefined) throw new Error('expected at least one candidate')
+
+    const avoid = new Set(candidates.map((square) => squareKey(square)))
+    const outcome = move('knight', from, NO_TOWERS, { tier: 'red', hunting: true }, avoid)
+
+    expect(outcome).toEqual({ kind: 'move', to: candidates[0], hunting: true })
+  })
+
+  it('never dodges the Core, even when it is covered', () => {
+    const outcome = move('king', { file: 3, rank: 1 }, NO_TOWERS, { tier: 'yellow', hunting: true }, new Set(['3,0']))
+
+    expect(outcome).toEqual({ kind: 'reachCore' })
+  })
+
+  it('a colour-locked Bishop never dodges its pre-Core target', () => {
+    // (4,0) is on the opposite colour from the Core, so this Bishop hunts the
+    // square directly in front of it, (3,1) — covered here, and still taken.
+    const outcome = move('bishop', { file: 4, rank: 0 }, NO_TOWERS, { tier: 'yellow', hunting: true }, new Set(['3,1']))
+
+    expect(outcome).toEqual({ kind: 'reachCore' })
+  })
+
+  it('a slider prefers a direction whose landing square is uncovered', () => {
+    // Locked Bishop at (5,1): its first direction lands on (4,2) (covered), so
+    // it takes the second, which lands on (4,0).
+    const outcome = move('bishop', { file: 5, rank: 1 }, NO_TOWERS, { tier: 'yellow', hunting: true }, new Set(['4,2']))
+
+    expect(outcome).toEqual({ kind: 'move', to: { file: 4, rank: 0 }, hunting: true })
+  })
+
+  it('a King prefers a direction whose landing square is uncovered', () => {
+    // From (3,2) the King's fixed scan order first resolves the direction
+    // landing on (3,1); covered here, it takes the next resolved d−1 landing,
+    // (4,1).
+    const outcome = move('king', { file: 3, rank: 2 }, NO_TOWERS, { tier: 'yellow', hunting: true }, new Set(['2,2', '3,1']))
+
+    expect(outcome).toEqual({ kind: 'move', to: { file: 4, rank: 1 }, hunting: true })
+  })
+
+  it("a King falls back to today's first landing when every one is covered", () => {
+    // From (3,2) every resolved d−1 landing — (3,1), (4,1), (2,1) — is
+    // covered, so the hunt degrades to its ordinary first landing, (3,1).
+    const outcome = move('king', { file: 3, rank: 2 }, NO_TOWERS, { tier: 'yellow', hunting: true }, new Set(['2,2', '3,1', '4,1', '2,1']))
+
+    expect(outcome).toEqual({ kind: 'move', to: { file: 3, rank: 1 }, hunting: true })
   })
 })

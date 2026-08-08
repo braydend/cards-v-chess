@@ -391,6 +391,7 @@ describe('the Staging rank is one-way', () => {
                   board,
                   core.square,
                   new Map(),
+                  new Set(),
                 )
 
                 if (outcome.kind === 'move' && !isInBounds(board, outcome.to)) {
