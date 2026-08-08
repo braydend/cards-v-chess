@@ -24,13 +24,18 @@ instead of firing and missing.
 The mechanic moves from "shot lands, roll to negate" to "shot never happens,
 the Tower failed to acquire the target". Four settled forks:
 
-1. **The Tower holds fire and keeps its cooldown.** Detection rolls at
-   targeting time, before cooldown is spent. An undetected Piece is excluded
-   from the shot; if nothing remains, the Tower behaves exactly like today's
-   "no targets" branch — ready, not spent, re-rolling next time it would fire.
+1. **A miss consumes the fire interval.** The Tower's cooldown arithmetic is
+   unchanged from today: when a shot comes due, `cooldown -= fireIntervalMs`
+   happens whether or not the Black target is acquired, and a miss fires
+   nothing — no shot, no damage, no visual. The Tower rolls again at its next
+   normal fire time. This keeps black at ~50% damage negation, exactly
+   matching the old dodge's health arithmetic. (The alternative — holding at
+   ready and re-rolling every tick — would have the Tower rolling nearly every
+   tick against a lone Black Piece, collapsing the "50%" to ~3% damage
+   reduction.)
 2. **Per-shot, re-rolled each fire.** Each time a Tower would fire, each Black
    target rolls the seeded stream. No timed cloaking window, no persistent
-   Piece state — same cadence as today's dodge, moved earlier.
+   Piece state — same cadence as today's dodge.
 3. **The Piece cloak-flickers.** The feedback is a brief alpha dip on the
    Piece — it reads as "the Tower couldn't see me". The grow-pulse is deleted.
 4. **Full rename.** The codebase stops saying "dodge" and starts saying
@@ -38,22 +43,25 @@ the Tower failed to acquire the target". Four settled forks:
 
 ### The engine change
 
-In `fireTowers` (`src/game/tick.ts`), after `selectTargets` returns the
-nearest-N reachable Pieces, and **before** `cooldown -= tower.fireIntervalMs`:
+In `fireTowers` (`src/game/tick.ts`), the shot loop keeps its cooldown
+arithmetic exactly as today — `cooldown -= tower.fireIntervalMs` runs for every
+shot that comes due, whether the target is acquired or not — but the per-target
+roll moves from the damage loop into a detection pass that runs against the
+selected targets:
 
 - Each Black target rolls `rng.combat` once. Roll order stays deterministic:
   towers in array order, targets in `selectTargets`'s sorted order.
-- An undetected target is filtered out. The slot stays empty — no backfill
-  with the next-nearest Piece.
-- If the filtered list is now empty, treat it exactly as today's
-  `targets.length === 0` branch: `cooldown = fireIntervalMs; break`. The Tower
-  holds at ready and keeps its cooldown.
-- Otherwise spend the cooldown and fire at the detected subset.
+- An undetected target is filtered out of the damage loop. The slot stays
+  empty — no backfill with the next-nearest Piece.
+- A miss fires nothing: no damage, no shot. The interval is spent regardless,
+  so the Tower rolls again at its next normal fire time — never every tick.
+- `fireTowers` returns the missed ids in a `missed` array, replacing today's
+  `dodged`.
 
-The load-bearing ordering detail: detection must run **before**
-`cooldown -= fireIntervalMs`, or an all-undetected shot would spend the
-cooldown firing nothing — rebuilding the "the Tower always fires" behaviour
-this change removes.
+The health arithmetic is identical to the old dodge: a green twin is hit by
+every shot, a Black Piece by every shot minus the misses, so
+`blackHealth = greenHealth + misses × damage` holds exactly. The `dodge.test.ts`
+assertions survive this change unchanged in shape, only renamed.
 
 A multi-target Tower with `targetsPerShot > 1` fires at the detected subset of
 its selected slots and leaves the undetected slots empty.
@@ -127,14 +135,16 @@ the call site.
 - `src/game/dodge.test.ts` becomes the miss/detection test: same seed → same
   misses; black health exceeds a green twin's by damage × misses; one record
   per undetected shot; non-Black never rolls; determinism; Clear exemption.
-- `src/game/roundTermination.test.ts` and
-  `src/state/structuralKey.test.ts` reference `recentDodges` and get renamed
-  alongside.
+- `src/state/structuralKey.test.ts` references `recentDodges` and gets renamed
+  alongside (`recentMisses`). `src/game/roundTermination.test.ts` does **not**
+  reference the ring.
 - `src/scene/whiff.test.ts` becomes the cloak-flicker test: fresh miss
   flashes, other Pieces ignored, re-arms on a later miss, no re-flash from a
   previous round.
-- A new engine test pins the ordering invariant: an all-undetected shot spends
-  no cooldown and the Tower holds ready.
+- A new engine test pins the cooldown-on-miss decision: a miss fires nothing
+  but still spends the Tower's fire interval, so a Black Piece under constant
+  single-target fire takes `misses × damage` less than a green twin while the
+  Tower's cooldown cadence is unchanged.
 
 ## Non-goals
 
