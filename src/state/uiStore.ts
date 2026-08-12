@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Square } from '../game'
+import type { DeckSort } from '../ui/deckSort'
 
 /**
  * View-only state: what the player has selected and is pointing at.
@@ -12,6 +13,14 @@ interface UiStore {
   selectedCardIds: readonly string[]
   toggleCard: (cardId: string) => void
   clearSelection: () => void
+
+  /**
+   * How the Deck view orders its cards. `'none'` is raw deal order — the
+   * default. Pure view state, shared by the desktop Deck and the mobile
+   * picker; sorting is a rendering concern and never reaches GameState.
+   */
+  deckSort: DeckSort
+  setDeckSort: (sort: DeckSort) => void
 
   /** The square under the pointer, for previewing coverage. */
   hoveredSquare: Square | null
@@ -88,6 +97,8 @@ export const useUiStore = create<UiStore>((set) => ({
         : [...store.selectedCardIds, cardId],
     })),
   clearSelection: () => set({ selectedCardIds: [] }),
+  deckSort: 'none',
+  setDeckSort: (deckSort) => set({ deckSort }),
   hoveredSquare: null,
   setHoveredSquare: (hoveredSquare) => set({ hoveredSquare }),
   previewedSquare: null,

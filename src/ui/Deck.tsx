@@ -4,6 +4,7 @@ import { toggleCardForHand } from './cardActions'
 import { CardFace } from './CardFace'
 import { HandPanel } from './HandPanel'
 import { selectedCards } from './handSelection'
+import { sortDeck } from './deckSort'
 
 /**
  * The Deck: every Card held this run, always visible and always playable.
@@ -21,6 +22,8 @@ export function Deck() {
   const selectedCardIds = useUiStore((store) => store.selectedCardIds)
   const clearSelection = useUiStore((store) => store.clearSelection)
   const setPreviewedSquare = useUiStore((store) => store.setPreviewedSquare)
+  const deckSort = useUiStore((store) => store.deckSort)
+  const setDeckSort = useUiStore((store) => store.setDeckSort)
 
   const selected = selectedCards(deck, selectedCardIds)
 
@@ -29,10 +32,27 @@ export function Deck() {
       <div className="deck__header">
         <span className="hud__label">Deck</span>
         <span className="hud__muted">{deck.length} cards</span>
+        <div className="deck__sort">
+          {(
+            [
+              ['suit', 'Suit'],
+              ['value', 'Value'],
+            ] as const
+          ).map(([sort, label]) => (
+            <button
+              key={sort}
+              type="button"
+              className={`deck__sortBtn${deckSort === sort ? ' deck__sortBtn--active' : ''}`}
+              onClick={() => setDeckSort(deckSort === sort ? 'none' : sort)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <ul className="deck__cards">
-        {deck.map((card) => (
+        {sortDeck(deck, deckSort).map((card) => (
           <li key={card.id}>
             <CardFace
               card={card}

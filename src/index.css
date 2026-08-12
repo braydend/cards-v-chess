@@ -196,6 +196,29 @@ canvas {
   justify-content: space-between;
 }
 
+.deck__sort {
+  display: flex;
+  gap: 0.3rem;
+  margin-left: auto;
+}
+
+.deck__sortBtn {
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1;
+  padding: 0.22rem 0.4rem;
+  cursor: pointer;
+  color: inherit;
+  background: transparent;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 0.25rem;
+}
+
+.deck__sortBtn--active {
+  background: rgb(255 255 255 / 14%);
+  border-color: rgb(255 255 255 / 30%);
+}
+
 .deck__cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(2.4rem, 1fr));

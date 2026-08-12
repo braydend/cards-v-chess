@@ -3,6 +3,7 @@ import { useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { toggleCardForHand } from './cardActions'
 import { CardFace } from './CardFace'
+import { sortDeck } from './deckSort'
 import { useDialogFocus } from './useDialogFocus'
 
 /**
@@ -16,6 +17,8 @@ import { useDialogFocus } from './useDialogFocus'
 export function DeckOverlay({ onClose }: { onClose: () => void }) {
   const deck = useGameStore((store) => store.snapshot.deck)
   const selectedCardIds = useUiStore((store) => store.selectedCardIds)
+  const deckSort = useUiStore((store) => store.deckSort)
+  const setDeckSort = useUiStore((store) => store.setDeckSort)
   const panelRef = useRef<HTMLDivElement>(null)
 
   // Focus is moved in, Tab trapped, and focus restored by `useDialogFocus` —
@@ -29,9 +32,26 @@ export function DeckOverlay({ onClose }: { onClose: () => void }) {
         <div className="modal__head">
           <span className="hud__label">Deck</span>
           <span className="hud__muted">{deck.length} cards</span>
+          <div className="deck__sort">
+            {(
+              [
+                ['suit', 'Suit'],
+                ['value', 'Value'],
+              ] as const
+            ).map(([sort, label]) => (
+              <button
+                key={sort}
+                type="button"
+                className={`deck__sortBtn${deckSort === sort ? ' deck__sortBtn--active' : ''}`}
+                onClick={() => setDeckSort(deckSort === sort ? 'none' : sort)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         <ul className="deck__cards deck__cards--touch">
-          {deck.map((card) => (
+          {sortDeck(deck, deckSort).map((card) => (
             <li key={card.id}>
               <CardFace
                 card={card}
