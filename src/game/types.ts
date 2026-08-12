@@ -513,3 +513,8 @@ export type Command =
     }
   | { readonly kind: 'devRemoveTower'; readonly towerId: string }
   | { readonly kind: 'devClearPieces' }
+  | {
+      readonly kind: 'devAddCard'
+      readonly rank?: CardRank
+      readonly suit?: Suit
+    }

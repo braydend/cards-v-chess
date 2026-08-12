@@ -2,7 +2,7 @@ import { pieceType } from '../data/pieceTypes'
 import { tierDef } from '../data/tiers'
 import { isInBounds, squaresEqual, stagingRank } from './board'
 import { spawnHealth } from './spawnScaling'
-import type { GameState, Piece, PieceTier, PieceTypeId, Square } from './types'
+import type { Card, CardRank, GameState, Piece, PieceTier, PieceTypeId, Square, Suit } from './types'
 
 /**
  * Developer-mode commands: the engine half of issue #60's testing panel.
@@ -111,4 +111,31 @@ export function devClearPieces(state: GameState): GameState {
   // A testing utility, not the Joker: no ink, no clears bump, and pending
   // spawns untouched so a live round keeps its schedule.
   return { ...state, pieces: [] }
+}
+
+export function devAddCard(
+  state: GameState,
+  rank: CardRank | undefined,
+  suit: Suit | undefined,
+): GameState {
+  // A standard Card needs a suit and a Joker must not carry one — the same
+  // either-or validation buyPack uses, so a mistaken command is refused rather
+  // than silently coerced.
+  let card: Card
+  if (rank === undefined) {
+    if (suit !== undefined) return state
+    card = { id: `card-${state.nextCardId}`, kind: 'joker' }
+  } else {
+    if (suit === undefined) return state
+    card = { id: `card-${state.nextCardId}`, kind: 'standard', rank, suit }
+  }
+
+  // nextCardId, never nextEntityId: the entity counter's parity drives Piece
+  // handedness and must not move on a card deal. The deck cap is deliberately
+  // bypassed — the picker is the point of dev mode.
+  return {
+    ...state,
+    deck: [...state.deck, card],
+    nextCardId: state.nextCardId + 1,
+  }
 }

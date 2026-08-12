@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest'
+import { DECK_CAP } from '../data/deck'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { roundSpec } from '../data/rounds'
 import { stagingRank } from './board'
-import { pieceAt, liveRound, withTower, firstTowerId } from './fixtures'
+import { pieceAt, liveRound, withTower, firstTowerId, standardCard, withDeck } from './fixtures'
 import { createInitialState, step, tick } from './index'
 import { spawnHealth } from './spawnScaling'
-import type { GameState } from './types'
+import type { Card, GameState } from './types'
 
 const base = (): GameState => createInitialState('dev-test')
+
+function filler(size: number): Card[] {
+  return Array.from({ length: size }, (_, i) => standardCard(`f${i}`, 2, 'hearts'))
+}
 
 describe('devAddInk', () => {
   it('refuses an amount below 1', () => {
@@ -308,6 +313,69 @@ describe('devClearPieces', () => {
     const state = liveRound(base(), [pieceAt('pawn', 'p0', { file: 1, rank: 1 })])
 
     const after = step(state, { kind: 'devClearPieces' })
+
+    expect(after.rng).toBe(state.rng)
+  })
+})
+
+describe('devAddCard', () => {
+  it('adds a standard Card of the chosen rank and suit', () => {
+    const state = base()
+
+    const after = step(state, { kind: 'devAddCard', rank: 7, suit: 'spades' })
+
+    const added = after.deck[after.deck.length - 1]
+    expect(added).toEqual({
+      id: `card-${state.nextCardId}`,
+      kind: 'standard',
+      rank: 7,
+      suit: 'spades',
+    })
+    expect(after.nextCardId).toBe(state.nextCardId + 1)
+  })
+
+  it('adds a Joker when no rank is given', () => {
+    const state = base()
+
+    const after = step(state, { kind: 'devAddCard' })
+
+    const added = after.deck[after.deck.length - 1]
+    expect(added).toEqual({ id: `card-${state.nextCardId}`, kind: 'joker' })
+  })
+
+  it('is refused for a standard Card without a suit', () => {
+    const state = base()
+
+    expect(step(state, { kind: 'devAddCard', rank: 5 })).toBe(state)
+  })
+
+  it('is refused for a Joker with a suit', () => {
+    const state = base()
+
+    expect(step(state, { kind: 'devAddCard', suit: 'hearts' })).toBe(state)
+  })
+
+  it('breaks the deck cap deliberately', () => {
+    const state = withDeck(filler(DECK_CAP), base())
+
+    const after = step(state, { kind: 'devAddCard', rank: 10, suit: 'clubs' })
+
+    expect(after.deck).toHaveLength(DECK_CAP + 1)
+  })
+
+  it('numbers cards on nextCardId, never nextEntityId', () => {
+    const state: GameState = { ...base(), nextEntityId: 5 }
+
+    const after = step(state, { kind: 'devAddCard', rank: 3, suit: 'hearts' })
+
+    expect(after.nextCardId).toBe(state.nextCardId + 1)
+    expect(after.nextEntityId).toBe(5)
+  })
+
+  it('does not touch the rng streams', () => {
+    const state = base()
+
+    const after = step(state, { kind: 'devAddCard', rank: 3, suit: 'hearts' })
 
     expect(after.rng).toBe(state.rng)
   })
