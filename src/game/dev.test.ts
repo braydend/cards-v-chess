@@ -5,7 +5,6 @@ import { roundSpec } from '../data/rounds'
 import { stagingRank } from './board'
 import { pieceAt, liveRound, withTower, firstTowerId, standardCard, withDeck } from './fixtures'
 import { createInitialState, step, tick } from './index'
-import { spawnHealth } from './spawnScaling'
 import type { Card, GameState } from './types'
 
 const base = (): GameState => createInitialState('dev-test')
@@ -189,7 +188,7 @@ describe('devSpawnPiece', () => {
     ).toBe(state)
   })
 
-  it('spawns a round-scaled Piece with its tier flags', () => {
+  it('spawns a Piece at its authored health with its tier flags', () => {
     const state = base()
 
     const after = step(state, {
@@ -204,7 +203,7 @@ describe('devSpawnPiece', () => {
     expect(piece?.tier).toBe('yellow')
     expect(piece?.square).toEqual({ file: 0, rank: 4 })
     expect(piece?.prevSquare).toEqual({ file: 0, rank: 4 })
-    expect(piece?.health).toBe(spawnHealth(PIECE_TYPES.rook.maxHealth, state.roundNumber))
+    expect(piece?.health).toBe(PIECE_TYPES.rook.maxHealth)
     expect(piece?.maxHealth).toBe(piece?.health)
     expect(piece?.hunting).toBe(true)
     expect(after.nextEntityId).toBe(state.nextEntityId + 1)

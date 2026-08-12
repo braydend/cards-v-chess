@@ -1,7 +1,6 @@
 import { pieceType } from '../data/pieceTypes'
 import { tierDef } from '../data/tiers'
 import { isInBounds, squaresEqual, stagingRank } from './board'
-import { spawnHealth } from './spawnScaling'
 import type { Card, CardRank, GameState, Piece, PieceTier, PieceTypeId, Square, Suit } from './types'
 
 /**
@@ -71,10 +70,10 @@ export function devSpawnPiece(
   if (state.towers.some((tower) => squaresEqual(tower.square, square))) return state
   if (state.pieces.some((piece) => squaresEqual(piece.square, square))) return state
 
-  // Identical to a normal spawn (drainDueSpawns in tick.ts): round-scaled
-  // health and handedness from entity-id parity, so a dev-spawned Piece weaves
-  // exactly like one the round would have produced.
-  const health = spawnHealth(pieceType(typeId).maxHealth, state.roundNumber)
+  // Identical to a normal spawn (drainDueSpawns in tick.ts): authored health
+  // and handedness from entity-id parity, so a dev-spawned Piece weaves exactly
+  // like one the round would have produced.
+  const health = pieceType(typeId).maxHealth
   const piece: Piece = {
     id: `piece-${state.nextEntityId}`,
     typeId,

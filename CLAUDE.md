@@ -246,7 +246,7 @@ Use these terms exactly and consistently — in code, comments, and UI copy.
 | **Promotion** | A surviving Pawn becoming a Queen |
 | **Core** | What the player defends |
 | **Round** | One wave of invaders. Always "round", never "wave" |
-| **Free play** | The run continuing after round 100 is beaten — the same game, difficulty still escalating, no further goal |
+| **Free play** | The run continuing after round 100 is beaten — the same game, spawn density still ramping, no further goal |
 | **Tick** | One fixed-timestep simulation step |
 | **Command** | A player action entering the engine |
 | **Leak** | A Piece reaching the Core |

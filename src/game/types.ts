@@ -139,10 +139,8 @@ export interface Piece {
   readonly health: number
   /**
    * The health this Piece spawned with — the ceiling a Bishop's heal restores
-   * to. Set at spawn to the round-scaled value (see `spawnScaling.ts`), so a
-   * scaled Piece heals back to what it actually had rather than to the
-   * authored stat, which round-5+ Pieces exceed on arrival. Never changes
-   * after spawn.
+   * to. Set at spawn to the authored `maxHealth` (see `pieceTypes`), so a heal
+   * restores to what the Piece actually had. Never changes after spawn.
    */
   readonly maxHealth: number
   /** Milliseconds accumulated toward this piece's next hop. */

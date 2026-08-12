@@ -175,8 +175,7 @@ This requires a **seeded PRNG carried in `GameState`**. `Math.random` must never
 **A run's goal is to beat round 100.** Completing round 100 — the round
 completes, nothing on the board can still act — records the win and shows a
 victory screen. From there the player may continue into **free play**: the same
-game, the difficulty curve still escalating (`spawnHealthMultiplier`'s tail is
-unbounded), no further goal, until the Core falls. Free play changes nothing
+game, difficulty still ramping — spawn density tightens (`spawnGapMs`), round composition broadens, but piece health is flat — no further goal, until the Core falls. Free play changes nothing
 mechanical — cards, packs, Ink, and the roster behave identically. The victory
 interstitial is a `'victory'` phase: `tick` freezes and every command is refused
 except `continueToFreePlay`, which moves into the round-101 gap. A phase rather

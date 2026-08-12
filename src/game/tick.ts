@@ -8,7 +8,6 @@ import { coversSquare, hittableSquares, isOccluded } from './coverage'
 import { roundIncome, totalKillReward } from './ink'
 import { isStuck, nextMove } from './movement'
 import { isTerminal } from './phase'
-import { spawnHealth } from './spawnScaling'
 import { next, type Rng } from './rng'
 import { step } from './step'
 import type {
@@ -123,7 +122,7 @@ export function tick(state: GameState, dtMs: number): GameState {
   // numbered starting after drainDueSpawns's own ids, so a Pawn and a spawn in
   // the same tick can never collide over the same id.
   const promotedQueens: Piece[] = moved.promotedFrom.map((entry, index) => {
-    const health = spawnHealth(pieceType('queen').maxHealth, state.roundNumber)
+    const health = pieceType('queen').maxHealth
     return {
       id: `piece-${nextEntityId + index}`,
       typeId: 'queen',
@@ -514,7 +513,7 @@ function drainDueSpawns(
     // than by a spawn-time special case. Read from state, not a constant: an
     // Ace grows the board and the Staging rank moves up with it.
     const square: Square = { file: spawn.file, rank: stagingRank(state.board) }
-    const health = spawnHealth(pieceType(spawn.typeId).maxHealth, state.roundNumber)
+    const health = pieceType(spawn.typeId).maxHealth
     spawned.push({
       id: `piece-${nextEntityId}`,
       typeId: spawn.typeId,

@@ -99,10 +99,10 @@ describe('the Bishop healing aura', () => {
     expect(healed.find((each) => each.id === 'p')?.health).toBe(PIECE_TYPES.pawn.maxHealth)
   })
 
-  it('heals a scaled Piece toward its spawn-scaled maximum, not the authored stat', () => {
-    // A round-5+ Pawn arrives at 4 health (maxHealth 4) against an authored
-    // max of 3. Capping at the authored stat would pin it at 3 — stripping
-    // the round's added bulk the first time a Bishop touches it.
+  it('heals a Piece toward its recorded maximum, never a re-read of the authored stat', () => {
+    // The heal ceiling is the Piece's own maxHealth — what it spawned with —
+    // so a Piece whose maximum is ever set above the authored stat still heals
+    // to what it actually had, rather than being pinned down to the table.
     const hurt = { ...piece('p', 'pawn', { file: 4, rank: 5 }), health: 3, maxHealth: 4 }
     const pieces = [piece('b', 'bishop', { file: 4, rank: 4 }), hurt]
 
