@@ -12,7 +12,7 @@ describe('structuralKey', () => {
     // moves maxHealth alone today — a ♠ moves health with it — so this state
     // is constructed by hand rather than driven through a command. It guards
     // the field the renderer reads, not a transition any card produces.
-    const base = withTower(5, { file: 2, rank: 2 })
+    const base = withTower('vertical', { file: 2, rank: 2 })
     const raisedCeiling = {
       ...base,
       towers: base.towers.map((tower) => ({ ...tower, maxHealth: tower.maxHealth + 10 })),
@@ -118,10 +118,14 @@ describe('the Deck', () => {
     ).not.toBe(structuralKey(before))
   })
 
-  it('still changes when a card is played and nothing replaces it', () => {
+  it('still changes when a hand is committed and again when it is placed', () => {
     const before = withDeck([standardCard('five', 5, 'clubs')], createInitialState('key-test'))
-    const after = step(before, { kind: 'buildTower', cardId: 'five', square: { file: 2, rank: 2 } })
+    const committed = step(before, { kind: 'playHand', cardIds: ['five'] })
+    const placed = step(committed, { kind: 'placeTower', square: { file: 2, rank: 2 } })
 
-    expect(structuralKey(after)).not.toBe(structuralKey(before))
+    // The commit changes the Deck ids and `pendingTower`, the placement adds a
+    // Tower — each move must repaint on its own.
+    expect(structuralKey(committed)).not.toBe(structuralKey(before))
+    expect(structuralKey(placed)).not.toBe(structuralKey(committed))
   })
 })

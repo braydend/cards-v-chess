@@ -25,10 +25,13 @@ export function structuralKey(state: GameState): string {
   // is rendered, not because some play is known to move it alone.
   // `fireCooldownMs` is deliberately NOT here: that changes every tick and
   // would force a React render per frame.
+  // `type` and `range` are keyed because the renderer now draws the Tower from
+  // them; `pendingTower` is keyed separately below because it changes when a
+  // hand is committed or placed, and the build preview lives on it.
   const towers = state.towers
     .map(
       (tower) =>
-        `${tower.id}@${tower.square.file},${tower.square.rank}:${tower.health}:${tower.maxHealth}:${tower.shield}:${tower.damage}:${tower.fireIntervalMs}`,
+        `${tower.id}@${tower.square.file},${tower.square.rank}:${tower.type}:${tower.range}:${tower.health}:${tower.maxHealth}:${tower.shield}:${tower.damage}:${tower.fireIntervalMs}`,
     )
     .join('|')
 
@@ -68,6 +71,9 @@ export function structuralKey(state: GameState): string {
     // dozen times a second, adding no publishes. Derived from the Deck rather
     // than tracked in a counter, so there is no bookkeeping to forget.
     state.deck.map((card) => card.id).join(','),
+    // A hand being committed or placed moves this, and the build preview lives
+    // on it — keyed so the preview follows the commit and clears on placement.
+    state.pendingTower,
     pieces,
     towers,
   ].join('#')
