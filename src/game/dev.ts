@@ -29,3 +29,21 @@ export function devSetCoreHealth(
 
   return { ...state, core: { ...state.core, health, maxHealth } }
 }
+
+export function devSetRound(state: GameState, roundNumber: number): GameState {
+  // Gap only, like buyPack. Mid-round it would be silently skipped: round
+  // completion sets roundNumber = state.roundNumber + 1, so a mid-round set to
+  // N would complete straight past N to N + 1.
+  if (state.phase !== 'gap') return state
+  if (roundNumber < 1) return state
+
+  return { ...state, roundNumber }
+}
+
+export function devGrowBoard(state: GameState, ranks: number): GameState {
+  if (ranks < 1) return state
+
+  // Ranks only, mirroring the Ace: files are fixed so spawn-file math in
+  // data/rounds.ts stays correct and the staging rank stays out of bounds.
+  return { ...state, board: { ...state.board, ranks: state.board.ranks + ranks } }
+}

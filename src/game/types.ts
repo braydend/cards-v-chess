@@ -503,3 +503,5 @@ export type Command =
       readonly health: number
       readonly maxHealth: number
     }
+  | { readonly kind: 'devSetRound'; readonly roundNumber: number }
+  | { readonly kind: 'devGrowBoard'; readonly ranks: number }
