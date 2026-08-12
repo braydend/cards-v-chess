@@ -1,6 +1,7 @@
 import { useMediaQuery, MOBILE_LAYOUT_QUERY } from './useMediaQuery'
 import { Credits } from './Credits'
 import { DesktopHud } from './DesktopHud'
+import { GuardRoundBanner } from './GuardRoundBanner'
 import { MobileHud } from './MobileHud'
 import { PackShop } from './PackShop'
 import { TowerPanel } from './TowerPanel'
@@ -23,6 +24,7 @@ export function Hud() {
       <TowerPanel />
       <PackShop />
       <Credits />
+      <GuardRoundBanner />
     </div>
   )
 }
