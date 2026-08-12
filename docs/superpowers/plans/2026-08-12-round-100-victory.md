@@ -44,7 +44,7 @@
 
 - [ ] **Step 1: Write the failing tests**
 
-`src/data/rounds.test.ts` — add `VICTORY_ROUND` to the existing import on line 3 and append a test at the end of the file:
+`src/data/rounds.test.ts` — add `VICTORY_ROUND` to the existing import on line 3 and append a test inside the existing `describe('round composition', ...)` block, after the last test:
 
 ```ts
   it('is beatable at round 100', () => {
