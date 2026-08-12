@@ -74,6 +74,16 @@ interface UiStore {
   setCreditsOpen: (open: boolean) => void
 
   /**
+   * Whether the developer panel is open.
+   *
+   * Purely view state. The panel itself is compiled out of production builds
+   * (`import.meta.env.DEV` in `src/ui/DevPanel.tsx`), so this flag only ever
+   * exists in development.
+   */
+  devPanelOpen: boolean
+  setDevPanelOpen: (open: boolean) => void
+
+  /**
    * Cards marked for destruction in the pack shop, by id.
    *
    * The cull is chosen before the pack opens, and no card is destroyed until the
@@ -102,6 +112,8 @@ export const useUiStore = create<UiStore>((set) => ({
   setPackShopOpen: (packShopOpen) => set({ packShopOpen }),
   creditsOpen: false,
   setCreditsOpen: (creditsOpen) => set({ creditsOpen }),
+  devPanelOpen: false,
+  setDevPanelOpen: (devPanelOpen) => set({ devPanelOpen }),
   markedForCullIds: [],
   toggleMarkedForCull: (cardId) =>
     set((store) => ({

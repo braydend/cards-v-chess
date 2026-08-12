@@ -961,3 +961,124 @@ canvas {
     border-bottom-right-radius: 0;
   }
 }
+
+/* The developer panel: a floating, non-modal console for testing mechanics.
+   Compiled out of production builds — the component returns null under
+   !import.meta.env.DEV. `.hud` is pointer-events: none, so this re-enables
+   them exactly as .hud__panel does. */
+.dev-panel {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  width: min(24rem, calc(100% - 2rem));
+  max-height: calc(100% - 2rem);
+  overflow-y: auto;
+  padding: 1rem 1.15rem;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 0.6rem;
+  background: rgb(16 20 26 / 92%);
+  color: #e8edf4;
+}
+
+.dev-panel__toggle {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  pointer-events: auto;
+  padding: 0.4rem 0.8rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: #7a4fd1;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dev-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dev-panel__close {
+  border: 0;
+  background: none;
+  color: #8fa0b5;
+  font: inherit;
+  cursor: pointer;
+}
+
+.dev-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgb(255 255 255 / 8%);
+}
+
+.dev-panel__title {
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8fa0b5;
+}
+
+.dev-panel__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.45rem;
+}
+
+.dev-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+  color: #b9c6d6;
+}
+
+.dev-panel input,
+.dev-panel select {
+  padding: 0.3rem 0.4rem;
+  border: 1px solid rgb(255 255 255 / 15%);
+  border-radius: 0.3rem;
+  background: rgb(255 255 255 / 6%);
+  color: #e8edf4;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.dev-panel__towers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+}
+
+.dev-panel__towers li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.dev-panel__remove {
+  padding: 0.2rem 0.5rem;
+  border: 0;
+  border-radius: 0.3rem;
+  background: #c1403a;
+  color: #fff;
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
