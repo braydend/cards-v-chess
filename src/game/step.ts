@@ -1,5 +1,14 @@
 import { roundSpec } from '../data/rounds'
-import { clearPieces, expandBoard, placeTower, playHand, rangeTower, reinforceCore, shieldTower } from './cardPlays'
+import {
+  cancelPlacement,
+  clearPieces,
+  expandBoard,
+  placeTower,
+  playHand,
+  rangeTower,
+  reinforceCore,
+  shieldTower,
+} from './cardPlays'
 import {
   devAddCard,
   devAddInk,
@@ -40,6 +49,8 @@ export function step(state: GameState, command: Command): GameState {
       return playHand(state, command.cardIds, command.chosenType)
     case 'placeTower':
       return placeTower(state, command.square)
+    case 'cancelPlacement':
+      return cancelPlacement(state)
     case 'rangeTower':
       return rangeTower(state, command.cardId, command.towerId)
     case 'shieldTower':

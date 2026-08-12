@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { TOWER_RANKS } from '../data/towerRanks'
+import { TOWER_TYPE_IDS, towerType } from '../data/towerTypes'
 import { targetsLabel } from './targetsLabel'
 
 describe('targetsLabel', () => {
@@ -18,32 +18,32 @@ describe('targetsLabel', () => {
   })
 
   it('says nothing at all for a Tower with no gun', () => {
-    // The rank-7 Wall. "hits 0 per shot" is a fact about shooting on a Tower
+    // The Wall tower type. "hits 0 per shot" is a fact about shooting on a Tower
     // whose design is that it does not shoot, and the geometry line already
     // says so properly. The panel drops the clause on null.
     expect(targetsLabel(0)).toBeNull()
   })
 
-  it('never renders Infinity, and never a zero count, for any rank on the ladder', () => {
-    // Asserted across the real table rather than against hardcoded ranks: which
-    // ranks carry unlimited targeting, and which carry none, is placeholder
-    // balance in src/data/towerRanks.ts. A tuning pass that moves the Wall to
-    // another rank, or gives rank 7 a gun, must not break this.
-    for (const def of Object.values(TOWER_RANKS)) {
-      const label = targetsLabel(def.targetsPerShot)
+  it('never renders Infinity, and never a zero count, for any tower on the roster', () => {
+    // Asserted across the real table rather than against hardcoded ids: which
+    // tower types carry unlimited targeting, and which carry none, is
+    // placeholder balance in src/data/towerTypes.ts. A tuning pass that moves
+    // the Wall, or gives a gun to a type that has none, must not break this.
+    for (const id of TOWER_TYPE_IDS) {
+      const label = targetsLabel(towerType(id).targetsPerShot)
 
       // `?? ''` because null is the Wall's correct answer and `toContain`
       // rejects it outright — the empty string satisfies both assertions below
-      // for exactly the ranks that should print nothing.
+      // for exactly the types that should print nothing.
       expect(label ?? '').not.toContain('Infinity')
       expect(label ?? '').not.toBe('hits 0 per shot')
-      expect(label === null).toBe(def.targetsPerShot === 0)
+      expect(label === null).toBe(towerType(id).targetsPerShot === 0)
     }
   })
 
-  it('covers every rank on the ladder, so a new geometry cannot slip through untested', () => {
+  it('covers every tower type on the roster, so a new type cannot slip through untested', () => {
     // Guards the loop above from silently testing nothing if the table changes
     // shape.
-    expect(Object.values(TOWER_RANKS).length).toBeGreaterThanOrEqual(9)
+    expect(TOWER_TYPE_IDS.length).toBe(9)
   })
 })

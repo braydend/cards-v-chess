@@ -206,6 +206,34 @@ describe('step: playHand and placeTower', () => {
   })
 })
 
+describe('step: cancelPlacement', () => {
+  const FIVE = standardCard('five', 5, 'clubs')
+
+  it('clears a pending Tower without restoring the deck', () => {
+    const pending = step(withDeck([FIVE]), { kind: 'playHand', cardIds: ['five'] })
+    expect(pending.pendingTower).not.toBeNull()
+    expect(pending.deck).toHaveLength(0)
+
+    const cancelled = step(pending, { kind: 'cancelPlacement' })
+
+    expect(cancelled.pendingTower).toBeNull()
+    expect(cancelled.deck).toHaveLength(0)
+    expect(cancelled.towers).toHaveLength(0)
+  })
+
+  it('refuses with no pending Tower', () => {
+    const initial = withDeck([FIVE])
+
+    expect(step(initial, { kind: 'cancelPlacement' })).toBe(initial)
+  })
+
+  it('refuses mid-round, since placement is confined to the gap', () => {
+    const running = step(withDeck([FIVE]), { kind: 'startRound' })
+
+    expect(step(running, { kind: 'cancelPlacement' })).toBe(running)
+  })
+})
+
 describe('step: the defeated guard', () => {
   // src/ui/Hud.tsx only swaps the round button once defeated — <Deck /> stays
   // mounted and clickable — so every one of these five plays is genuinely

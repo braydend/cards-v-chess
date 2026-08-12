@@ -15,7 +15,7 @@ import { Deck } from './Deck'
  */
 export function DesktopHud() {
   const snapshot = useGameStore((store) => store.snapshot)
-  const { phase, roundNumber, core, autoStart, ink, won } = snapshot
+  const { phase, roundNumber, core, autoStart, ink, won, pendingTower } = snapshot
 
   return (
     <div className="hud__panel">
@@ -48,7 +48,7 @@ export function DesktopHud() {
           <button
             type="button"
             className="hud__button"
-            disabled={phase !== 'gap'}
+            disabled={phase !== 'gap' || pendingTower !== null}
             onClick={() => dispatch({ kind: 'startRound' })}
           >
             {phase === 'gap' ? `Start round ${roundNumber}` : 'Round in progress'}

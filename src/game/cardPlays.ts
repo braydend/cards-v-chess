@@ -107,6 +107,22 @@ export function placeTower(state: GameState, square: Square): GameState {
 }
 
 /**
+ * Cancels an unplaced hand play, dropping the pending Tower.
+ *
+ * The player may change their mind about where — or whether — to build, but the
+ * Cards committed to the hand are NOT refunded: the play is cancelled, not the
+ * hand undone. Refuses in every phase but the gap, and with no pending Tower to
+ * drop.
+ */
+export function cancelPlacement(state: GameState): GameState {
+  if (isTerminal(state.phase)) return state
+  if (state.phase !== 'gap') return state
+  if (state.pendingTower === null) return state
+
+  return { ...state, pendingTower: null }
+}
+
+/**
  * Jack: grants a Tower a shield, absorbed before health.
  *
  * A shield differs from ♥ repair in kind, not magnitude: repair is reactive and

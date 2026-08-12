@@ -410,6 +410,62 @@ canvas {
   outline-offset: 1px;
 }
 
+/* The hand panel: what the current selection means, and the commit/action
+   buttons. Replaces the build/support mode toggle — a selection is either one
+   hand or nothing. */
+.handPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.handPanel__label {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* The nine-Tower row a royal flush offers — it is "Tower of choice", so the
+   choice is made here, before the commit. */
+.handPanel__types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.handPanel__type {
+  padding: 0.3rem 0.5rem;
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 0.3rem;
+  background: #1d242e;
+  color: #b9c6d6;
+}
+
+.handPanel__type:not(.handPanel__type--active):hover {
+  border-color: rgb(255 255 255 / 34%);
+  color: #e8edf4;
+}
+
+.handPanel__type--active {
+  border-color: #4fd1c5;
+  background: rgb(79 209 197 / 12%);
+  color: #e8edf4;
+}
+
+/* A hand cannot be committed mid-round (the engine refuses), and a royal flush
+   is un-committable until a Tower type is picked. Disabled reads faded rather
+   than dead so the player still sees what a gap would allow. */
+.deck__play:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.deck__play:disabled:hover {
+  background: #9c5b18;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .deck__card {
     transition: none;

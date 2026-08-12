@@ -8,9 +8,10 @@ import type { Square } from '../game'
  * the simulation, with no UI concerns mixed in.
  */
 interface UiStore {
-  /** The Card the player has picked from the Deck, or null for none. */
-  selectedCardId: string | null
-  setSelectedCardId: (cardId: string | null) => void
+  /** The Card ids the player has picked to assemble a hand, in pick order. */
+  selectedCardIds: readonly string[]
+  toggleCard: (cardId: string) => void
+  clearSelection: () => void
 
   /** The square under the pointer, for previewing coverage. */
   hoveredSquare: Square | null
@@ -29,28 +30,11 @@ interface UiStore {
   setPreviewedSquare: (square: Square | null) => void
 
   /**
-   * Which of a Card's two modes the next click applies. Rank builds, suit
-   * supports — the choice happens at play time, not at selection time.
-   */
-  playMode: 'build' | 'support'
-  setPlayMode: (mode: 'build' | 'support') => void
-
-  /**
-   * The Tower a Queen will copy, picked on the first of its two clicks. Null
-   * until then, and cleared once the Echo resolves.
-   *
-   * Echo is the only play needing two board targets — a source to copy and a
-   * destination to build on.
-   */
-  echoSourceTowerId: string | null
-  setEchoSourceTowerId: (towerId: string | null) => void
-
-  /**
    * The Tower whose inspect panel is open. Null when nothing is selected.
    *
-   * Independent of `selectedCardId`: inspecting is what a board click does when
-   * no Card is selected, and a Card whose play targets a Tower takes precedence
-   * over it. See `resolveBoardAction` in `src/scene/boardClick.ts`.
+   * Independent of the hand: inspecting is what a board click does when no Card
+   * is selected, and a play whose targets include a Tower takes precedence over
+   * it. See `resolveBoardAction` in `src/scene/boardClick.ts`.
    */
   selectedTowerId: string | null
   setSelectedTowerId: (towerId: string | null) => void
@@ -96,16 +80,18 @@ interface UiStore {
 }
 
 export const useUiStore = create<UiStore>((set) => ({
-  selectedCardId: null,
-  setSelectedCardId: (selectedCardId) => set({ selectedCardId }),
+  selectedCardIds: [],
+  toggleCard: (cardId) =>
+    set((store) => ({
+      selectedCardIds: store.selectedCardIds.includes(cardId)
+        ? store.selectedCardIds.filter((id) => id !== cardId)
+        : [...store.selectedCardIds, cardId],
+    })),
+  clearSelection: () => set({ selectedCardIds: [] }),
   hoveredSquare: null,
   setHoveredSquare: (hoveredSquare) => set({ hoveredSquare }),
   previewedSquare: null,
   setPreviewedSquare: (previewedSquare) => set({ previewedSquare }),
-  playMode: 'build',
-  setPlayMode: (playMode) => set({ playMode }),
-  echoSourceTowerId: null,
-  setEchoSourceTowerId: (echoSourceTowerId) => set({ echoSourceTowerId }),
   selectedTowerId: null,
   setSelectedTowerId: (selectedTowerId) => set({ selectedTowerId }),
   packShopOpen: false,

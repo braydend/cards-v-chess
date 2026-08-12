@@ -114,8 +114,8 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
         }
 
         const {
-          selectedCardId,
-          setSelectedCardId,
+          selectedCardIds,
+          clearSelection,
           selectedTowerId,
           setSelectedTowerId,
           previewedSquare,
@@ -128,13 +128,22 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
         // would re-render all 64 square instances on every Tower hit.
         const state = getState()
 
+        // Only a lone selected Card reaches the board — a J or Q's Tower
+        // target. A multi-card hand is committed from the Deck, not via the
+        // board, so a bigger selection carries no board action.
+        const selectedCardId = selectedCardIds[0]
+        const card =
+          selectedCardIds.length === 1 && selectedCardId !== undefined
+            ? (findCard(state.deck, selectedCardId) ?? null)
+            : null
+
         // Every branch below is decided by `resolveBoardAction`, which is pure
         // and unit-tested. Nothing but plumbing lives in this handler.
         const action = resolveBoardAction({
           square,
           towers: state.towers,
           selectedTowerId,
-          card: selectedCardId === null ? null : (findCard(state.deck, selectedCardId) ?? null),
+          card,
           pendingTower: state.pendingTower,
           pointer: coarse ? 'coarse' : 'fine',
           previewedSquare,
@@ -164,7 +173,7 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
         // the Card was not consumed, so the player should not have to re-pick it.
         if (!dispatch(action.command)) return
 
-        setSelectedCardId(null)
+        clearSelection()
         setPreviewedSquare(null)
       }}
     >

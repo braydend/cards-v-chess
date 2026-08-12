@@ -524,6 +524,13 @@ export type Command =
       readonly chosenType?: TowerTypeId
     }
   | { readonly kind: 'placeTower'; readonly square: Square }
+  | {
+      /**
+       * Cancel an unplaced hand: drop the pending Tower without refunding the
+       * Cards that bought it. The play is cancelled, not the hand undone.
+       */
+      readonly kind: 'cancelPlacement'
+    }
   | { readonly kind: 'rangeTower'; readonly cardId: string; readonly towerId: string }
   | { readonly kind: 'shieldTower'; readonly cardId: string; readonly towerId: string }
   | { readonly kind: 'reinforceCore'; readonly cardId: string }
