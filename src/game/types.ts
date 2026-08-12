@@ -267,18 +267,18 @@ export interface Tower {
    */
   readonly range: number
   readonly health: number
-  /** Seeded from the type's tower table at build. Never changed after — supports are gone. */
+  /** Seeded from the type's tower table at build; raised by `upgradeTower` (issue #67) and nothing else. */
   readonly maxHealth: number
   /**
-   * Seeded from the type's tower table at build. No longer mutated by ♣
-   * supports — supports are gone. The field stays on the instance so
+   * Seeded from the type's tower table at build. Mutated only by `upgradeTower`
+   * (issue #67); supports are gone. The field stays on the instance so
    * `structuralKey` and `TowerPanel` can read it without a table lookup.
    */
   readonly damage: number
   /**
-   * Seeded from the type's tower table at build. No longer mutated by ♦
-   * supports. The field stays on the instance so `structuralKey` and
-   * `TowerPanel` can read it without a table lookup.
+   * Seeded from the type's tower table at build. Mutated only by `upgradeTower`
+   * (issue #67); supports are gone. The field stays on the instance so
+   * `structuralKey` and `TowerPanel` can read it without a table lookup.
    */
   readonly fireIntervalMs: number
   /**
@@ -328,6 +328,28 @@ export interface Tower {
    * kill — keying the counter would add no publishes and just bloat the key.
    */
   readonly kills: number
+  /**
+   * Lifetime count of upgrades the player has spent on this Tower.
+   *
+   * Monotonic and never reset. The XP source is `kills`; pending upgrades are
+   * derived as `pendingUpgrades(kills, upgradesSpent)` (see
+   * `src/game/upgrades.ts`), never stored.
+   *
+   * Kept out of `structuralKey` on purpose: a spend mutates `damage`,
+   * `fireIntervalMs`, `maxHealth`, and/or `health`, which are already keyed,
+   * so the panel republishes on the spend itself. Keying the counter would
+   * add no publishes and just bloat the key.
+   */
+  readonly upgradesSpent: number
+  /**
+   * The fire interval seeded from the type's table at build. Never changed.
+   *
+   * Split from `fireIntervalMs` because the fire-rate upgrade is additive off
+   * base: each pick subtracts `0.1 * fireIntervalBaseMs`, so once the live
+   * interval is mutated the base can no longer be recovered from it. Kept out
+   * of `structuralKey` because it never changes after build.
+   */
+  readonly fireIntervalBaseMs: number
 }
 
 /**
