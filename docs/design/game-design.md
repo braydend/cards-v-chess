@@ -229,8 +229,8 @@ There are **no real-money purchases**. Ink is earned by playing. This keeps the 
 not from its individual rank — the hand ladder already does the separating, and
 charging scarcity for the numbers as well would double-count the same
 difference. The Ace is alone in the rarest tier because
-nothing else restrains board growth — see the King and Ace hazards under "The
-card actions". The Joker sits with the face cards rather than below them: its
+nothing else restrains board growth — see the King and Ace hazards under "Face
+cards, the Ace, and the Jokers". The Joker sits with the face cards rather than below them: its
 Clear is the one card that can always break a grind, and making the escape hatch
 the hardest card to obtain would be a trap.
 
