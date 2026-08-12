@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { VICTORY_ROUND } from '../data/rounds'
-import { firstTowerId, jokerCard, liveRound, pawnAt, standardCard, withDeck, withTower } from './fixtures'
-import { createInitialState, squaresEqual, step, tick } from './index'
+import { firstTowerId, jokerCard, pawnAt, standardCard, withDeck, withTower } from './fixtures'
+import { createInitialState, step } from './index'
 import type { Command, GameState } from './types'
 
 describe('step: startRound', () => {
@@ -39,49 +39,65 @@ describe('step: setAutoStart', () => {
   })
 })
 
-describe('step: buildTower', () => {
+describe('step: playHand and placeTower', () => {
   const FIVE = standardCard('five', 5, 'clubs')
+  const HAND_FOR_VERTICAL = ['five'] as const
 
-  it('builds a Tower on an empty square', () => {
-    const state = step(withDeck([FIVE]), { kind: 'buildTower', cardId: 'five', square: { file: 2, rank: 2 } })
+  function royalFlush(): GameState['deck'] {
+    return [
+      standardCard('r0', 10, 'clubs'),
+      standardCard('r1', 'J', 'clubs'),
+      standardCard('r2', 'Q', 'clubs'),
+      standardCard('r3', 'K', 'clubs'),
+      standardCard('r4', 'A', 'clubs'),
+    ]
+  }
 
-    expect(state.towers).toHaveLength(1)
-    expect(state.towers[0]?.square).toEqual({ file: 2, rank: 2 })
+  it('a legal hand on a square places a Tower', () => {
+    const pending = step(withDeck([FIVE]), { kind: 'playHand', cardIds: HAND_FOR_VERTICAL })
+    const placed = step(pending, { kind: 'placeTower', square: { file: 2, rank: 2 } })
+
+    expect(placed.towers).toHaveLength(1)
+    expect(placed.towers[0]?.square).toEqual({ file: 2, rank: 2 })
+    expect(placed.pendingTower).toBeNull()
   })
 
-  it('records the Card rank the Tower was built from', () => {
-    const state = step(withDeck([FIVE]), { kind: 'buildTower', cardId: 'five', square: { file: 3, rank: 3 } })
+  it('records the Tower type the hand purchased', () => {
+    const pending = step(withDeck([FIVE]), { kind: 'playHand', cardIds: HAND_FOR_VERTICAL })
+    const placed = step(pending, { kind: 'placeTower', square: { file: 3, rank: 3 } })
 
-    expect(state.towers[0]?.cardRank).toBe(5)
+    expect(placed.towers[0]?.type).toBe('vertical')
   })
 
-  it('consumes the Card', () => {
-    const state = step(withDeck([FIVE]), { kind: 'buildTower', cardId: 'five', square: { file: 3, rank: 3 } })
+  it('consumes the Cards', () => {
+    const pending = step(withDeck([FIVE]), { kind: 'playHand', cardIds: HAND_FOR_VERTICAL })
 
-    expect(state.deck).toHaveLength(0)
+    expect(pending.deck).toHaveLength(0)
   })
 
-  it('consumes only the Card played, leaving its duplicates', () => {
+  it('consumes only the Cards played, leaving their duplicates', () => {
     const deck = [standardCard('a', 5, 'clubs'), standardCard('b', 5, 'clubs'), standardCard('c', 5, 'clubs')]
-    const state = step(withDeck(deck), { kind: 'buildTower', cardId: 'b', square: { file: 3, rank: 3 } })
+    const pending = step(withDeck(deck), { kind: 'playHand', cardIds: ['b'] })
 
-    expect(state.deck.map((card) => card.id)).toEqual(['a', 'c'])
+    expect(pending.deck.map((card) => card.id)).toEqual(['a', 'c'])
   })
 
   it('gives each Tower a distinct id', () => {
     let state = withDeck([standardCard('a', 2, 'hearts'), standardCard('b', 3, 'hearts')])
-    state = step(state, { kind: 'buildTower', cardId: 'a', square: { file: 1, rank: 1 } })
-    state = step(state, { kind: 'buildTower', cardId: 'b', square: { file: 2, rank: 1 } })
+    state = step(state, { kind: 'playHand', cardIds: ['a'] })
+    state = step(state, { kind: 'placeTower', square: { file: 1, rank: 1 } })
+    state = step(state, { kind: 'playHand', cardIds: ['b'] })
+    state = step(state, { kind: 'placeTower', square: { file: 2, rank: 1 } })
 
     expect(new Set(state.towers.map((tower) => tower.id)).size).toBe(2)
   })
 
-  it('is allowed during a round, since building is not confined to the gap', () => {
+  it('refuses a hand mid-round, since building is confined to the gap', () => {
     const running = step(withDeck([FIVE]), { kind: 'startRound' })
-    const state = step(running, { kind: 'buildTower', cardId: 'five', square: { file: 4, rank: 4 } })
+    const refused = step(running, { kind: 'playHand', cardIds: HAND_FOR_VERTICAL })
 
-    expect(state.phase).toBe('inProgress')
-    expect(state.towers).toHaveLength(1)
+    expect(refused).toBe(running)
+    expect(refused.pendingTower).toBeNull()
   })
 
   it.each([
@@ -89,104 +105,123 @@ describe('step: buildTower', () => {
     ['off the far rank', { file: 0, rank: 8 }],
     ['off the right edge', { file: 8, rank: 0 }],
   ])('refuses a square %s', (_label, square) => {
-    const initial = withDeck([FIVE])
+    const pending = step(withDeck([FIVE]), { kind: 'playHand', cardIds: HAND_FOR_VERTICAL })
 
-    expect(step(initial, { kind: 'buildTower', cardId: 'five', square })).toBe(initial)
+    expect(step(pending, { kind: 'placeTower', square })).toBe(pending)
   })
 
   it('refuses the Core square', () => {
     const initial = withDeck([FIVE])
+    const pending = step(initial, { kind: 'playHand', cardIds: HAND_FOR_VERTICAL })
 
-    expect(step(initial, { kind: 'buildTower', cardId: 'five', square: initial.core.square })).toBe(initial)
+    expect(step(pending, { kind: 'placeTower', square: initial.core.square })).toBe(pending)
   })
 
   it('refuses an already occupied square', () => {
     const deck = [standardCard('a', 5, 'clubs'), standardCard('b', 5, 'clubs')]
-    const occupied = step(withDeck(deck), { kind: 'buildTower', cardId: 'a', square: { file: 5, rank: 5 } })
-    const state = step(occupied, { kind: 'buildTower', cardId: 'b', square: { file: 5, rank: 5 } })
+    let state = step(withDeck(deck), { kind: 'playHand', cardIds: ['a'] })
+    state = step(state, { kind: 'placeTower', square: { file: 5, rank: 5 } })
 
-    expect(state).toBe(occupied)
-    expect(state.towers).toHaveLength(1)
+    const pending = step(state, { kind: 'playHand', cardIds: ['b'] })
+    const refused = step(pending, { kind: 'placeTower', square: { file: 5, rank: 5 } })
+
+    expect(refused).toBe(pending)
+    expect(refused.towers).toHaveLength(1)
   })
 
   it('refuses a Card that is not in the Deck', () => {
     const initial = withDeck([FIVE])
 
-    expect(step(initial, { kind: 'buildTower', cardId: 'ghost', square: { file: 2, rank: 2 } })).toBe(initial)
+    expect(step(initial, { kind: 'playHand', cardIds: ['ghost'] })).toBe(initial)
   })
 
-  it('refuses a face card, which acts rather than builds', () => {
-    const initial = withDeck([standardCard('king', 'K', 'clubs')])
+  it('refuses an invalid hand, and keeps the Cards', () => {
+    // Two Cards of different ranks form no valid hand of size 2.
+    const initial = withDeck([standardCard('a', 5, 'clubs'), standardCard('b', 6, 'hearts')])
+    const refused = step(initial, { kind: 'playHand', cardIds: ['a', 'b'] })
 
-    expect(step(initial, { kind: 'buildTower', cardId: 'king', square: { file: 2, rank: 2 } })).toBe(initial)
+    expect(refused).toBe(initial)
+    expect(refused.deck).toHaveLength(2)
   })
 
-  it('refuses a Joker, which has no rank', () => {
+  it('refuses a Joker, which is never hand material', () => {
     const initial = withDeck([jokerCard('joker')])
 
-    expect(step(initial, { kind: 'buildTower', cardId: 'joker', square: { file: 2, rank: 2 } })).toBe(initial)
+    expect(step(initial, { kind: 'playHand', cardIds: ['joker'] })).toBe(initial)
   })
 
-  it('does not consume the Card when the play is refused', () => {
-    const initial = withDeck([FIVE])
-    const state = step(initial, { kind: 'buildTower', cardId: 'five', square: initial.core.square })
+  it('refuses a hand while a pending Tower already stands', () => {
+    const initial = withDeck([standardCard('a', 5, 'clubs'), standardCard('b', 5, 'hearts')])
+    const pending = step(initial, { kind: 'playHand', cardIds: ['a'] })
 
-    expect(state.deck).toHaveLength(1)
+    expect(pending.pendingTower).toBe('vertical')
+    expect(step(pending, { kind: 'playHand', cardIds: ['b'] })).toBe(pending)
+  })
+
+  it('placeTower without a pending Tower returns unchanged', () => {
+    const initial = withDeck([FIVE])
+
+    expect(step(initial, { kind: 'placeTower', square: { file: 2, rank: 2 } })).toBe(initial)
   })
 
   it('refuses a square a Piece is standing on', () => {
     // Towers block movement, so a Tower and a Piece cannot share a square —
-    // building under a Piece manufactures the state blocking exists to prevent.
+    // placing under a Piece manufactures the state blocking exists to prevent.
     const occupied = { file: 2, rank: 2 }
-    const initial = liveRound(withDeck([FIVE]), [pawnAt('p', occupied)])
-    const refused = step(initial, { kind: 'buildTower', cardId: 'five', square: occupied })
+    const withPiece = { ...createInitialState(), pieces: [pawnAt('p', occupied)] }
+    const pending = step(withDeck([FIVE], withPiece), { kind: 'playHand', cardIds: HAND_FOR_VERTICAL })
+    const refused = step(pending, { kind: 'placeTower', square: occupied })
 
-    expect(refused).toBe(initial)
-    // Asserted on `refused`, the play's own outcome, not on `initial` — it
-    // only holds of `initial` too because the refusal returned it unchanged.
+    expect(refused).toBe(pending)
     expect(refused.towers).toHaveLength(0)
-    expect(refused.deck).toHaveLength(1)
   })
 
-  it('allows the square once the Piece has hopped away', () => {
-    // Occupancy is read live from state, not latched on the square: the rule
-    // has to stop refusing the moment the Piece leaves.
-    const occupied = { file: 2, rank: 2 }
-    let state = liveRound(withDeck([FIVE]), [pawnAt('p', occupied)])
+  it('a royal flush without a chosenType is refused', () => {
+    const initial = withDeck(royalFlush())
 
-    // A Pawn hops every 900ms (data/pieceTypes.ts), so 1000ms is one hop.
-    for (let elapsed = 0; elapsed < 1000; elapsed += 1000 / 60) {
-      state = tick(state, 1000 / 60)
-    }
-    expect(state.pieces.some((piece) => squaresEqual(piece.square, occupied))).toBe(false)
+    expect(
+      step(initial, { kind: 'playHand', cardIds: ['r0', 'r1', 'r2', 'r3', 'r4'] }),
+    ).toBe(initial)
+  })
 
-    const built = step(state, { kind: 'buildTower', cardId: 'five', square: occupied })
+  it('a royal flush with a valid chosenType places that Tower', () => {
+    const initial = withDeck(royalFlush())
+    const pending = step(initial, {
+      kind: 'playHand',
+      cardIds: ['r0', 'r1', 'r2', 'r3', 'r4'],
+      chosenType: 'ring',
+    })
 
-    expect(built.towers).toHaveLength(1)
-    expect(built.towers[0]?.square).toEqual(occupied)
+    expect(pending.pendingTower).toBe('ring')
+
+    const placed = step(pending, { kind: 'placeTower', square: { file: 4, rank: 4 } })
+
+    expect(placed.towers[0]?.type).toBe('ring')
+  })
+
+  it('refuses a non-royal hand carrying a chosenType', () => {
+    const initial = withDeck([FIVE])
+
+    expect(step(initial, { kind: 'playHand', cardIds: ['five'], chosenType: 'ring' })).toBe(initial)
   })
 })
 
 describe('step: the defeated guard', () => {
   // src/ui/Hud.tsx only swaps the round button once defeated — <Deck /> stays
-  // mounted and clickable — so every one of these seven plays is genuinely
+  // mounted and clickable — so every one of these five plays is genuinely
   // reachable from a defeated game, not just theoretically.
   //
   // Every card and target below is otherwise entirely legal: a real Tower to
-  // support/shield/echo onto, a free square to build or echo onto, and one
-  // Card of the exact right kind for each play. If any handler's `if
-  // (state.phase === 'defeated') return state` guard were missing, that play
-  // would succeed instead of being refused.
-  const BUILD_SQUARE = { file: 4, rank: 4 }
-
+  // shield, a valid single-card high-card hand, and one Card of the exact
+  // right kind for each play. If any handler's `if (state.phase === 'defeated')
+  // return state` guard were missing, that play would succeed instead of being
+  // refused.
   function defeatedState(): GameState {
-    const built = withTower(5, { file: 2, rank: 2 })
+    const built = withTower('diagonal', { file: 2, rank: 2 })
     const withCards = withDeck(
       [
-        standardCard('build', 3, 'hearts'),
-        standardCard('support', 5, 'diamonds'),
+        standardCard('play', 3, 'hearts'),
         standardCard('shield', 'J', 'hearts'),
-        standardCard('echo', 'Q', 'diamonds'),
         standardCard('king', 'K', 'clubs'),
         standardCard('ace', 'A', 'hearts'),
         jokerCard('joker'),
@@ -198,13 +233,8 @@ describe('step: the defeated guard', () => {
   }
 
   it.each<[string, (towerId: string) => Command]>([
-    ['buildTower', () => ({ kind: 'buildTower', cardId: 'build', square: BUILD_SQUARE })],
-    ['supportTower', (towerId) => ({ kind: 'supportTower', cardId: 'support', towerId })],
+    ['playHand', () => ({ kind: 'playHand', cardIds: ['play'] })],
     ['shieldTower', (towerId) => ({ kind: 'shieldTower', cardId: 'shield', towerId })],
-    [
-      'echoTower',
-      (towerId) => ({ kind: 'echoTower', cardId: 'echo', sourceTowerId: towerId, square: BUILD_SQUARE }),
-    ],
     ['reinforceCore', () => ({ kind: 'reinforceCore', cardId: 'king' })],
     ['expandBoard', () => ({ kind: 'expandBoard', cardId: 'ace' })],
     ['clearPieces', () => ({ kind: 'clearPieces', cardId: 'joker' })],
@@ -215,13 +245,8 @@ describe('step: the defeated guard', () => {
   })
 
   it.each<[string, (towerId: string) => Command]>([
-    ['buildTower', () => ({ kind: 'buildTower', cardId: 'build', square: BUILD_SQUARE })],
-    ['supportTower', (towerId) => ({ kind: 'supportTower', cardId: 'support', towerId })],
+    ['playHand', () => ({ kind: 'playHand', cardIds: ['play'] })],
     ['shieldTower', (towerId) => ({ kind: 'shieldTower', cardId: 'shield', towerId })],
-    [
-      'echoTower',
-      (towerId) => ({ kind: 'echoTower', cardId: 'echo', sourceTowerId: towerId, square: BUILD_SQUARE }),
-    ],
     ['reinforceCore', () => ({ kind: 'reinforceCore', cardId: 'king' })],
     ['expandBoard', () => ({ kind: 'expandBoard', cardId: 'ace' })],
     ['clearPieces', () => ({ kind: 'clearPieces', cardId: 'joker' })],

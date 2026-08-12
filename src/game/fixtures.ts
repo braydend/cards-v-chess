@@ -5,12 +5,13 @@
  * by hand, as CLAUDE.md requires — so building a Tower means seeding the one
  * Card it costs.
  */
+import { SUITS } from '../data/cards'
 import { PIECE_TYPES } from '../data/pieceTypes'
+import type { TowerTypeId } from '../data/towerTypes'
 import { squareKey } from './board'
 import { createInitialState } from './state'
 import { step } from './step'
 import type {
-  BuildableRank,
   Card,
   CardRank,
   GameState,
@@ -35,9 +36,32 @@ export function withDeck(cards: readonly Card[], state: GameState = createInitia
 }
 
 /**
- * A Tower of this rank on this square, built by spending a seeded Card.
+ * The minimal legal hand that purchases each Tower type, committed on build.
  *
- * The seeded card's suit is irrelevant — it is played for its rank.
+ * A flush and a straight flush cannot be formed from mixed suits, so `star`
+ * and `tollgate` get a uniform suit assignment in `withTower` while every
+ * other hand keeps a cycling one:
+ * - `star`: ranks `[2, 4, 6, 8, 10]` ALL hearts — a flush that is NOT a
+ *   straight (consecutive ranks would evaluate as a straight flush).
+ * - `tollgate`: ranks `[2, 3, 4, 5, 6]` ALL clubs — a straight flush.
+ * - `cross`: ranks `[2, 3, 4, 5, 6]` across suits hearts, diamonds, spades,
+ *   clubs, hearts — a straight that is not a flush.
+ */
+const HAND_FOR_TYPE: Record<TowerTypeId, CardRank[]> = {
+  vertical: [5],
+  wall: [5, 5],
+  sniper: [5, 5, 9, 9],
+  diagonal: [5, 5, 5],
+  cross: [2, 3, 4, 5, 6], // straight
+  star: [2, 4, 6, 8, 10], // flush — see suit note above
+  splash: [5, 5, 5, 9, 9],
+  ring: [5, 5, 5, 5],
+  tollgate: [2, 3, 4, 5, 6], // straight flush — see suit note above
+}
+
+/**
+ * A Tower of this TYPE on this square, built by committing the canonical hand
+ * for the type and placing it.
  *
  * Throws if the build was refused instead of returning the unbuilt state:
  * this task and the four after it all build a Tower and then act on it, so a
@@ -46,17 +70,36 @@ export function withDeck(cards: readonly Card[], state: GameState = createInitia
  * assertion to misdiagnose.
  */
 export function withTower(
-  cardRank: BuildableRank,
+  type: TowerTypeId,
   square: Square,
   state: GameState = createInitialState(),
 ): GameState {
-  const cardId = `seed-${cardRank}-${square.file}-${square.rank}`
-  const seeded: GameState = { ...state, deck: [...state.deck, standardCard(cardId, cardRank)] }
-  const built = step(seeded, { kind: 'buildTower', cardId, square })
+  const ranks = HAND_FOR_TYPE[type]
 
-  if (built === seeded) throw new Error('withTower: build was refused, no Tower was added')
+  // Uniform suits for the two flush-based hands; cycling for the rest.
+  const cards = ranks.map((rank, index) => {
+    const suit =
+      type === 'star'
+        ? 'hearts'
+        : type === 'tollgate'
+          ? 'clubs'
+          : (SUITS[index % SUITS.length] as Suit)
+    return standardCard(`seed-${type}-${index}`, rank, suit)
+  })
+  const seeded: GameState = { ...state, deck: [...state.deck, ...cards] }
 
-  return built
+  let after = step(seeded, {
+    kind: 'playHand',
+    cardIds: cards.map((card) => card.id),
+  })
+  if (after.pendingTower === null) throw new Error('withTower: hand refused, no pending Tower')
+
+  after = step(after, { kind: 'placeTower', square })
+  if (after.towers.length !== state.towers.length + 1 || after.pendingTower !== null) {
+    throw new Error('withTower: placement refused')
+  }
+
+  return after
 }
 
 /**
@@ -74,7 +117,8 @@ export function towersAt(...squares: Square[]): Map<string, Tower> {
       {
         id: `tower-${index}`,
         square,
-        cardRank: 2 as const,
+        type: 'vertical' as const,
+        range: 1,
         fireCooldownMs: 0,
         health: 8,
         maxHealth: 8,

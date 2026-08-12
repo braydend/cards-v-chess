@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BOARD } from '../data/board'
 import { PIECE_TYPES } from '../data/pieceTypes'
-import { towerRank } from '../data/towerRanks'
+import { towerType } from '../data/towerTypes'
 import { allSquares, isInBounds, squareKey } from './board'
 import { coveredSquares, coversSquare, hittableSquares, isOccluded, reachableSquares } from './coverage'
 import { liveRound, pawnAt, withTower } from './fixtures'
@@ -498,21 +498,21 @@ describe('reachableSquares', () => {
  *
  * Nothing else pins this. `coveredSquares` and `fireTowers` share the
  * `coversSquare` predicate but each look the geometry up for themselves from
- * `towerRank(cardRank)`, so a future support that moved range onto the Tower
- * instance could update firing alone and leave the overlay silently wrong. The
- * overlay's own tests could not catch it: they use `towerRank` as their oracle
- * too, so they would agree with the overlay and both would be wrong. This drives
+ * the Tower's type, so a future change that moved range off the instance could
+ * update firing alone and leave the overlay silently wrong. The overlay's own
+ * tests could not catch it: they use the type table as their oracle too, so
+ * they would agree with the overlay and both would be wrong. This drives
  * the real engine instead and asks what actually took damage.
  */
 describe('reachableSquares agrees with what a Tower shoots', () => {
   // Under a Pawn's 900ms move interval, so the Piece never moves or promotes
-  // during the window, and over rank 3's 600ms fire interval, so the Tower
-  // definitely gets a shot off.
+  // during the window, and over the vertical Tower's 500ms fire interval, so
+  // the Tower definitely gets a shot off.
   const WINDOW_MS = 704
   const DT_MS = 16
 
   function damagedAt(square: Square): boolean {
-    const state = withTower(3, ORIGIN)
+    const state = withTower('vertical', ORIGIN)
     let live = liveRound(state, [pawnAt('probe', square)])
     const before = PIECE_TYPES.pawn.maxHealth
 
@@ -520,15 +520,15 @@ describe('reachableSquares agrees with what a Tower shoots', () => {
 
     const probe = live.pieces.find((piece) => piece.id === 'probe')
 
-    // Destroyed counts as damaged: rank 3 deals 1 and a Pawn has 3, so this
-    // should not happen in one shot, but reading it as "unharmed" would invert
-    // the assertion if the balance numbers ever change.
+    // Destroyed counts as damaged: a vertical Tower deals 2 and a Pawn has 3,
+    // so this should not happen in one shot, but reading it as "unharmed"
+    // would invert the assertion if the balance numbers ever change.
     return probe === undefined || probe.health < before
   }
 
   it('damages a Piece on every reachable square and spares one on every other square', () => {
     const board = { files: 8, ranks: 8 }
-    const def = towerRank(3)
+    const def = towerType('vertical')
     // The shooter alone is the blocker list: a single Tower never occludes
     // itself, so with this one-Tower arrangement reachableSquares equals
     // coveredSquares — but the overlay now reads reachableSquares, so that is
@@ -564,8 +564,8 @@ describe('reachableSquares agrees with what a Tower shoots under occlusion', () 
   const DT_MS = 16
 
   function damagedAt(square: Square): boolean {
-    const withWall = withTower(7, WALL)
-    const state = withTower(3, SHOOTER, withWall)
+    const withWall = withTower('wall', WALL)
+    const state = withTower('vertical', SHOOTER, withWall)
     let live = liveRound(state, [pawnAt('probe', square)])
     const before = PIECE_TYPES.pawn.maxHealth
 
@@ -578,7 +578,7 @@ describe('reachableSquares agrees with what a Tower shoots under occlusion', () 
 
   it('spares a covered-but-hidden Piece and damages a reachable one', () => {
     const board = { files: 8, ranks: 8 }
-    const def = towerRank(3)
+    const def = towerType('vertical')
     const reachable = reachableSquares(board, def.geometry, def.range, SHOOTER, [WALL])
 
     // {4,6} is between the shooter and the Wall — reachable. {4,2} is beyond
@@ -593,13 +593,13 @@ describe('reachableSquares agrees with what a Tower shoots under occlusion', () 
 
 describe('hittableSquares', () => {
   it("is the union of every Tower's reachable footprint", () => {
-    // Interior squares, so each adjacent footprint is the full 8 squares —
+    // Interior squares, so each splash footprint is the full 8 squares —
     // corner towers would be edge-clipped and shrink the expected union.
-    const first = withTower(2, { file: 2, rank: 2 })
-    const state = withTower(2, { file: 5, rank: 5 }, first)
+    const first = withTower('splash', { file: 2, rank: 2 })
+    const state = withTower('splash', { file: 5, rank: 5 }, first)
 
     const set = hittableSquares(BOARD, state.towers)
-    const def = towerRank(2)
+    const def = towerType('splash')
     const blockers = state.towers.map((tower) => tower.square)
 
     for (const square of [
@@ -608,18 +608,18 @@ describe('hittableSquares', () => {
     ]) {
       expect(set.has(squareKey(square))).toBe(true)
     }
-    // Two non-overlapping adjacent footprints of 8 squares each.
+    // Two non-overlapping splash footprints of 8 squares each.
     expect(set.size).toBe(16)
   })
 
   it('drops a square another Tower occludes', () => {
-    // A rank-5 diagonal Tower at the corner covers (4,4), but a rank-3 vertical
-    // Tower at (2,2) stands between on the same diagonal — the shot is blocked,
+    // A diagonal Tower at the corner covers (4,4), but a vertical Tower at
+    // (2,2) stands between on the same diagonal — the shot is blocked,
     // so (4,4) must not be in the union even though no other Tower covers it.
-    const diagonal = withTower(5, { file: 0, rank: 0 })
-    const state = withTower(3, { file: 2, rank: 2 }, diagonal)
+    const diagonal = withTower('diagonal', { file: 0, rank: 0 })
+    const state = withTower('vertical', { file: 2, rank: 2 }, diagonal)
 
-    const def = towerRank(5)
+    const def = towerType('diagonal')
     const covered = coveredSquares(BOARD, def.geometry, def.range, { file: 0, rank: 0 })
     expect(covered.some((square) => square.file === 4 && square.rank === 4)).toBe(true)
 
@@ -627,7 +627,7 @@ describe('hittableSquares', () => {
   })
 
   it('a Wall contributes nothing', () => {
-    const state = withTower(7, { file: 4, rank: 4 })
+    const state = withTower('wall', { file: 4, rank: 4 })
 
     expect(hittableSquares(BOARD, state.towers).size).toBe(0)
   })

@@ -1,4 +1,4 @@
-import { towerRank } from '../data/towerRanks'
+import { towerType } from '../data/towerTypes'
 import { allSquares, squareKey, squaresEqual } from './board'
 import type { BoardSpec, Square, Tower, TowerGeometry } from './types'
 
@@ -11,8 +11,7 @@ import type { BoardSpec, Square, Tower, TowerGeometry } from './types'
  * Geometry answers "does this Tower see this square at all?" Occlusion is a
  * separate question answered by `isOccluded`: a Tower can see a square and
  * still not hit it, because another Tower stands between. `coversSquare` is
- * deliberately occlusion-blind — auras and `firePulse` read it and neither is
- * a shot.
+ * deliberately occlusion-blind — `firePulse` reads it and it is not a shot.
  */
 export function coversSquare(
   geometry: TowerGeometry,
@@ -31,11 +30,11 @@ export function coversSquare(
   // Handled before the shared range guard below, because neither one is a
   // function of Chebyshev distance in the way the rest of the ladder is.
   switch (geometry) {
-    // Rank 7, the Wall. It blocks and soaks and never shoots, so there is no
+    // The Wall. It blocks and soaks and never shoots, so there is no
     // square it covers — including at a generous range.
     case 'none':
       return false
-    // Rank 10, the toll gate. The FULL file width, bounded only in board
+    // The toll gate. The FULL file width, bounded only in board
     // ranks, so nothing can flank it. Files never grow (only board ranks do),
     // so a band spans the whole board for an entire run.
     case 'band':
@@ -60,13 +59,12 @@ export function coversSquare(
       return rankDistance === 0 || fileDistance === 0
     case 'diagonal':
       return fileDistance === rankDistance
-    // Rank 6: cross and diagonal combined. Rank 4 taught the player that 4 is
-    // 2 and 3 together; 6 being 4 and 5 together reads the same way.
+    // Cross and diagonal combined.
     case 'star':
       return rankDistance === 0 || fileDistance === 0 || fileDistance === rankDistance
-    // Rank 8, the Amplifier. The outer two squares of its reach only — it is
-    // blind at its own feet, which is what makes its hollow core a socket for
-    // a short-range Tower rather than a flaw.
+    // The outer two squares of its reach only — it is blind at its own feet,
+    // which is what makes its hollow core a socket for a short-range Tower
+    // rather than a flaw.
     case 'ring':
       return distance >= range - 1
     // 'none' and 'band' are not cases here — they are returned above, before
@@ -118,8 +116,7 @@ export function coveredSquares(
  * fires a beam along each covered rank.
  *
  * Reads only the positions of the blocker set, so the answer cannot depend on
- * which Tower a caller happened to process first — the same order-independence
- * discipline as `amplifierIdsByPiece` in `towerAuras.ts`.
+ * which Tower a caller happened to process first.
  */
 export function isOccluded(
   from: Square,
@@ -218,8 +215,7 @@ export function reachableSquares(
  * the footprint the firing overlays draw, which is what makes it the right
  * thing for yellow's hunt to dodge: the squares a shot would actually land on
  * and the squares yellow avoids are the same set by construction. The Wall's
- * `geometry: 'none'` contributes nothing; an aura Tower contributes its firing
- * footprint, which is also where its aura applies.
+ * `geometry: 'none'` contributes nothing.
  *
  * A pure function of the board and the Tower list, so the avoidance it feeds
  * stays deterministic within a seeded run. Allocates: `movePieces` in tick.ts
@@ -230,8 +226,8 @@ export function hittableSquares(board: BoardSpec, towers: readonly Tower[]): Rea
   const covered = new Set<string>()
 
   for (const tower of towers) {
-    const def = towerRank(tower.cardRank)
-    for (const square of reachableSquares(board, def.geometry, def.range, tower.square, blockers)) {
+    const def = towerType(tower.type)
+    for (const square of reachableSquares(board, def.geometry, tower.range, tower.square, blockers)) {
       covered.add(squareKey(square))
     }
   }

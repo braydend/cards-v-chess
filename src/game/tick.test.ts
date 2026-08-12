@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CORE_SQUARE } from '../data/board'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { VICTORY_ROUND } from '../data/rounds'
-import { TOWER_RANKS } from '../data/towerRanks'
+import { towerType } from '../data/towerTypes'
 import { BISHOP_HEAL_INTERVAL_MS, KING_SPEED_MULTIPLIER } from './auras'
 import { liveRound, pawnAt, withTower } from './fixtures'
 import { createInitialState, stagingRank, step, tick } from './index'
@@ -288,7 +288,7 @@ describe('tick: hunting Knight latch', () => {
     // the surviving Piece, because `movePieces`' attackTower branch never
     // touched it.
     const state: GameState = {
-      ...withTower(2, { file: 4, rank: 2 }),
+      ...withTower('vertical', { file: 4, rank: 2 }),
       phase: 'inProgress',
       pendingSpawns: [],
       pieces: [pieceAt('n', 'knight', { file: 5, rank: 0 })],
@@ -299,7 +299,7 @@ describe('tick: hunting Knight latch', () => {
     // Attacked rather than moved, proving this hop actually took the
     // Tower-blocked path rather than some other candidate.
     expect(after.pieces[0]?.square).toEqual({ file: 5, rank: 0 })
-    expect(after.towers[0]?.health).toBeLessThan(TOWER_RANKS[2].maxHealth)
+    expect(after.towers[0]?.health).toBeLessThan(towerType('vertical').maxHealth)
     expect(after.pieces[0]?.hunting).toBe(true)
   })
 })
@@ -521,17 +521,18 @@ describe('tick: the Bishop healing aura', () => {
     // in IEEE754 for this DT, so both the Tower's shot and the Bishop's pulse
     // land on the very same `tick` call — the one scenario where getting the
     // call order backwards in `tick.ts` would actually show up as a survivor.
-    const rank2 = TOWER_RANKS[2]
+    const vertical = towerType('vertical')
     const tower: Tower = {
       id: 'tower',
       square: { file: 4, rank: 4 },
-      cardRank: 2,
-      fireCooldownMs: rank2.fireIntervalMs - DT,
-      health: rank2.maxHealth,
-      maxHealth: rank2.maxHealth,
+      type: 'vertical',
+      range: vertical.range,
+      fireCooldownMs: vertical.fireIntervalMs - DT,
+      health: vertical.maxHealth,
+      maxHealth: vertical.maxHealth,
       damageTaken: 0,
-      damage: rank2.damage,
-      fireIntervalMs: rank2.fireIntervalMs,
+      damage: vertical.damage,
+      fireIntervalMs: vertical.fireIntervalMs,
       shield: 0,
       shotsFired: 0,
       kills: 0,
@@ -542,11 +543,11 @@ describe('tick: the Bishop healing aura', () => {
       phase: 'inProgress',
       towers: [tower],
       pieces: [
-        // Adjacent to the Tower (distance 1, within its range-1 coverage) and
-        // already hurt, so the Tower's 1 damage is exactly lethal.
+        // On the Tower's file and already hurt, so the vertical Tower's 2
+        // damage is exactly lethal.
         pieceAt('target', 'pawn', { file: 4, rank: 5 }, { health: 1 }),
         // Within the Bishop's healing radius of the target (distance 1) but
-        // outside the Tower's adjacent coverage (distance 2), so the Tower
+        // outside the vertical Tower's coverage (off its file), so the Tower
         // can only ever target the Pawn, never the Bishop.
         pieceAt('bishop', 'bishop', { file: 5, rank: 6 }, { auraCooldownMs: BISHOP_HEAL_INTERVAL_MS - DT }),
       ],
@@ -587,7 +588,7 @@ describe('tick: determinism', () => {
 })
 
 describe('Ink from kills', () => {
-  // A rank-4 Tower is `cross`, so it covers its own file: the target is
+  // A cross Tower covers its own file: the target is
   // blocked directly up-file from it and stays inside coverage while it is
   // shot. The bystander is far enough away that the round is STILL LIVE when
   // the assertion runs — without it the board would empty, the round would
@@ -596,7 +597,7 @@ describe('Ink from kills', () => {
   const TOWER_SQUARE = { file: 3, rank: 4 }
 
   function towerAndTwoPawns(): GameState {
-    return liveRound(withTower(4, TOWER_SQUARE), [
+    return liveRound(withTower('cross', TOWER_SQUARE), [
       pawnAt('target', { file: 3, rank: 5 }),
       pawnAt('bystander', { file: 7, rank: 7 }),
     ])
@@ -648,7 +649,7 @@ describe('Ink: the defeated branch still pays a kill from the same tick', () => 
     const TARGET_SQUARE = { file: 3, rank: 6 }
     const LEAK_SQUARE = { file: 3, rank: 1 }
 
-    const built = withTower(4, TOWER_SQUARE)
+    const built = withTower('cross', TOWER_SQUARE)
     const fragileCore: GameState = { ...built, core: { ...built.core, health: 1 } }
     const state = liveRound(fragileCore, [
       pawnAt('leaker', LEAK_SQUARE),
@@ -676,11 +677,11 @@ describe('Ink: a kill and round income can land in the same tick', () => {
     const TOWER_SQUARE = { file: 3, rank: 4 }
     const TARGET_SQUARE = { file: 3, rank: 6 }
 
-    const state = liveRound(withTower(4, TOWER_SQUARE), [
+    const state = liveRound(withTower('cross', TOWER_SQUARE), [
       pieceAt('target', 'rook', TARGET_SQUARE, { health: 1 }),
     ])
 
-    const after = tick(state, TOWER_RANKS[4].fireIntervalMs)
+    const after = tick(state, towerType('cross').fireIntervalMs)
 
     expect(after.phase).toBe('gap')
     expect(after.pieces).toHaveLength(0)
@@ -754,13 +755,13 @@ describe('tick: exit records', () => {
   })
 
   it('records nothing when a Tower kills a Piece, since a kill is the absence of a record', () => {
-    // Rank 2 deals 3 to a Pawn's 3 health, so one shot at 400ms kills it well
+    // A sniper deals 4 to a Pawn's 3 health, so one shot at 800ms kills it well
     // inside the Pawn's 900ms hop — no movement, no leak, nothing recorded.
-    // Rank 2 is 'adjacent' with range 1, and the victim sits at Chebyshev
-    // distance 1 from the Tower, so it is covered from the first tick.
-    const armed = withTower(2, { file: 0, rank: 4 })
+    // A sniper is 'vertical' with range 7, and the victim sits on its file, so
+    // it is covered from the first tick.
+    const armed = withTower('sniper', { file: 0, rank: 4 })
     const state = liveRound(armed, [pawnAt('victim', { file: 0, rank: 5 })])
-    const after = runFor(state, TOWER_RANKS[2].fireIntervalMs + DT)
+    const after = runFor(state, towerType('sniper').fireIntervalMs + DT)
 
     expect(after.pieces).toHaveLength(0)
     expect(after.recentExits).toEqual([])
@@ -802,9 +803,9 @@ describe('tick: exit records', () => {
 
 describe('tick: yellow coverage avoidance', () => {
   it('a yellow Knight hops to an uncovered d−1 landing rather than a covered one', () => {
-    // The rank-2 Tower at (2,1) covers (1,1) — the Knight's first d−1 landing —
+    // The splash Tower at (2,1) covers (1,1) — the Knight's first d−1 landing —
     // but not (4,2), its second.
-    const state = withTower(2, { file: 2, rank: 1 })
+    const state = withTower('splash', { file: 2, rank: 1 })
     const knight = pieceAt('hop', 'knight', { file: 2, rank: 3 }, { tier: 'yellow', hunting: true })
 
     const after = runFor(liveRound(state, [knight]), PIECE_TYPES.knight.moveIntervalMs + DT)
@@ -817,8 +818,8 @@ describe('tick: yellow coverage avoidance', () => {
     // falls back to today's first candidate, which sits under the Tower at
     // (2,1): the Knight is shot down, and with nothing left to act the round
     // completes rather than stalling.
-    const covered = withTower(2, { file: 2, rank: 1 })
-    const state = withTower(2, { file: 4, rank: 3 }, covered)
+    const covered = withTower('splash', { file: 2, rank: 1 })
+    const state = withTower('splash', { file: 4, rank: 3 }, covered)
     const knight = pieceAt('doomed', 'knight', { file: 2, rank: 3 }, { tier: 'yellow', hunting: true })
 
     const after = runFor(liveRound(state, [knight]), 60_000)

@@ -164,7 +164,7 @@ describe('devSpawnPiece', () => {
   })
 
   it('is refused onto a Tower, so the no-shared-square invariant holds', () => {
-    const state = withTower(2, { file: 2, rank: 2 }, base())
+    const state = withTower('vertical', { file: 2, rank: 2 }, base())
 
     expect(
       step(state, {
@@ -252,8 +252,8 @@ describe('devSpawnPiece', () => {
 
 describe('devRemoveTower', () => {
   it('removes the named Tower and leaves the rest', () => {
-    const seeded = withTower(2, { file: 0, rank: 0 }, base())
-    const state = withTower(5, { file: 3, rank: 3 }, seeded)
+    const seeded = withTower('vertical', { file: 0, rank: 0 }, base())
+    const state = withTower('diagonal', { file: 3, rank: 3 }, seeded)
     const target = firstTowerId(state)
 
     const after = step(state, { kind: 'devRemoveTower', towerId: target })
@@ -263,13 +263,13 @@ describe('devRemoveTower', () => {
   })
 
   it('is a no-op for an unknown id', () => {
-    const state = withTower(2, { file: 0, rank: 0 }, base())
+    const state = withTower('vertical', { file: 0, rank: 0 }, base())
 
     expect(step(state, { kind: 'devRemoveTower', towerId: 'ghost' })).toBe(state)
   })
 
   it('does not touch the rng streams', () => {
-    const state = withTower(2, { file: 0, rank: 0 }, base())
+    const state = withTower('vertical', { file: 0, rank: 0 }, base())
 
     const after = step(state, { kind: 'devRemoveTower', towerId: firstTowerId(state) })
 
