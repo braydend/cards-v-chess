@@ -21,6 +21,24 @@ describe('structuralKey', () => {
     expect(structuralKey(raisedCeiling)).not.toBe(structuralKey(base))
   })
 
+  it("changes when pendingTower changes, even though nothing else in the key does", () => {
+    // The build preview lives on `pendingTower`, so committing a hand must
+    // repaint on its own — not as a side effect of the Deck shrinking. No play
+    // moves `pendingTower` alone: a commit also empties the Deck ids and a
+    // placement also grows the `towers` string, so the playHand/placeTower test
+    // in `the Deck` block would stay green with `pendingTower` dropped from the
+    // key. This state is constructed by hand, like the maxHealth test above, so
+    // the key depends on `pendingTower` alone.
+    const committed = step(
+      withDeck([standardCard('five', 5, 'clubs')], createInitialState('key-test')),
+      { kind: 'playHand', cardIds: ['five'] },
+    )
+    expect(committed.pendingTower).not.toBeNull()
+    const cleared = { ...committed, pendingTower: null }
+
+    expect(structuralKey(committed)).not.toBe(structuralKey(cleared))
+  })
+
   it('changes when Ink changes, since the HUD prints it', () => {
     const base = createInitialState()
     const earned = { ...base, ink: base.ink + 5 }
