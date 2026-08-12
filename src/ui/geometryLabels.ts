@@ -9,16 +9,16 @@ import type { TowerGeometry } from '../game'
  * It lived inline in `Hud.tsx`, beside the rank picker that has since been
  * replaced by the Deck. The Tower inspect panel is the consumer now.
  *
- * Every geometry on the 2–10 ladder in `src/data/towerRanks.ts` must appear
- * here. `horizontal` is currently unreachable — rank 2 was moved off it, and
- * rank 10's toll gate is a `band` rather than a `horizontal` because it is
+ * Every geometry on the tower types in `src/data/towerTypes.ts` must appear
+ * here. `horizontal` is currently unreachable — no tower type builds it — and
+ * the toll gate's band is a `band` rather than a `horizontal` because it is
  * bounded in board ranks but not in files. It is still in the union, and
  * `Record` will not let it be dropped.
  */
 export const GEOMETRY_LABELS: Record<TowerGeometry, string> = {
-  // "the eight squares around it" is only literally true at range 1: rank 2
-  // covers exactly the ring of eight. Rank 9 also builds `adjacent`, but at
-  // range 2 — a 5x5 disc of 24 squares, not a ring of eight.
+  // "the eight squares around it" is only literally true at range 1 — splash
+  // covers exactly the ring of eight. No other tower type builds `adjacent`,
+  // so it cannot be reached at a wider spread.
   adjacent: 'Hits every square around it',
   horizontal: 'Fires along its rank',
   vertical: 'Fires along its file',

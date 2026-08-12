@@ -1,18 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { ACE_BOARD_RANKS, JACK_SHIELD, KING_CORE_HEALTH } from '../data/cards'
-import { TOWER_RANKS } from '../data/towerRanks'
-import { firstTowerId, jokerCard, liveRound, pawnAt, pieceAt, standardCard, withDeck, withTower } from './fixtures'
-import { createInitialState, stagingRank, step, tick } from './index'
+import { BOARD } from '../data/board'
+import { PIECE_TYPES } from '../data/pieceTypes'
+import { towerType } from '../data/towerTypes'
+import { hittableSquares } from './coverage'
+import { firstTower, firstTowerId, jokerCard, liveRound, pawnAt, pieceAt, standardCard, withDeck, withTower } from './fixtures'
+import { createInitialState, squareKey, stagingRank, step, tick } from './index'
 import { clearReward, roundIncome, totalKillReward } from './ink'
 import type { GameState, Piece } from './types'
 
 const SQUARE = { file: 2, rank: 2 }
-const ELSEWHERE = { file: 5, rank: 5 }
 
 function withJacks(count: number): GameState {
   return withDeck(
     Array.from({ length: count }, (_, i) => standardCard(`j${i}`, 'J', 'hearts')),
-    withTower(5, SQUARE),
+    withTower('diagonal', SQUARE),
   )
 }
 
@@ -39,8 +41,8 @@ describe('Jack — Shield', () => {
     const state = withJacks(1)
     const after = step(state, { kind: 'shieldTower', cardId: 'j0', towerId: firstTowerId(state) })
 
-    expect(after.towers[0]?.health).toBe(TOWER_RANKS[5].maxHealth)
-    expect(after.towers[0]?.maxHealth).toBe(TOWER_RANKS[5].maxHealth)
+    expect(after.towers[0]?.health).toBe(towerType('diagonal').maxHealth)
+    expect(after.towers[0]?.maxHealth).toBe(towerType('diagonal').maxHealth)
   })
 
   it('consumes the Card', () => {
@@ -51,7 +53,7 @@ describe('Jack — Shield', () => {
   })
 
   it('refuses a non-Jack', () => {
-    const state = withDeck([standardCard('five', 5, 'hearts')], withTower(5, SQUARE))
+    const state = withDeck([standardCard('five', 5, 'hearts')], withTower('diagonal', SQUARE))
 
     expect(step(state, { kind: 'shieldTower', cardId: 'five', towerId: firstTowerId(state) })).toBe(state)
   })
@@ -63,120 +65,92 @@ describe('Jack — Shield', () => {
   })
 })
 
-describe('Queen — Echo', () => {
-  function withQueen(): GameState {
-    return withDeck([standardCard('q', 'Q', 'diamonds')], withTower(5, SQUARE))
-  }
+describe('Queen — Range', () => {
+  it("adds +1 to a Tower's range, stackably", () => {
+    const state = withDeck([standardCard('q', 'Q', 'diamonds')], withTower('diagonal', SQUARE))
+    const towerId = firstTowerId(state)
 
-  it('builds a second Tower of the same rank', () => {
-    const state = withQueen()
-    const after = step(state, {
-      kind: 'echoTower',
-      cardId: 'q',
-      sourceTowerId: firstTowerId(state),
-      square: ELSEWHERE,
-    })
+    const one = step(state, { kind: 'rangeTower', cardId: 'q', towerId })
+    expect(firstTower(one).range).toBe(towerType('diagonal').range + 1)
 
-    expect(after.towers).toHaveLength(2)
-    expect(after.towers[1]?.cardRank).toBe(5)
-    expect(after.towers[1]?.square).toEqual(ELSEWHERE)
-  })
-
-  it('copies the rank, not accumulated supports', () => {
-    // Otherwise Echo becomes the strongest support multiplier in the game
-    // rather than a second Tower.
-    const base = withQueen()
-    const upgraded: GameState = {
-      ...base,
-      towers: base.towers.map((tower) => ({
-        ...tower,
-        damage: 99,
-        shield: 50,
-        maxHealth: 200,
-        health: 50,
-        fireIntervalMs: 123,
-      })),
-    }
-
-    const after = step(upgraded, {
-      kind: 'echoTower',
-      cardId: 'q',
-      sourceTowerId: firstTowerId(upgraded),
-      square: ELSEWHERE,
-    })
-
-    expect(after.towers[1]?.damage).toBe(TOWER_RANKS[5].damage)
-    expect(after.towers[1]?.shield).toBe(0)
-    expect(after.towers[1]?.maxHealth).toBe(TOWER_RANKS[5].maxHealth)
-    expect(after.towers[1]?.fireIntervalMs).toBe(TOWER_RANKS[5].fireIntervalMs)
-    expect(after.towers[1]?.health).toBe(TOWER_RANKS[5].maxHealth)
+    const withTwo = withDeck([standardCard('q2', 'Q', 'spades')], one)
+    const two = step(withTwo, { kind: 'rangeTower', cardId: 'q2', towerId })
+    expect(firstTower(two).range).toBe(towerType('diagonal').range + 2)
   })
 
   it('consumes the Card', () => {
-    const state = withQueen()
-    const after = step(state, {
-      kind: 'echoTower',
-      cardId: 'q',
-      sourceTowerId: firstTowerId(state),
-      square: ELSEWHERE,
-    })
+    const state = withDeck([standardCard('q', 'Q', 'diamonds')], withTower('diagonal', SQUARE))
+    const after = step(state, { kind: 'rangeTower', cardId: 'q', towerId: firstTowerId(state) })
 
     expect(after.deck).toHaveLength(0)
   })
 
-  it('refuses an occupied square', () => {
-    const state = withQueen()
+  it('refuses an unknown Tower, and keeps the Card', () => {
+    const state = withDeck([standardCard('q', 'Q', 'diamonds')], withTower('diagonal', SQUARE))
+    const after = step(state, { kind: 'rangeTower', cardId: 'q', towerId: 'ghost' })
 
-    expect(
-      step(state, { kind: 'echoTower', cardId: 'q', sourceTowerId: firstTowerId(state), square: SQUARE }),
-    ).toBe(state)
-  })
-
-  it('refuses the Core square', () => {
-    const state = withQueen()
-
-    expect(
-      step(state, {
-        kind: 'echoTower',
-        cardId: 'q',
-        sourceTowerId: firstTowerId(state),
-        square: state.core.square,
-      }),
-    ).toBe(state)
-  })
-
-  it('refuses an unknown source Tower', () => {
-    const state = withQueen()
-
-    expect(
-      step(state, { kind: 'echoTower', cardId: 'q', sourceTowerId: 'ghost', square: ELSEWHERE }),
-    ).toBe(state)
+    expect(after).toBe(state)
+    expect(after.deck).toHaveLength(1)
   })
 
   it('refuses a non-Queen', () => {
-    const state = withDeck([standardCard('five', 5, 'hearts')], withTower(5, SQUARE))
+    const state = withDeck([standardCard('five', 5, 'hearts')], withTower('diagonal', SQUARE))
 
     expect(
-      step(state, { kind: 'echoTower', cardId: 'five', sourceTowerId: firstTowerId(state), square: ELSEWHERE }),
+      step(state, { kind: 'rangeTower', cardId: 'five', towerId: firstTowerId(state) }),
     ).toBe(state)
   })
 
-  it('refuses a square a Piece is standing on', () => {
-    // Echo goes through the same placement rule as a rank build, so this is
-    // the second half of the same fix, not a separate one.
-    const state = liveRound(withQueen(), [pawnAt('p', ELSEWHERE)])
-    const refused = step(state, {
-      kind: 'echoTower',
-      cardId: 'q',
-      sourceTowerId: firstTowerId(state),
-      square: ELSEWHERE,
-    })
+  it("a boosted range widens the footprint the firing path reads", () => {
+    // A vertical Tower on the back rank at base range 5 covers the whole file
+    // up to rank 5; the rank-6 square is one beyond it. Range is the ONE value
+    // a Queen changes, so the footprint must grow from the Tower's *instance*
+    // range, not the type table's — a regression that read `towerType(...)`
+    // here would silently keep the base footprint and this test would fail.
+    const base = withDeck(
+      [standardCard('q', 'Q', 'diamonds')],
+      withTower('vertical', { file: 4, rank: 0 }),
+    )
+    const beyondBase = { file: 4, rank: towerType('vertical').range + 1 }
 
-    expect(refused).toBe(state)
-    // The Echo source Tower is unchanged — asserted on `refused`, the play's
-    // own outcome, not on `state`, which this holds true of only because the
-    // refusal returned it unchanged.
-    expect(refused.towers).toHaveLength(1)
+    expect(hittableSquares(BOARD, base.towers).has(squareKey(beyondBase))).toBe(false)
+
+    const boosted = step(base, { kind: 'rangeTower', cardId: 'q', towerId: firstTowerId(base) })
+
+    expect(firstTower(boosted).range).toBe(towerType('vertical').range + 1)
+    expect(hittableSquares(BOARD, boosted.towers).has(squareKey(beyondBase))).toBe(true)
+  })
+
+  it("a boosted range reaches a Piece one square beyond the base range", () => {
+    // The firing-path twin of the footprint test: same arrangement, but this
+    // one drives the engine and asks what actually took damage. `hittableSquares`
+    // is the overlay the firing loop and yellow's hunt share, so this pins that
+    // the boosted range reaches real shots, not just the preview.
+    const WINDOW_MS = 704
+    const DT_MS = 16
+    const target = { file: 4, rank: towerType('vertical').range + 1 }
+    const before = PIECE_TYPES.pawn.maxHealth
+    const boosted = () =>
+      step(
+        withDeck([standardCard('q', 'Q', 'diamonds')], withTower('vertical', { file: 4, rank: 0 })),
+        { kind: 'rangeTower', cardId: 'q', towerId: firstTowerId(withTower('vertical', { file: 4, rank: 0 })) },
+      )
+
+    let unboosted = liveRound(
+      withTower('vertical', { file: 4, rank: 0 }),
+      [pawnAt('probe', target)],
+    )
+    for (let elapsed = 0; elapsed < WINDOW_MS; elapsed += DT_MS) unboosted = tick(unboosted, DT_MS)
+    const unhit = unboosted.pieces.find((piece) => piece.id === 'probe')
+
+    expect(unhit).toBeDefined()
+    expect(unhit?.health).toBe(before)
+
+    let live = liveRound(boosted(), [pawnAt('probe', target)])
+    for (let elapsed = 0; elapsed < WINDOW_MS; elapsed += DT_MS) live = tick(live, DT_MS)
+    const hit = live.pieces.find((piece) => piece.id === 'probe')
+
+    expect(hit?.health).toBeLessThan(before)
   })
 })
 
@@ -310,15 +284,15 @@ describe('Joker — Clear', () => {
   })
 
   it("refuses a standard card, since Clear is a Joker's only play", () => {
-    const state = withDeck([standardCard('five', 5, 'hearts')], withTower(5, SQUARE))
+    const state = withDeck([standardCard('five', 5, 'hearts')], withTower('diagonal', SQUARE))
 
     expect(step(state, { kind: 'clearPieces', cardId: 'five' })).toBe(state)
   })
 
   it('breaks a grind, so a stalled round can always be resolved', () => {
-    // A rank-5 diagonal Tower cannot cover the square directly up-file, so this
+    // A diagonal Tower cannot cover the square directly up-file, so this
     // Pawn grinds it forever. The Joker is the one card that always ends it.
-    const built = withTower(5, { file: 3, rank: 4 })
+    const built = withTower('diagonal', { file: 3, rank: 4 })
     const seeded = withDeck([jokerCard('joker')], built)
     const stalled = liveRound(seeded, [pawnAt('grinder', { file: 3, rank: 5 })])
 
@@ -340,7 +314,7 @@ describe('Joker — Clear', () => {
   }
 
   function withJokerAnd(pieces: readonly Piece[]): GameState {
-    return liveRound(withDeck([jokerCard('joker')], withTower(5, SQUARE)), pieces)
+    return liveRound(withDeck([jokerCard('joker')], withTower('diagonal', SQUARE)), pieces)
   }
 
   it('pays a quarter share of the kill rewards for what it cleared', () => {

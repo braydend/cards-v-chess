@@ -5,7 +5,6 @@ import { roundSpec } from '../data/rounds'
 import { stagingRank } from './board'
 import { pieceAt, liveRound, withTower, firstTowerId, standardCard, withDeck } from './fixtures'
 import { createInitialState, step, tick } from './index'
-import { spawnHealth } from './spawnScaling'
 import type { Card, GameState } from './types'
 
 const base = (): GameState => createInitialState('dev-test')
@@ -164,7 +163,7 @@ describe('devSpawnPiece', () => {
   })
 
   it('is refused onto a Tower, so the no-shared-square invariant holds', () => {
-    const state = withTower(2, { file: 2, rank: 2 }, base())
+    const state = withTower('vertical', { file: 2, rank: 2 }, base())
 
     expect(
       step(state, {
@@ -189,7 +188,7 @@ describe('devSpawnPiece', () => {
     ).toBe(state)
   })
 
-  it('spawns a round-scaled Piece with its tier flags', () => {
+  it('spawns a Piece at its authored health with its tier flags', () => {
     const state = base()
 
     const after = step(state, {
@@ -204,7 +203,7 @@ describe('devSpawnPiece', () => {
     expect(piece?.tier).toBe('yellow')
     expect(piece?.square).toEqual({ file: 0, rank: 4 })
     expect(piece?.prevSquare).toEqual({ file: 0, rank: 4 })
-    expect(piece?.health).toBe(spawnHealth(PIECE_TYPES.rook.maxHealth, state.roundNumber))
+    expect(piece?.health).toBe(PIECE_TYPES.rook.maxHealth)
     expect(piece?.maxHealth).toBe(piece?.health)
     expect(piece?.hunting).toBe(true)
     expect(after.nextEntityId).toBe(state.nextEntityId + 1)
@@ -252,8 +251,8 @@ describe('devSpawnPiece', () => {
 
 describe('devRemoveTower', () => {
   it('removes the named Tower and leaves the rest', () => {
-    const seeded = withTower(2, { file: 0, rank: 0 }, base())
-    const state = withTower(5, { file: 3, rank: 3 }, seeded)
+    const seeded = withTower('vertical', { file: 0, rank: 0 }, base())
+    const state = withTower('diagonal', { file: 3, rank: 3 }, seeded)
     const target = firstTowerId(state)
 
     const after = step(state, { kind: 'devRemoveTower', towerId: target })
@@ -263,13 +262,13 @@ describe('devRemoveTower', () => {
   })
 
   it('is a no-op for an unknown id', () => {
-    const state = withTower(2, { file: 0, rank: 0 }, base())
+    const state = withTower('vertical', { file: 0, rank: 0 }, base())
 
     expect(step(state, { kind: 'devRemoveTower', towerId: 'ghost' })).toBe(state)
   })
 
   it('does not touch the rng streams', () => {
-    const state = withTower(2, { file: 0, rank: 0 }, base())
+    const state = withTower('vertical', { file: 0, rank: 0 }, base())
 
     const after = step(state, { kind: 'devRemoveTower', towerId: firstTowerId(state) })
 

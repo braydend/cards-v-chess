@@ -7,6 +7,7 @@
  */
 
 import type { PackType } from '../data/packs'
+import type { TowerTypeId } from '../data/towerTypes'
 import type { Rng } from './rng'
 
 export interface Square {
@@ -138,10 +139,8 @@ export interface Piece {
   readonly health: number
   /**
    * The health this Piece spawned with — the ceiling a Bishop's heal restores
-   * to. Set at spawn to the round-scaled value (see `spawnScaling.ts`), so a
-   * scaled Piece heals back to what it actually had rather than to the
-   * authored stat, which round-5+ Pieces exceed on arrival. Never changes
-   * after spawn.
+   * to. Set at spawn to the authored `maxHealth` (see `pieceTypes`), so a heal
+   * restores to what the Piece actually had. Never changes after spawn.
    */
   readonly maxHealth: number
   /** Milliseconds accumulated toward this piece's next hop. */
@@ -213,11 +212,16 @@ export type TowerGeometry =
   | 'band'
 
 /**
- * Ranks that build a Tower. 2–10 carry the geometry ladder.
+ * The numbered ranks a Card can carry. 2–10.
  *
- * The face ranks (J, Q, K, A) act instead of building, so they are deliberately
- * absent here — passing `'K'` where geometry is expected is a type error rather
- * than a runtime surprise. See `CardRank` for every rank a Card can carry.
+ * A Card's rank no longer determines what it does — hands do. Rank only matters
+ * for ordering a straight and for a suit support's same-rank requirement, both
+ * long gone; today `isBuildableRank` just distinguishes numbered ranks. The name
+ * is kept for the numbered-ranks meaning, not for any act of building.
+ *
+ * The face ranks (J, Q, K, A) are deliberately absent here — they carry no
+ * number, so nothing ordered or numbered wants them. See `CardRank` for every
+ * rank a Card can carry.
  */
 export type BuildableRank = 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
 
@@ -251,15 +255,31 @@ export type Card =
 export interface Tower {
   readonly id: string
   readonly square: Square
-  readonly cardRank: BuildableRank
+  readonly type: TowerTypeId
   /** Milliseconds accumulated toward this Tower's next shot. */
   readonly fireCooldownMs: number
+  /**
+   * The squares this Tower can cover, in squares.
+   *
+   * Seeded from the tower's type at build, raised by a Queen's action
+   * (stackable, uncapped for now). Nothing else derives range from the type
+   * table any more — coverage queries read this instance field, not the table.
+   */
+  readonly range: number
   readonly health: number
-  /** Separate from the rank's base value so ♠ can raise it. */
+  /** Seeded from the type's tower table at build. Never changed after — supports are gone. */
   readonly maxHealth: number
-  /** Seeded from the rank, raised by ♣ Damage. */
+  /**
+   * Seeded from the type's tower table at build. No longer mutated by ♣
+   * supports — supports are gone. The field stays on the instance so
+   * `structuralKey` and `TowerPanel` can read it without a table lookup.
+   */
   readonly damage: number
-  /** Seeded from the rank, lowered by ♦ Speed, floored at MIN_FIRE_INTERVAL_MS. */
+  /**
+   * Seeded from the type's tower table at build. No longer mutated by ♦
+   * supports. The field stays on the instance so `structuralKey` and
+   * `TowerPanel` can read it without a table lookup.
+   */
   readonly fireIntervalMs: number
   /**
    * Granted by a Jack. Absorbed before health, with overflow carrying into it.
@@ -350,6 +370,13 @@ export interface GameState {
   readonly roundElapsedMs: number
   readonly pieces: readonly Piece[]
   readonly towers: readonly Tower[]
+  /**
+   * A Tower purchased but not yet placed — the second half of a hand play.
+   * Non-null only in the gap; `placeTower` consumes it and `startRound` is
+   * refused while it stands. Kept on the state rather than in the UI so the
+   * placement rule lives in the engine.
+   */
+  readonly pendingTower: TowerTypeId | null
   /** Count of pieces that have reached the Core. */
   readonly leaks: number
   /**
@@ -480,15 +507,30 @@ export type Command =
   | { readonly kind: 'startRound' }
   | { readonly kind: 'continueToFreePlay' }
   | { readonly kind: 'setAutoStart'; readonly enabled: boolean }
-  | { readonly kind: 'buildTower'; readonly cardId: string; readonly square: Square }
-  | { readonly kind: 'supportTower'; readonly cardId: string; readonly towerId: string }
-  | { readonly kind: 'shieldTower'; readonly cardId: string; readonly towerId: string }
   | {
-      readonly kind: 'echoTower'
-      readonly cardId: string
-      readonly sourceTowerId: string
-      readonly square: Square
+      /**
+       * Commit a hand of Cards to purchase a Tower. Two-step: this command
+       * consumes the Cards and leaves a pending Tower awaiting placement;
+       * `placeTower` puts it on a square.
+       *
+       * Gap-only. The card ids must form exactly one valid hand of its size
+       * (`evaluateHand`), and a royal flush must name the chosen Tower type
+       * (`chosenType`), which every other hand must omit.
+       */
+      readonly kind: 'playHand'
+      readonly cardIds: readonly string[]
+      readonly chosenType?: TowerTypeId
     }
+  | { readonly kind: 'placeTower'; readonly square: Square }
+  | {
+      /**
+       * Cancel an unplaced hand: drop the pending Tower without refunding the
+       * Cards that bought it. The play is cancelled, not the hand undone.
+       */
+      readonly kind: 'cancelPlacement'
+    }
+  | { readonly kind: 'rangeTower'; readonly cardId: string; readonly towerId: string }
+  | { readonly kind: 'shieldTower'; readonly cardId: string; readonly towerId: string }
   | { readonly kind: 'reinforceCore'; readonly cardId: string }
   | { readonly kind: 'expandBoard'; readonly cardId: string }
   | { readonly kind: 'clearPieces'; readonly cardId: string }
@@ -500,9 +542,10 @@ export type Command =
        * holds a half-finished purchase and Cancel needs no rollback. The
        * in-progress cull selection is view state — see `src/state/uiStore.ts`.
        *
-       * Valid only in the `gap` phase. That is the one exception to "commands
-       * are valid both between rounds and mid-round", and it is what keeps round
-       * termination bounded — see `src/game/roundTermination.test.ts`.
+       * Valid only in the `gap` phase, like hand plays and Tower placement —
+       * the gap-only exceptions to "commands are valid both between rounds and
+       * mid-round". For packs, that rule is what keeps round termination
+       * bounded — see `src/game/roundTermination.test.ts`.
        */
       readonly kind: 'buyPack'
       readonly pack: PackType

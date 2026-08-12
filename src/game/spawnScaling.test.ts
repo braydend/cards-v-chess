@@ -1,7 +1,12 @@
+/**
+ * Spawn pacing and the authored-health property: a spawn enters at its authored
+ * `maxHealth` in every round — health no longer scales with the round — and the
+ * spawn gap is the only round-scaling that remains.
+ */
 import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { createInitialState, tick } from './index'
-import { spawnGapMs, spawnHealth, spawnHealthMultiplier } from './spawnScaling'
+import { spawnGapMs } from './spawnScaling'
 import type { GameState, Piece } from './types'
 
 const DT = 1000 / 60
@@ -45,71 +50,20 @@ function runFor(state: GameState, durationMs: number): GameState {
   return current
 }
 
-describe('spawnHealthMultiplier', () => {
-  it('is 1.0 in the opening rounds, so nothing existing changes', () => {
-    expect(spawnHealthMultiplier(1)).toBe(1)
-    expect(spawnHealthMultiplier(4)).toBe(1)
-  })
-
-  it('steps at the authored breakpoints', () => {
-    expect(spawnHealthMultiplier(5)).toBe(1.3)
-    expect(spawnHealthMultiplier(9)).toBe(1.3)
-    expect(spawnHealthMultiplier(10)).toBe(1.6)
-    expect(spawnHealthMultiplier(15)).toBe(2)
-    expect(spawnHealthMultiplier(19)).toBe(2)
-    expect(spawnHealthMultiplier(20)).toBe(2.5)
-  })
-
-  it('keeps rising every tail step past the last authored round', () => {
-    expect(spawnHealthMultiplier(24)).toBe(2.5)
-    expect(spawnHealthMultiplier(25)).toBe(3)
-    expect(spawnHealthMultiplier(30)).toBe(3.5)
-  })
-
-  it('treats anything before round 1 as round 1', () => {
-    expect(spawnHealthMultiplier(0)).toBe(1)
-  })
-
-  it('is deterministic — the same round always scales the same way', () => {
-    expect(spawnHealthMultiplier(11)).toBe(spawnHealthMultiplier(11))
-  })
-})
-
-describe('spawnHealth', () => {
-  it('returns the authored health when the multiplier is 1', () => {
-    expect(spawnHealth(PIECE_TYPES.pawn.maxHealth, 1)).toBe(PIECE_TYPES.pawn.maxHealth)
-  })
-
-  it('rounds the scaled value to an integer', () => {
-    // 3 × 1.3 = 3.9 → 4, not 3.9.
-    expect(spawnHealth(PIECE_TYPES.pawn.maxHealth, 5)).toBe(4)
-  })
-
-  it('never drops below 1', () => {
-    expect(spawnHealth(1, 1)).toBe(1)
-  })
-
-  it('scales every type by the same round multiplier', () => {
-    const rook = spawnHealth(PIECE_TYPES.rook.maxHealth, 5)
-    expect(rook).toBe(Math.round(PIECE_TYPES.rook.maxHealth * spawnHealthMultiplier(5)))
-  })
-})
-
-describe('a round-N spawn enters with scaled health', () => {
-  it('a round-5 Pawn spawns at 4, not the authored 3', () => {
+describe('a spawn enters at its authored max health', () => {
+  it('a round-5 Pawn spawns at the authored 3, not a scaled 4', () => {
     const after = tick(liveRoundWithSpawn(5), DT)
 
     const pawn = after.pieces[0]
-    expect(pawn?.health).toBe(spawnHealth(PIECE_TYPES.pawn.maxHealth, 5))
-    expect(pawn?.health).not.toBe(PIECE_TYPES.pawn.maxHealth)
+    expect(pawn?.health).toBe(PIECE_TYPES.pawn.maxHealth)
   })
 
-  it('records the scaled health as the Piece maximum, so a heal restores to it', () => {
+  it('records the authored health as the Piece maximum, so a heal restores to it', () => {
     const after = tick(liveRoundWithSpawn(5), DT)
 
     const pawn = after.pieces[0]
     expect(pawn?.maxHealth).toBe(pawn?.health)
-    expect(pawn?.maxHealth).toBe(4)
+    expect(pawn?.maxHealth).toBe(PIECE_TYPES.pawn.maxHealth)
   })
 
   it('a round-1 Pawn spawns at its authored max', () => {
@@ -119,7 +73,7 @@ describe('a round-N spawn enters with scaled health', () => {
     expect(after.pieces[0]?.maxHealth).toBe(PIECE_TYPES.pawn.maxHealth)
   })
 
-  it('a promoted Queen carries the same round factor', () => {
+  it('a promoted Queen carries no round factor — full Queen health in any round', () => {
     const state: GameState = {
       ...createInitialState(),
       roundNumber: 5,
@@ -132,8 +86,8 @@ describe('a round-N spawn enters with scaled health', () => {
     const after = runFor(state, PIECE_TYPES.pawn.moveIntervalMs + DT)
 
     expect(after.pieces[0]?.typeId).toBe('queen')
-    expect(after.pieces[0]?.health).toBe(spawnHealth(PIECE_TYPES.queen.maxHealth, 5))
-    expect(after.pieces[0]?.maxHealth).toBe(spawnHealth(PIECE_TYPES.queen.maxHealth, 5))
+    expect(after.pieces[0]?.health).toBe(PIECE_TYPES.queen.maxHealth)
+    expect(after.pieces[0]?.maxHealth).toBe(PIECE_TYPES.queen.maxHealth)
   })
 })
 

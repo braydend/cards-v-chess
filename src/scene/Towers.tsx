@@ -1,43 +1,32 @@
 import { Instance, Instances, type PositionMesh } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useRef, useState } from 'react'
-import { BUILDABLE_RANKS } from '../data/towerRanks'
-import { canSupport, findCard, type BoardSpec, type BuildableRank } from '../game'
+import { TOWER_TYPE_IDS } from '../data/towerTypes'
+import type { BoardSpec, TowerTypeId } from '../game'
 import { useGameStore } from '../state/store'
-import { useUiStore } from '../state/uiStore'
 import { fileToWorldX, rankToWorldZ } from './coords'
-import { RANK_COLOURS } from './rankColours'
+import { TOWER_COLOURS } from './rankColours'
 import { CRITICAL_PULSE_HZ, DEATH_FLARE_MS, HIT_FLASH_MS, towerColour } from './towerColour'
 import { diffTowers, type Ghost, type TowerAnimation } from './towerDiff'
 
-/**
- * `BuildableRank`, not `CardRank`: this is arithmetic on the rank, and a Tower
- * is only ever built from 2–10. A face rank here would be a string in a
- * multiplication.
- */
-function towerHeight(cardRank: BuildableRank): number {
-  return 0.55 + cardRank * 0.06
+function towerHeight(type: TowerTypeId): number {
+  return 0.55 + TOWER_TYPE_IDS.indexOf(type) * 0.08
 }
 
 /**
  * Towers, and everything a player can read off them without opening a panel.
  *
- * They block movement and take damage from the Pieces they block. ♥ repair
- * exists, but it is bounded by a finite Deck — see the load-bearing invariant
- * comment in `src/game/tick.ts` for why a Tower under sustained attack still
- * always eventually falls.
+ * They block movement and take damage from the Pieces they block.
  *
  * Five signals, all achieved by mutating the existing instanced meshes — no new
  * geometry, and no React render per frame:
  *
- * - **Health** darkens the Tower's rank colour (the long-standing behaviour,
+ * - **Health** darkens the Tower's type colour (the long-standing behaviour,
  *   moved from render-time to frame-time).
  * - **A hit** flares it bright and squashes it briefly.
  * - **Critical health** pulses it toward a warning red.
  * - **Destruction** flares and shrinks a short-lived ghost, so a Tower does not
  *   simply pop out of existence.
- * - **Out of reach** fades a Tower while a picked support Card cannot reach it
- *   — a numbered Card supports only its own rank. See `canSupport`.
  *
  * Hits and deaths are found by **diffing published snapshots**, not by engine
  * events: `advance()` runs up to five ticks per `emit()`, so anything the engine
@@ -46,20 +35,7 @@ function towerHeight(cardRank: BuildableRank): number {
  */
 export function Towers({ board }: { board: BoardSpec }) {
   const towers = useGameStore((store) => store.snapshot.towers)
-  const deck = useGameStore((store) => store.snapshot.deck)
-  const selectedCardId = useUiStore((store) => store.selectedCardId)
-  const playMode = useUiStore((store) => store.playMode)
   const [ghosts, setGhosts] = useState<readonly Ghost[]>([])
-
-  // The picked Card, but only while it is being played for its suit — null the
-  // rest of the time, which is what leaves every Tower at its normal colour.
-  //
-  // Subscribing to the Deck costs nothing per frame: the snapshot publishes on
-  // structural change only, and the Deck changes only when a Card is played.
-  const supportCard =
-    playMode === 'support' && selectedCardId !== null
-      ? (findCard(deck, selectedCardId) ?? null)
-      : null
 
   const animations = useRef(new Map<string, TowerAnimation>())
   const ghostStartedAt = useRef(new Map<string, number>())
@@ -169,11 +145,10 @@ export function Towers({ board }: { board: BoardSpec }) {
 
       towerColour(
         mesh.color,
-        tower.cardRank,
+        tower.type,
         tower.health / tower.maxHealth,
         flashProgress,
         now * CRITICAL_PULSE_HZ,
-        supportCard !== null && !canSupport(supportCard, tower),
       )
 
       // Squash and recover on impact. Scale rather than position, so the Tower
@@ -196,24 +171,24 @@ export function Towers({ board }: { board: BoardSpec }) {
 
       const remaining = Math.max(0, 1 - (now - startedAt) / (DEATH_FLARE_MS / 1000))
 
-      towerColour(mesh.color, ghost.cardRank, 0, remaining, now * CRITICAL_PULSE_HZ)
+      towerColour(mesh.color, ghost.type, 0, remaining, now * CRITICAL_PULSE_HZ)
       mesh.scale.setScalar(remaining)
     }
   })
 
   return (
     <>
-      {BUILDABLE_RANKS.map((cardRank) => {
-        const live = towers.filter((tower) => tower.cardRank === cardRank)
-        const dying = ghosts.filter((ghost) => ghost.cardRank === cardRank)
+      {TOWER_TYPE_IDS.map((type) => {
+        const live = towers.filter((tower) => tower.type === type)
+        const dying = ghosts.filter((ghost) => ghost.type === type)
         if (live.length === 0 && dying.length === 0) return null
 
-        const height = towerHeight(cardRank)
+        const height = towerHeight(type)
 
-        // One instanced draw call per rank, shared geometry and material, with
+        // One instanced draw call per type, shared geometry and material, with
         // ghosts riding in the same group so a death costs no extra call.
         return (
-          <Instances key={cardRank} limit={128} castShadow>
+          <Instances key={type} limit={128} castShadow>
             <cylinderGeometry args={[0.24, 0.32, height, 6]} />
             <meshStandardMaterial flatShading />
 
@@ -227,7 +202,7 @@ export function Towers({ board }: { board: BoardSpec }) {
                   else meshes.current.delete(tower.id)
                 }}
                 // Correct on the first frame, before useFrame has run once.
-                color={RANK_COLOURS[cardRank]}
+                color={TOWER_COLOURS[type]}
                 position={[
                   fileToWorldX(board, tower.square.file),
                   height / 2,
@@ -267,7 +242,7 @@ export function Towers({ board }: { board: BoardSpec }) {
                   if (mesh) meshes.current.set(ghost.meshKey, mesh)
                   else meshes.current.delete(ghost.meshKey)
                 }}
-                color={RANK_COLOURS[cardRank]}
+                color={TOWER_COLOURS[type]}
                 position={[
                   fileToWorldX(board, ghost.file),
                   height / 2,

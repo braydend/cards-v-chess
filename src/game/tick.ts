@@ -1,22 +1,15 @@
 import { BLOCKED_ATTACK_MULTIPLIER, pieceType } from '../data/pieceTypes'
 import { VICTORY_ROUND } from '../data/rounds'
 import { tierDef } from '../data/tiers'
-import { towerRank, type TowerRankDef } from '../data/towerRanks'
+import { towerType, type TowerTypeDef } from '../data/towerTypes'
 import { KING_SPEED_MULTIPLIER, applyHealing, buffedPieceIds, slideBonusFor } from './auras'
 import { isInBounds, squareKey, stagingRank } from './board'
 import { coversSquare, hittableSquares, isOccluded } from './coverage'
 import { roundIncome, totalKillReward } from './ink'
 import { isStuck, nextMove } from './movement'
 import { isTerminal } from './phase'
-import { spawnHealth } from './spawnScaling'
 import { next, type Rng } from './rng'
 import { step } from './step'
-import {
-  FREEZE_MULTIPLIER,
-  amplificationFor,
-  amplifierIdsByPiece,
-  frozenPieceIds,
-} from './towerAuras'
 import type {
   BoardSpec,
   ExitRecord,
@@ -115,10 +108,6 @@ export function tick(state: GameState, dtMs: number): GameState {
   // Tower map is: so no Piece's outcome depends on processing order.
   const allPieces = [...state.pieces, ...spawned]
   const buffed = buffedPieceIds(allPieces)
-  // Derived from tick-start Tower and Piece positions for the same reason
-  // `buffed` and `towerBySquare` are: so no Piece's outcome depends on the
-  // order Pieces are processed in.
-  const frozen = frozenPieceIds(state.towers, allPieces)
 
   const moved = movePieces(
     allPieces,
@@ -127,14 +116,13 @@ export function tick(state: GameState, dtMs: number): GameState {
     towerBySquare,
     dtMs,
     buffed,
-    frozen,
   )
 
   // Minted after movePieces has decided which Pawns reached the back rank, and
   // numbered starting after drainDueSpawns's own ids, so a Pawn and a spawn in
   // the same tick can never collide over the same id.
   const promotedQueens: Piece[] = moved.promotedFrom.map((entry, index) => {
-    const health = spawnHealth(pieceType('queen').maxHealth, state.roundNumber)
+    const health = pieceType('queen').maxHealth
     return {
       id: `piece-${nextEntityId + index}`,
       typeId: 'queen',
@@ -367,10 +355,6 @@ function fireTowers(
   let combatRng = combat
   const missed: string[] = []
 
-  // Derived once, from the Piece and Tower lists as passed in, so no Piece's
-  // damage depends on which Tower fired first.
-  const amplifiers = amplifierIdsByPiece(towers, pieces)
-
   // Every standing Tower occludes, including the shooter itself (which can
   // never be strictly between itself and anything) and the Wall (which never
   // shoots but blocks for everyone else). Computed once so no Tower's outcome
@@ -378,7 +362,7 @@ function fireTowers(
   const blockers = towers.map((tower) => tower.square)
 
   for (const tower of towers) {
-    const def = towerRank(tower.cardRank)
+    const def = towerType(tower.type)
 
     // The Wall never fires. Skipping before the cooldown loop rather than
     // relying on `selectTargets` returning nothing keeps a gunless Tower out
@@ -434,9 +418,8 @@ function fireTowers(
       if (acquired.length > 0) shotsFired += 1
 
       for (const target of acquired) {
-        const multiplier = amplificationFor(tower.id, target.id, amplifiers)
         const before = remainingHealth.get(target.id) ?? target.health
-        const after = before - tower.damage * multiplier
+        const after = before - tower.damage
         remainingHealth.set(target.id, after)
         if (before > 0 && after <= 0) killers.set(target.id, tower.id)
       }
@@ -472,7 +455,7 @@ function fireTowers(
  */
 function selectTargets(
   tower: Tower,
-  def: TowerRankDef,
+  def: TowerTypeDef,
   pieces: readonly Piece[],
   remainingHealth: Map<string, number>,
   board: BoardSpec,
@@ -486,7 +469,7 @@ function selectTargets(
     // Off `board` entirely means the Staging rank — see fireTowers's doc
     // comment for why damage cannot reach a Piece waiting there.
     if (!isInBounds(board, piece.square)) continue
-    if (!coversSquare(def.geometry, def.range, tower.square, piece.square)) continue
+    if (!coversSquare(def.geometry, tower.range, tower.square, piece.square)) continue
     // A Tower can see a square and still not hit it: another Tower strictly
     // between blocks the shot. The Staging-rank bounds check above this is
     // untouched — damage still cannot reach a Piece assembling off-board.
@@ -530,7 +513,7 @@ function drainDueSpawns(
     // than by a spawn-time special case. Read from state, not a constant: an
     // Ace grows the board and the Staging rank moves up with it.
     const square: Square = { file: spawn.file, rank: stagingRank(state.board) }
-    const health = spawnHealth(pieceType(spawn.typeId).maxHealth, state.roundNumber)
+    const health = pieceType(spawn.typeId).maxHealth
     spawned.push({
       id: `piece-${nextEntityId}`,
       typeId: spawn.typeId,
@@ -576,7 +559,6 @@ function movePieces(
   towerBySquare: ReadonlyMap<string, Tower>,
   dtMs: number,
   buffed: ReadonlySet<string>,
-  frozen: ReadonlySet<string>,
 ): {
   pieces: Piece[]
   leaked: number
@@ -600,14 +582,7 @@ function movePieces(
     const { moveIntervalMs: baseInterval, attackDamage } = pieceType(piece.typeId)
     const isBuffed = buffed.has(piece.id)
     const buffedInterval = isBuffed ? baseInterval * KING_SPEED_MULTIPLIER : baseInterval
-    // A King's buff and a Freezer's slow COMPOSE rather than override: 0.7 x
-    // 1.5 = 1.05, so a PIECE STANDING BESIDE A KING that is also inside a
-    // Freezer's coverage is barely slowed at all. That does NOT extend to the
-    // King itself: `buffedPieceIds` excludes a King from its own aura, so a
-    // King caught alone in a Freezer's coverage takes the full 1.5x slow,
-    // with no buff of its own to compose against. The King is the Chess
-    // faction's answer to the Freezer for its neighbours, not for itself.
-    const moveIntervalMs = frozen.has(piece.id) ? buffedInterval * FREEZE_MULTIPLIER : buffedInterval
+    const moveIntervalMs = buffedInterval
     const slideBonus = slideBonusFor(piece, buffed)
 
     let cooldown = piece.moveCooldownMs + dtMs

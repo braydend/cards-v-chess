@@ -196,6 +196,29 @@ canvas {
   justify-content: space-between;
 }
 
+.deck__sort {
+  display: flex;
+  gap: 0.3rem;
+  margin-left: auto;
+}
+
+.deck__sortBtn {
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1;
+  padding: 0.22rem 0.4rem;
+  cursor: pointer;
+  color: inherit;
+  background: transparent;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 0.25rem;
+}
+
+.deck__sortBtn--active {
+  background: rgb(255 255 255 / 14%);
+  border-color: rgb(255 255 255 / 30%);
+}
+
 .deck__cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(2.4rem, 1fr));
@@ -408,6 +431,62 @@ canvas {
 .deck__mode:focus-visible {
   outline: 2px solid #4fd1c5;
   outline-offset: 1px;
+}
+
+/* The hand panel: what the current selection means, and the commit/action
+   buttons. Replaces the build/support mode toggle — a selection is either one
+   hand or nothing. */
+.handPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.handPanel__label {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* The nine-Tower row a royal flush offers — it is "Tower of choice", so the
+   choice is made here, before the commit. */
+.handPanel__types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.handPanel__type {
+  padding: 0.3rem 0.5rem;
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 0.3rem;
+  background: #1d242e;
+  color: #b9c6d6;
+}
+
+.handPanel__type:not(.handPanel__type--active):hover {
+  border-color: rgb(255 255 255 / 34%);
+  color: #e8edf4;
+}
+
+.handPanel__type--active {
+  border-color: #4fd1c5;
+  background: rgb(79 209 197 / 12%);
+  color: #e8edf4;
+}
+
+/* A hand cannot be committed mid-round (the engine refuses), and a royal flush
+   is un-committable until a Tower type is picked. Disabled reads faded rather
+   than dead so the player still sees what a gap would allow. */
+.deck__play:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.deck__play:disabled:hover {
+  background: #9c5b18;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -768,6 +847,22 @@ canvas {
     position: relative;
     flex: none;
     width: 2.6rem;
+  }
+
+  /* The multi-card count under the first selected card's face — the strip
+     shows one face but may represent a whole hand, so say so. */
+  .mobileStrip__count {
+    position: absolute;
+    bottom: -0.45rem;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0.05rem 0.35rem;
+    border-radius: 0.6rem;
+    background: #2a323d;
+    color: #b9c6d6;
+    font-size: 0.7rem;
+    line-height: 1.2;
+    white-space: nowrap;
   }
 
   .mobileStrip__cancel {

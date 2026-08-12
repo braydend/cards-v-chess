@@ -5,7 +5,7 @@ import type { PieceTier } from '../game'
  * piece's colour carries. Shape carries the type (the models are distinct per
  * type); colour carries the difficulty tier. Green is the baseline tier.
  *
- * Deliberately disjoint from `RANK_COLOURS`, and from the King-buff ring, so a
+ * Deliberately disjoint from `TOWER_COLOURS`, and from the King-buff ring, so a
  * Piece never reads as a Tower and a buffed Piece's aura ring stays visible on
  * its own body. `tierColours.test.ts` guards all of it.
  */

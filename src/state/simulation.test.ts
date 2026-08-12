@@ -126,35 +126,34 @@ describe('React re-render pressure', () => {
 
 describe('dispatch', () => {
   it('applies commands to the live state', () => {
-    dispatch({ kind: 'buildTower', cardId: buildableCardId(), square: { file: 2, rank: 3 } })
+    // A single numbered Card is the canonical high-card hand, which purchases a
+    // vertical Tower; committing it leaves a pending Tower that placement puts
+    // on the board.
+    dispatch({ kind: 'playHand', cardIds: [buildableCardId()] })
+    dispatch({ kind: 'placeTower', square: { file: 2, rank: 3 } })
 
     expect(getState().towers).toHaveLength(1)
   })
 
   it('keeps the same state object when a command is refused', () => {
-    const before = getState()
+    const cardId = buildableCardId()
+    dispatch({ kind: 'playHand', cardIds: [cardId] })
+    const committed = getState()
 
-    dispatch({ kind: 'buildTower', cardId: buildableCardId(), square: { file: -1, rank: 0 } })
+    // A placement on an illegal square is refused, so the pending Tower stays.
+    dispatch({ kind: 'placeTower', square: { file: -1, rank: 0 } })
 
-    expect(getState()).toBe(before)
+    expect(getState()).toBe(committed)
   })
 
   it('reports true when a command changes state', () => {
-    const changed = dispatch({
-      kind: 'buildTower',
-      cardId: buildableCardId(),
-      square: { file: 2, rank: 3 },
-    })
+    const changed = dispatch({ kind: 'playHand', cardIds: [buildableCardId()] })
 
     expect(changed).toBe(true)
   })
 
   it('reports false when a command is refused, so callers can tell a refusal from a success', () => {
-    const refused = dispatch({
-      kind: 'buildTower',
-      cardId: buildableCardId(),
-      square: { file: -1, rank: 0 },
-    })
+    const refused = dispatch({ kind: 'placeTower', square: { file: -1, rank: 0 } })
 
     expect(refused).toBe(false)
   })

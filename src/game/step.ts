@@ -1,5 +1,14 @@
 import { roundSpec } from '../data/rounds'
-import { buildTower, clearPieces, echoTower, expandBoard, reinforceCore, shieldTower, supportTower } from './cardPlays'
+import {
+  cancelPlacement,
+  clearPieces,
+  expandBoard,
+  placeTower,
+  playHand,
+  rangeTower,
+  reinforceCore,
+  shieldTower,
+} from './cardPlays'
 import {
   devAddCard,
   devAddInk,
@@ -20,9 +29,10 @@ import type { Command, GameState } from './types'
  * during combat, Bloons-style. "Round in progress" is a flag on state, not a
  * separate code path, so there is nothing here that branches on game mode.
  *
- * `buyPack` is the one exception: it is refused while a round is live. That is
- * not a convenience — it is what keeps a repair-versus-the-wall grind bounded,
- * because the ♥ supply cannot grow mid-round. See `buyPack` in `./packs.ts`.
+ * `buyPack` is one of the gap-only exceptions — hand plays and Tower placement
+ * are gap-only too — but its rule is still what keeps a repair-versus-the-wall
+ * grind bounded, because the ♥ supply cannot grow mid-round. See `buyPack` in
+ * `./packs.ts`.
  *
  * Invalid commands return the state unchanged rather than throwing. The UI is
  * responsible for not offering illegal actions; the engine just refuses them.
@@ -35,14 +45,16 @@ export function step(state: GameState, command: Command): GameState {
       return continueToFreePlay(state)
     case 'setAutoStart':
       return { ...state, autoStart: command.enabled }
-    case 'buildTower':
-      return buildTower(state, command.cardId, command.square)
-    case 'supportTower':
-      return supportTower(state, command.cardId, command.towerId)
+    case 'playHand':
+      return playHand(state, command.cardIds, command.chosenType)
+    case 'placeTower':
+      return placeTower(state, command.square)
+    case 'cancelPlacement':
+      return cancelPlacement(state)
+    case 'rangeTower':
+      return rangeTower(state, command.cardId, command.towerId)
     case 'shieldTower':
       return shieldTower(state, command.cardId, command.towerId)
-    case 'echoTower':
-      return echoTower(state, command.cardId, command.sourceTowerId, command.square)
     case 'reinforceCore':
       return reinforceCore(state, command.cardId)
     case 'expandBoard':
@@ -72,6 +84,7 @@ export function step(state: GameState, command: Command): GameState {
 
 function startRound(state: GameState): GameState {
   if (state.phase !== 'gap') return state
+  if (state.pendingTower !== null) return state
 
   return {
     ...state,

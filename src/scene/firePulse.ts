@@ -1,28 +1,32 @@
 import { Color } from 'three'
-import { towerRank } from '../data/towerRanks'
+import { towerType } from '../data/towerTypes'
 import {
   coversSquare,
   isOccluded,
   type BoardSpec,
-  type BuildableRank,
   type Square,
   type Tower,
   type TowerGeometry,
+  type TowerTypeId,
 } from '../game'
-import { RANK_COLOURS } from './rankColours'
+import { TOWER_COLOURS } from './rankColours'
 
 /**
  * One shot's expanding ring.
  *
- * Carries its own square and card rank rather than a Tower id, for the same
- * reason `Ghost` does in towerDiff.ts: a Tower can be destroyed while its last
- * shot is still travelling, and once it leaves `GameState` this record is the
- * only place the renderer still knows where the shot came from.
+ * Carries its own square, tower type and fired range rather than a Tower id,
+ * for the same reason `Ghost` does in towerDiff.ts: a Tower can be destroyed
+ * while its last shot is still travelling, and once it leaves `GameState` this
+ * record is the only place the renderer still knows where the shot came from.
+ * The range is carried because a Tower can be range-boosted by a Queen, and a
+ * destroyed Tower's pulse must still know its reach.
  */
 export interface FirePulse {
   readonly file: number
   readonly boardRank: number
-  readonly cardRank: BuildableRank
+  readonly type: TowerTypeId
+  /** The range the shot fired at (a Tower can be range-boosted by a Queen). */
+  readonly range: number
   /** Clock seconds when the shot happened. */
   readonly startedAt: number
 }
@@ -41,10 +45,9 @@ export interface FirePulse {
  *   on a real shot — but `shotsFired` does not move. Inferring from the
  *   cooldown would draw a pulse for an undetected shot, which is a shot the
  *   Tower never made.
- * - ♦ Speed lowers `fireIntervalMs` without touching `fireCooldownMs`, so a
- *   Tower idling at the old clamp clamps DOWN on the next tick — a decrease
- *   with no shot behind it. A counter cannot phantom: nothing moves it but an
- *   actual shot.
+ * - An idle Tower holds its cooldown at "ready" (clamped to `fireIntervalMs`
+ *   in `fireTowers`), so the cooldown can change with no shot behind it. A
+ *   counter cannot phantom: nothing moves it but an actual shot.
  * - A Tower that fires and then loses every target within the same frame's
  *   later ticks has its cooldown decrease erased by the clamp. `shotsFired`
  *   keeps the increment regardless, so the pulse is not lost.
@@ -81,7 +84,8 @@ export function detectShots(
       pulses.push({
         file: tower.square.file,
         boardRank: tower.square.rank,
-        cardRank: tower.cardRank,
+        type: tower.type,
+        range: tower.range,
         startedAt: now,
       })
     }
@@ -105,9 +109,9 @@ export function detectShots(
  * reads them and neither is a balance value.
  *
  * Both are PLACEHOLDERS, but chosen so the cadence reads at both extremes:
- * rank 2 (range 1, fires 600ms) gives one 205ms blip then 395ms of dark, and
- * rank 10 stacked with ♦ down to the 100ms MIN_FIRE_INTERVAL_MS floor keeps
- * about 3.4 rings in flight, spaced 2.2 squares apart on a 4-square footprint.
+ * a fast Tower (`vertical`, fires every 500ms) gives one 205ms blip then
+ * 295ms of dark, and a range-boosted Tower keeps several rings in flight at
+ * once.
  */
 export const PULSE_SQUARES_PER_SECOND = 22
 export const PULSE_FADE_MS = 160
@@ -115,7 +119,7 @@ export const PULSE_FADE_MS = 160
 const FADE_SECONDS = PULSE_FADE_MS / 1000
 
 /**
- * Rank colours as three.js Colours, built once at module load exactly as
+ * Tower type colours as three.js Colours, built once at module load exactly as
  * towerColour.ts builds its DAMAGED / FLASH / CRITICAL constants.
  *
  * `new Color(hex)` converts sRGB into the renderer's working space, so these
@@ -124,18 +128,18 @@ const FADE_SECONDS = PULSE_FADE_MS / 1000
  *
  * Written out entry by entry rather than built with `Object.fromEntries`, which
  * would need a type assertion. Exhaustive by construction: a new
- * `BuildableRank` makes this a type error.
+ * `TowerTypeId` makes this a type error.
  */
-const RANK_RGB: Record<BuildableRank, Color> = {
-  2: new Color(RANK_COLOURS[2]),
-  3: new Color(RANK_COLOURS[3]),
-  4: new Color(RANK_COLOURS[4]),
-  5: new Color(RANK_COLOURS[5]),
-  6: new Color(RANK_COLOURS[6]),
-  7: new Color(RANK_COLOURS[7]),
-  8: new Color(RANK_COLOURS[8]),
-  9: new Color(RANK_COLOURS[9]),
-  10: new Color(RANK_COLOURS[10]),
+const TOWER_RGB: Record<TowerTypeId, Color> = {
+  vertical: new Color(TOWER_COLOURS.vertical),
+  wall: new Color(TOWER_COLOURS.wall),
+  sniper: new Color(TOWER_COLOURS.sniper),
+  diagonal: new Color(TOWER_COLOURS.diagonal),
+  cross: new Color(TOWER_COLOURS.cross),
+  star: new Color(TOWER_COLOURS.star),
+  splash: new Color(TOWER_COLOURS.splash),
+  ring: new Color(TOWER_COLOURS.ring),
+  tollgate: new Color(TOWER_COLOURS.tollgate),
 }
 
 /**
@@ -189,8 +193,8 @@ function maxCoverageDistance(
 
 /** Whether this pulse still has anything to draw. */
 export function isPulseLive(pulse: FirePulse, now: number, board: BoardSpec): boolean {
-  const { geometry, range } = towerRank(pulse.cardRank)
-  const distance = maxCoverageDistance(geometry, range, pulse.file, board.files)
+  const { geometry } = towerType(pulse.type)
+  const distance = maxCoverageDistance(geometry, pulse.range, pulse.file, board.files)
 
   return now - pulse.startedAt < distance / PULSE_SQUARES_PER_SECOND + FADE_SECONDS
 }
@@ -231,8 +235,9 @@ export function accumulatePulses(
   for (const tower of towers) scratchBlockers.push(tower.square)
 
   for (const pulse of pulses) {
-    const { geometry, range } = towerRank(pulse.cardRank)
-    const rgb = RANK_RGB[pulse.cardRank]
+    const { geometry } = towerType(pulse.type)
+    const range = pulse.range
+    const rgb = TOWER_RGB[pulse.type]
     const elapsed = now - pulse.startedAt
 
     scratchOrigin.file = pulse.file

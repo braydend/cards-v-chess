@@ -37,7 +37,7 @@ export default defineConfig(({ command, isPreview }) => ({
         // hovered square, the selected Tower — same category as scene/ and ui/,
         // just living in state/ because it's a zustand store. It holds nothing
         // the simulation reads, and every decision taken off it lives in a pure,
-        // separately tested module (game/commandFor.ts, scene/boardClick.ts)
+        // separately tested module (ui/handSelection.ts, scene/boardClick.ts)
         // rather than in the store. store.ts and structuralKey.ts stay measured: they are
         // the simulation bridge, not view state. A new file in state/ belongs
         // here only if, like uiStore.ts, it holds UI-facing selection/pointer

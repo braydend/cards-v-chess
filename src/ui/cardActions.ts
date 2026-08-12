@@ -2,21 +2,17 @@ import { reset } from '../state/simulation'
 import { useUiStore } from '../state/uiStore'
 
 /**
- * Pick a Card from the Deck, or toggle it off. Shared by the desktop Deck and
- * the mobile deck overlay so the two cannot drift.
+ * Toggle a Card into or out of the hand being assembled. Shared by the desktop
+ * Deck and the mobile deck overlay so the two cannot drift.
  *
- * Each Card is picked fresh in rank mode. Carrying the previous Card's mode
- * across would leave a Joker stuck in a suit mode it cannot offer, with no
- * button to switch back. A new selection also clears any half-finished Echo
- * (so it cannot leak into the next play) and any touch preview (so a stale
- * footprint does not point at a square from the previous Card).
+ * Cards are picked into a hand as a multi-select. A new pick also clears any
+ * touch preview (so a stale footprint does not point at a square from a
+ * previous selection).
  */
-export function selectCard(cardId: string, selectedCardId: string | null): void {
+export function toggleCardForHand(cardId: string): void {
   const ui = useUiStore.getState()
-  ui.setEchoSourceTowerId(null)
-  ui.setPlayMode('build')
   ui.setPreviewedSquare(null)
-  ui.setSelectedCardId(cardId === selectedCardId ? null : cardId)
+  ui.toggleCard(cardId)
 }
 
 /**
@@ -26,15 +22,14 @@ export function selectCard(cardId: string, selectedCardId: string | null): void 
  * leftover-selection clearing happens here, from the caller, so the renderer
  * never resets a run without also clearing its own state.
  *
- * `selectedTowerId` matters most of the three: `reset()` rewinds the entity
+ * `selectedTowerId` matters most of the list: `reset()` rewinds the entity
  * counter, so a stale id would open the Tower panel on a brand-new Tower that
  * happens to reuse it.
  */
 export function resetRun(): void {
   reset()
   const ui = useUiStore.getState()
-  ui.setSelectedCardId(null)
-  ui.setEchoSourceTowerId(null)
+  ui.clearSelection()
   ui.setSelectedTowerId(null)
   ui.setPackShopOpen(false)
   ui.clearMarkedForCull()

@@ -114,11 +114,8 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
         }
 
         const {
-          selectedCardId,
-          setSelectedCardId,
-          playMode,
-          echoSourceTowerId,
-          setEchoSourceTowerId,
+          selectedCardIds,
+          clearSelection,
           selectedTowerId,
           setSelectedTowerId,
           previewedSquare,
@@ -131,15 +128,23 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
         // would re-render all 64 square instances on every Tower hit.
         const state = getState()
 
+        // Only a lone selected Card reaches the board — a J or Q's Tower
+        // target. A multi-card hand is committed from the Deck, not via the
+        // board, so a bigger selection carries no board action.
+        const selectedCardId = selectedCardIds[0]
+        const card =
+          selectedCardIds.length === 1 && selectedCardId !== undefined
+            ? (findCard(state.deck, selectedCardId) ?? null)
+            : null
+
         // Every branch below is decided by `resolveBoardAction`, which is pure
         // and unit-tested. Nothing but plumbing lives in this handler.
         const action = resolveBoardAction({
           square,
           towers: state.towers,
           selectedTowerId,
-          card: selectedCardId === null ? null : (findCard(state.deck, selectedCardId) ?? null),
-          playMode,
-          echoSourceTowerId,
+          card,
+          pendingTower: state.pendingTower,
           pointer: coarse ? 'coarse' : 'fine',
           previewedSquare,
         })
@@ -154,11 +159,6 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
           return
         }
 
-        if (action.kind === 'pickEchoSource') {
-          setEchoSourceTowerId(action.towerId)
-          return
-        }
-
         // On touch the first tap commits the square for preview rather than
         // playing. The next tap on the same square falls through to the play
         // branches below — `resolveBoardAction` gates the preview on a
@@ -169,13 +169,11 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
         }
 
         // `dispatch` reports whether the play actually landed. A refusal (an
-        // occupied square, the Core square, an Echo source Tower that died
-        // between the two clicks, ...) must not clear the selection — the
-        // Card was not consumed, so the player should not have to re-pick it.
+        // occupied square, the Core square, ...) must not clear the selection —
+        // the Card was not consumed, so the player should not have to re-pick it.
         if (!dispatch(action.command)) return
 
-        if (action.command.kind === 'echoTower') setEchoSourceTowerId(null)
-        setSelectedCardId(null)
+        clearSelection()
         setPreviewedSquare(null)
       }}
     >

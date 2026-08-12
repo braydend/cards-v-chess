@@ -36,12 +36,11 @@ export function GameScene() {
   // side there.
   const landscape = useMediaQuery(LANDSCAPE_QUERY)
 
-  // The Card selection that raises the strip, and the mode whose label the
-  // strip shows. The strip's width is fixed by CSS, so a mode toggle is a
-  // defensive re-measure rather than a size change. Both are view state in
-  // `uiStore`, read without touching the simulation snapshot.
-  const selectedCardId = useUiStore((store) => store.selectedCardId)
-  const playMode = useUiStore((store) => store.playMode)
+  // The Card selection that raises the strip. The strip's width is fixed by
+  // CSS, so a bigger or smaller selection is a defensive re-measure rather
+  // than a size change. View state in `uiStore`, read without touching the
+  // simulation snapshot.
+  const selectedCardIds = useUiStore((store) => store.selectedCardIds)
 
   // Selectors, not a whole-store `useThree()`: the camera reference is stable
   // and only the viewport width is reactive here (canvas resize). Subscribing
@@ -65,19 +64,19 @@ export function GameScene() {
   const coreFlash = useRef<CoreFlash>({ startedAt: -1 })
 
   // Measure the strip and set the pan goal. Runs on every trigger that can
-  // change the strip's size or the need for it: selection, mode toggle, the
-  // board growing, and any resize (via `sizeWidth` and the landscape query).
+  // change the strip's size or the need for it: the selection, the board
+  // growing, and any resize (via `sizeWidth` and the landscape query).
   useEffect(() => {
     const anim = stripShift.current
     const controls = controlsRef.current
 
     // The goal: the world offset that moves the board's right edge onto the
-    // strip's left edge — or 0 when the strip is not up (no Card selected),
+    // strip's left edge — or 0 when the strip is not up (no Cards selected),
     // not landscape, or not found (desktop). The live rect means a narrower
     // or wider strip needs exactly the pan it really covers, and none when
     // it does not overlap at all.
     let goal = 0
-    if (landscape && selectedCardId !== null && controls) {
+    if (landscape && selectedCardIds.length > 0 && controls) {
       const strip = document.querySelector<HTMLElement>('.mobileStrip')
       if (strip) {
         const rect = strip.getBoundingClientRect()
@@ -120,7 +119,7 @@ export function GameScene() {
     anim.to = goal
     anim.elapsedMs = 0
     anim.active = true
-  }, [landscape, selectedCardId, playMode, board, camera, sizeWidth])
+  }, [landscape, selectedCardIds, board, camera, sizeWidth])
 
   useFrame((_, delta) => {
     const anim = stripShift.current

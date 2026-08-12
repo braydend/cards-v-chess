@@ -14,7 +14,13 @@ export function removeCard(deck: readonly Card[], cardId: string): Card[] {
   return deck.filter((card) => card.id !== cardId)
 }
 
-/** Whether this rank builds a Tower, as opposed to acting. */
+/**
+ * Whether this rank is a numbered rank (2–10).
+ *
+ * No rank "builds" a Tower any more — hands do. The name survives from the old
+ * build-by-rank mechanic, but what this now distinguishes is the numbered ranks
+ * from the face ranks and the Joker for straight ordering and the like.
+ */
 export function isBuildableRank(rank: CardRank): rank is BuildableRank {
   return typeof rank === 'number'
 }

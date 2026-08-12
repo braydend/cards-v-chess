@@ -1,4 +1,4 @@
-import { towerRank } from '../data/towerRanks'
+import { towerType } from '../data/towerTypes'
 import { useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { formatStat } from './formatStat'
@@ -15,10 +15,10 @@ import { targetsLabel } from './targetsLabel'
  * It updates in step with damage for free: a hit changes `health`, `health` is
  * in `structuralKey`, and a change there is what publishes a snapshot.
  *
- * `damageTaken` is a lifetime total, not `maxHealth - health`. ♥ repair
- * already exists (`src/game/cardPlays.ts`), so a Tower at full health still
- * reporting heavy damage taken is the "Repair versus the wall" open question
- * made visible right now — see the design doc.
+ * `damageTaken` is a lifetime total, not `maxHealth - health`. A Jack's shield
+ * absorbs hits before they reach health, so a Tower at full health can still
+ * report heavy damage taken — weathering a hit counts even when it did not
+ * land on health.
  */
 export function TowerPanel() {
   const selectedTowerId = useUiStore((store) => store.selectedTowerId)
@@ -30,13 +30,13 @@ export function TowerPanel() {
   const tower = towers.find((candidate) => candidate.id === selectedTowerId)
   if (!tower) return null
 
-  const def = towerRank(tower.cardRank)
+  const def = towerType(tower.type)
   const targets = targetsLabel(def.targetsPerShot)
 
   return (
     <div className="towerPanel">
       <h2 className="towerPanel__title">
-        Rank {tower.cardRank} Tower
+        Type {tower.type} Tower
         <button
           type="button"
           className="towerPanel__close"
@@ -86,14 +86,14 @@ export function TowerPanel() {
           this file's: which wording each case gets is a decision, and a
           decision inside a `.tsx` cannot be tested here.
 
-          It returns null for the rank-7 Wall, which has no gun, and then the
+          It returns null for the Wall, which has no gun, and then the
           clause is dropped rather than printed as "hits 0 per shot". The
           separator goes with it — hence the whole clause being one expression.
 
-          `def`, not the Tower — ♣ and ♦ mutate damage and the fire interval
-          onto the instance, but nothing moves this figure off the ladder. */}
+          `def`, not the Tower — `targetsPerShot` lives on the type table
+          only, while `range` in the line below is the instance's own field. */}
       <p className="hud__muted">
-        range {def.range} · {formatStat(tower.damage)} dmg · {tower.fireIntervalMs}ms
+        range {tower.range} · {formatStat(tower.damage)} dmg · {tower.fireIntervalMs}ms
         {targets === null ? '' : ` · ${targets}`}
       </p>
     </div>

@@ -1,93 +1,99 @@
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
-import { selectCard } from './cardActions'
-import { rankModeLabel, targetHint, untargetedPlay } from './cardPlay'
+import { toggleCardForHand } from './cardActions'
 import { CardFace } from './CardFace'
-import { supportModeLabel } from './supportLabel'
+import { HandPanel } from './HandPanel'
+import { selectedCards } from './handSelection'
+import { sortDeck } from './deckSort'
 
 /**
  * The Deck: every Card held this run, always visible and always playable.
  *
- * There is no hand and no draw pile, so nothing here is hidden. Duplicates are
- * individually selectable — three 5♦ are three distinct Cards, and playing one
- * leaves two.
+ * Cards are picked into a HAND — a multi-select that purchases a Tower when
+ * committed (gap only), or, for a single face Card, plays its action. There is
+ * no hand and no draw pile, so nothing here is hidden. Duplicates are
+ * individually selectable — three 5♦ are three distinct Cards, and committing
+ * one hand leaves the rest.
  */
 export function Deck() {
   const deck = useGameStore((store) => store.snapshot.deck)
-  const towers = useGameStore((store) => store.snapshot.towers)
-  const selectedCardId = useUiStore((store) => store.selectedCardId)
-  const setSelectedCardId = useUiStore((store) => store.setSelectedCardId)
-  const playMode = useUiStore((store) => store.playMode)
-  const setPlayMode = useUiStore((store) => store.setPlayMode)
-  const echoSourceTowerId = useUiStore((store) => store.echoSourceTowerId)
+  const phase = useGameStore((store) => store.snapshot.phase)
+  const pendingTower = useGameStore((store) => store.snapshot.pendingTower)
+  const selectedCardIds = useUiStore((store) => store.selectedCardIds)
+  const clearSelection = useUiStore((store) => store.clearSelection)
+  const setPreviewedSquare = useUiStore((store) => store.setPreviewedSquare)
+  const deckSort = useUiStore((store) => store.deckSort)
+  const setDeckSort = useUiStore((store) => store.setDeckSort)
 
-  const selected = deck.find((card) => card.id === selectedCardId)
-
-  // King, Ace and Joker take no target, so they resolve from here rather than
-  // waiting for a board click — but only when played for their rank. Every face
-  // Card can also be played for its suit, and that play needs a Tower.
-  const untargeted = selected ? untargetedPlay(selected, playMode) : null
+  const selected = selectedCards(deck, selectedCardIds)
 
   return (
     <div className="deck">
       <div className="deck__header">
         <span className="hud__label">Deck</span>
         <span className="hud__muted">{deck.length} cards</span>
+        <div className="deck__sort">
+          {(
+            [
+              ['suit', 'Suit'],
+              ['value', 'Value'],
+            ] as const
+          ).map(([sort, label]) => (
+            <button
+              key={sort}
+              type="button"
+              className={`deck__sortBtn${deckSort === sort ? ' deck__sortBtn--active' : ''}`}
+              onClick={() => setDeckSort(deckSort === sort ? 'none' : sort)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <ul className="deck__cards">
-        {deck.map((card) => (
+        {sortDeck(deck, deckSort).map((card) => (
           <li key={card.id}>
             <CardFace
               card={card}
-              modifier={card.id === selectedCardId ? 'deck__card--active' : undefined}
-              onClick={() => selectCard(card.id, selectedCardId)}
+              modifier={selectedCardIds.includes(card.id) ? 'deck__card--active' : undefined}
+              onClick={() => toggleCardForHand(card.id)}
             />
           </li>
         ))}
       </ul>
 
-      {selected ? (
+      {/*
+       * A pending Tower stands between commit and placement: the hand is
+       * consumed and no more hand may be played, so the hand panel gives way
+       * to a placement hint and a Cancel. The play is cancelled, not undone —
+       * the Cards are spent either way.
+       */}
+      {pendingTower !== null ? (
         <div className="deck__detail">
-          <div className="deck__modes">
-            <button
-              type="button"
-              className={`deck__mode${playMode === 'build' ? ' deck__mode--active' : ''}`}
-              onClick={() => setPlayMode('build')}
-            >
-              {rankModeLabel(selected)}
-            </button>
-
-            {selected.kind === 'standard' ? (
-              <button
-                type="button"
-                className={`deck__mode${playMode === 'support' ? ' deck__mode--active' : ''}`}
-                onClick={() => setPlayMode('support')}
-              >
-                {supportModeLabel(selected.suit, selected.rank)}
-              </button>
-            ) : null}
-          </div>
-
-          {untargeted ? (
-            <button
-              type="button"
-              className="deck__play"
-              onClick={() => {
-                // Refused only if the game is defeated (the Card is otherwise
-                // guaranteed legal) — but a refusal must not clear the
-                // selection, since the Card was not consumed.
-                if (dispatch(untargeted)) setSelectedCardId(null)
-              }}
-            >
-              Play
-            </button>
-          ) : (
-            <p className="hud__hint">{targetHint(selected, playMode, towers.length, echoSourceTowerId)}</p>
-          )}
+          <p className="hud__hint">Place this Tower on the board, or cancel.</p>
+          <button
+            type="button"
+            className="deck__play"
+            onClick={() => dispatch({ kind: 'cancelPlacement' })}
+          >
+            Cancel
+          </button>
         </div>
       ) : (
-        <p className="hud__hint">Pick a Card to play it.</p>
+        /*
+         * Keyed on the selection so a change in the picked cards remounts the
+         * panel and resets its royal-flush Tower choice — see HandPanel.
+         */
+        <HandPanel
+          key={selectedCardIds.join(',')}
+          cards={selected}
+          phase={phase}
+          onCommitted={() => {
+            clearSelection()
+            setPreviewedSquare(null)
+          }}
+        />
       )}
     </div>
   )

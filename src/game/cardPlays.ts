@@ -5,29 +5,30 @@
  * state unchanged — never throws, and never consumes the Card. The UI is
  * responsible for not offering illegal actions; the engine just refuses them.
  */
-import { ACE_BOARD_RANKS, FACE_SUPPORT_PREMIUM, JACK_SHIELD, KING_CORE_HEALTH } from '../data/cards'
-import { towerRank } from '../data/towerRanks'
-import { findCard, isBuildableRank, removeCard } from './cards'
+import { ACE_BOARD_RANKS, JACK_SHIELD, KING_CORE_HEALTH } from '../data/cards'
+import { towerType, TOWER_TYPE_IDS, type TowerTypeId } from '../data/towerTypes'
+import { findCard, removeCard } from './cards'
+import { evaluateHand, HAND_TOWER } from './hands'
 import { clearReward } from './ink'
 import { canBuildOn } from './placement'
 import { isTerminal } from './phase'
-import { applySupport, canSupport } from './support'
-import type { BuildableRank, GameState, Square, Tower } from './types'
+import type { Card, GameState, Square, Tower } from './types'
 
 /**
- * A fresh Tower of this rank, at full health with no shield and nothing weathered.
+ * A fresh Tower of this type, at full health with no shield and nothing weathered.
  *
- * Shared by every play that puts a Tower on the board — a Card played for its
- * rank, and a Queen's Echo. Both must seed identical stats from the rank, so
- * this exists to make drift impossible rather than merely unlikely.
+ * Shared by every play that puts a Tower on the board — a hand played in the
+ * gap is the only one that still does. Seeded from the type's table so the
+ * instance stats can never drift from the table.
  */
-function newTower(id: string, square: Square, cardRank: BuildableRank): Tower {
-  const def = towerRank(cardRank)
+function newTower(id: string, square: Square, type: TowerTypeId): Tower {
+  const def = towerType(type)
 
   return {
     id,
     square,
-    cardRank,
+    type,
+    range: def.range,
     fireCooldownMs: 0,
     health: def.maxHealth,
     maxHealth: def.maxHealth,
@@ -41,62 +42,89 @@ function newTower(id: string, square: Square, cardRank: BuildableRank): Tower {
 }
 
 /**
- * Plays a Card for its RANK, converting it into a Tower.
+ * Plays a set of Cards as a poker hand, purchasing the hand's Tower.
  *
- * Playing costs nothing but the Card itself. There is no Ink cost — Ink buys
- * packs and is never spent to play.
+ * The first step of Tower building: consumes the committed Cards and sets
+ * `pendingTower`; the second step, `placeTower`, puts it on a chosen square.
+ * Legal only in the gap — a hand purchase is a build-phase action, and a round
+ * must not be interrupted to shop. The hand must be EXACTLY one valid hand of
+ * its size, decided by `evaluateHand`; the ranks inside it never modulate the
+ * result. A royal flush is "Tower of choice", so `chosenType` supplies it; any
+ * other hand may not be given a `chosenType`.
  */
-export function buildTower(state: GameState, cardId: string, square: Square): GameState {
+export function playHand(
+  state: GameState,
+  cardIds: readonly string[],
+  chosenType?: TowerTypeId,
+): GameState {
   if (isTerminal(state.phase)) return state
+  if (state.phase !== 'gap') return state
+  if (state.pendingTower !== null) return state
 
-  const card = findCard(state.deck, cardId)
-  if (!card || card.kind !== 'standard') return state
-  if (!isBuildableRank(card.rank)) return state
-  if (!canBuildOn(state, square)) return state
+  // Each Card is named once. The Deck is a multiset, so `['five', 'five']`
+  // on a one-Card Deck would otherwise read as a pair of fives and buy a Wall
+  // for the price of one Card.
+  if (new Set(cardIds).size !== cardIds.length) return state
+
+  const cards = cardIds
+    .map((id) => findCard(state.deck, id))
+    .filter((card): card is Card => card !== undefined)
+  if (cards.length !== cardIds.length) return state
+
+  const hand = evaluateHand(cards)
+  if (!hand) return state
+
+  const type =
+    hand === 'royalFlush'
+      ? chosenType
+      : HAND_TOWER[hand]
+
+  if (type === undefined || !TOWER_TYPE_IDS.includes(type)) return state
+  if (hand !== 'royalFlush' && chosenType !== undefined) return state
 
   return {
     ...state,
-    towers: [...state.towers, newTower(`tower-${state.nextEntityId}`, square, card.rank)],
-    nextEntityId: state.nextEntityId + 1,
-    deck: removeCard(state.deck, cardId),
+    pendingTower: type,
+    deck: cardIds.reduce((deck, id) => removeCard(deck, id), state.deck),
   }
 }
 
 /**
- * Plays a Card for its SUIT, applying a support action to one existing Tower.
+ * Builds the pending Tower on a square.
  *
- * A numbered Card must match the Tower's rank; a face card may support any
- * Tower. A Joker is refused: it has no suit, so this play is not available to
- * it. See `canSupport`.
+ * The second step of Tower building: `playHand` set `pendingTower`, and this
+ * consumes it into an actual Tower. Refuses an occupied or out-of-bounds square
+ * via `canBuildOn`, and requires `pendingTower` to be set — no Tower appears
+ * without a hand having purchased it.
  */
-export function supportTower(state: GameState, cardId: string, towerId: string): GameState {
+export function placeTower(state: GameState, square: Square): GameState {
   if (isTerminal(state.phase)) return state
-
-  const card = findCard(state.deck, cardId)
-  if (!card || card.kind !== 'standard') return state
-
-  const target = state.towers.find((tower) => tower.id === towerId)
-  if (!target) return state
-
-  // A numbered Card reaches only a Tower of its own rank. Face cards are
-  // exempt — see `canSupport`.
-  if (!canSupport(card, target)) return state
-
-  // The only thing that varies between two plays of the same suit. `canSupport`
-  // has already guaranteed a numbered Card matches the Tower, so a face card is
-  // exactly the case that reached a Tower it does not share a rank with. This
-  // re-derives that same numbered/face distinction, so if `canSupport`'s
-  // exemption is ever narrowed (say to J and Q only), this line must narrow
-  // with it or the untouched ranks would still pay the premium.
-  const multiplier = isBuildableRank(card.rank) ? 1 : FACE_SUPPORT_PREMIUM
+  if (state.phase !== 'gap') return state
+  if (state.pendingTower === null) return state
+  if (!canBuildOn(state, square)) return state
 
   return {
     ...state,
-    towers: state.towers.map((tower) =>
-      tower.id === towerId ? applySupport(tower, card.suit, multiplier) : tower,
-    ),
-    deck: removeCard(state.deck, cardId),
+    towers: [...state.towers, newTower(`tower-${state.nextEntityId}`, square, state.pendingTower)],
+    nextEntityId: state.nextEntityId + 1,
+    pendingTower: null,
   }
+}
+
+/**
+ * Cancels an unplaced hand play, dropping the pending Tower.
+ *
+ * The player may change their mind about where — or whether — to build, but the
+ * Cards committed to the hand are NOT refunded: the play is cancelled, not the
+ * hand undone. Refuses in every phase but the gap, and with no pending Tower to
+ * drop.
+ */
+export function cancelPlacement(state: GameState): GameState {
+  if (isTerminal(state.phase)) return state
+  if (state.phase !== 'gap') return state
+  if (state.pendingTower === null) return state
+
+  return { ...state, pendingTower: null }
 }
 
 /**
@@ -123,33 +151,25 @@ export function shieldTower(state: GameState, cardId: string, towerId: string): 
 }
 
 /**
- * Queen: builds a copy of an existing Tower's RANK on an empty square.
+ * Queen: grants a Tower +1 range.
  *
- * Accumulated ♦ ♠ ♣ supports and any shield are deliberately NOT copied —
- * otherwise Echo becomes the strongest support multiplier in the game rather
- * than a second Tower.
+ * Stackable and uncapped, on any Tower, at any time — a Queen is spent to widen
+ * coverage, and the Tower's range grows from its instance field, so every Queen
+ * stacks onto whatever the type seeded and earlier Queens already added.
  */
-export function echoTower(
-  state: GameState,
-  cardId: string,
-  sourceTowerId: string,
-  square: Square,
-): GameState {
+export function rangeTower(state: GameState, cardId: string, towerId: string): GameState {
   if (isTerminal(state.phase)) return state
 
   const card = findCard(state.deck, cardId)
   if (!card || card.kind !== 'standard' || card.rank !== 'Q') return state
 
-  const source = state.towers.find((tower) => tower.id === sourceTowerId)
-  if (!source) return state
-  if (!canBuildOn(state, square)) return state
+  if (!state.towers.some((tower) => tower.id === towerId)) return state
 
-  // `newTower` seeds from the rank alone, which is exactly why the source's
-  // accumulated supports and shield do not carry across.
   return {
     ...state,
-    towers: [...state.towers, newTower(`tower-${state.nextEntityId}`, square, source.cardRank)],
-    nextEntityId: state.nextEntityId + 1,
+    towers: state.towers.map((tower) =>
+      tower.id === towerId ? { ...tower, range: tower.range + 1 } : tower,
+    ),
     deck: removeCard(state.deck, cardId),
   }
 }

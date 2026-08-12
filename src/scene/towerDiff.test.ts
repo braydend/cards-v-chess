@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState, type GameState, type Tower } from '../game'
+import { towerType } from '../data/towerTypes'
 import { diffTowers, type TowerAnimation } from './towerDiff'
 
 function tower(overrides: Partial<Tower> = {}): Tower {
   return {
     id: 'tower-1',
     square: { file: 3, rank: 3 },
-    cardRank: 2,
+    type: 'vertical',
+    range: towerType('vertical').range,
     fireCooldownMs: 0,
     health: 10,
     maxHealth: 10,
@@ -33,7 +35,7 @@ describe('diffTowers', () => {
 
     expect(ghosts).toEqual([])
     expect(animations.get('tower-1')).toEqual({
-      cardRank: t.cardRank,
+      type: t.type,
       file: t.square.file,
       boardRank: t.square.rank,
       lastDamageTaken: t.damageTaken,
@@ -120,15 +122,15 @@ describe('diffTowers', () => {
     expect(animations.get('tower-1')?.flashPending).toBe(false)
   })
 
-  it('yields a ghost with the remembered cardRank, file, and boardRank when a Tower vanishes mid-round, and deletes its record', () => {
+  it('yields a ghost with the remembered type, file, and boardRank when a Tower vanishes mid-round, and deletes its record', () => {
     const animations = new Map<string, TowerAnimation>()
-    const fallen = tower({ id: 'tower-1', cardRank: 4, square: { file: 5, rank: 6 } })
+    const fallen = tower({ id: 'tower-1', type: 'cross', square: { file: 5, rank: 6 } })
     diffTowers(animations, snapshotWith({ phase: 'inProgress', towers: [fallen] }))
 
     const ghosts = diffTowers(animations, snapshotWith({ phase: 'inProgress', towers: [] }))
 
     expect(ghosts).toEqual([
-      { id: 'tower-1', meshKey: 'ghost:tower-1', cardRank: 4, file: 5, boardRank: 6 },
+      { id: 'tower-1', meshKey: 'ghost:tower-1', type: 'cross', file: 5, boardRank: 6 },
     ])
     expect(animations.has('tower-1')).toBe(false)
   })

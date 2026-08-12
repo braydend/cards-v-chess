@@ -306,7 +306,7 @@ export function DevPanel() {
           {towers.map((tower) => (
             <li key={tower.id}>
               <span>
-                Rank {tower.cardRank} — {tower.square.file},{tower.square.rank}
+                {tower.type} — {tower.square.file},{tower.square.rank}
               </span>
               <button
                 type="button"

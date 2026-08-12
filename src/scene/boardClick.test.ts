@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import type { BuildableRank, Card, CardRank, Square, Suit, Tower } from '../game'
+import type { Card, CardRank, Square, Suit, Tower, TowerTypeId } from '../game'
 import { resolveBoardAction, resolveBoardClick, type BoardClickContext } from './boardClick'
 
-function towerAt(id: string, square: Square, cardRank: BuildableRank = 3): Tower {
+function towerAt(id: string, square: Square, type: TowerTypeId = 'vertical'): Tower {
   return {
     id,
     square,
-    cardRank,
+    type,
+    range: 5,
     fireCooldownMs: 0,
     health: 12,
     maxHealth: 12,
@@ -19,10 +20,10 @@ function towerAt(id: string, square: Square, cardRank: BuildableRank = 3): Tower
   }
 }
 
-// Two different ranks on purpose: support now depends on which Tower was
-// clicked, not just on whether one was.
+// Two different types on purpose: the pending Tower and the J/Q target flows
+// depend on which Tower was clicked, not just on whether one was.
 const A = towerAt('tower-1', { file: 2, rank: 2 })
-const B = towerAt('tower-2', { file: 5, rank: 6 }, 7)
+const B = towerAt('tower-2', { file: 5, rank: 6 }, 'cross')
 
 describe('resolveBoardClick', () => {
   it('builds on an empty square', () => {
@@ -70,8 +71,7 @@ function click(overrides: Partial<BoardClickContext> = {}): BoardClickContext {
     towers: [A, B],
     selectedTowerId: null,
     card: null,
-    playMode: 'build',
-    echoSourceTowerId: null,
+    pendingTower: null,
     pointer: 'fine',
     previewedSquare: null,
     ...overrides,
@@ -79,9 +79,11 @@ function click(overrides: Partial<BoardClickContext> = {}): BoardClickContext {
 }
 
 /**
- * The composed rule where the Tower inspect panel and the card system meet on
- * the same gesture: a Card that can act on what was clicked wins, and the panel
- * gets every click no Card claims.
+ * The composed rule where the Tower inspect panel, the pending-Tower placement
+ * flow, and the card system meet on the same gesture. A pending Tower wins
+ * outright — the hand was already committed, so any square click is its
+ * placement. Otherwise a Card that can act on what was clicked wins, and the
+ * panel gets every click no Card claims.
  */
 describe('resolveBoardAction: no Card picked', () => {
   it('selects the Tower that was clicked, exactly as the panel alone did', () => {
@@ -109,62 +111,82 @@ describe('resolveBoardAction: no Card picked', () => {
   })
 })
 
-describe('resolveBoardAction: a Card whose play targets a Tower beats inspecting', () => {
-  it('supports the Tower rather than opening its panel', () => {
-    expect(
-      resolveBoardAction(
-        click({ square: A.square, card: card(3, 'hearts'), playMode: 'support' }),
-      ),
-    ).toEqual({
+describe('resolveBoardAction: a pending Tower wins every square click', () => {
+  it('places on an empty square', () => {
+    expect(resolveBoardAction(click({ pendingTower: 'vertical' }))).toEqual({
       kind: 'play',
-      command: { kind: 'supportTower', cardId: 'card-1', towerId: A.id },
+      command: { kind: 'placeTower', square: EMPTY },
     })
   })
 
-  it('supports even the Tower whose panel is already open', () => {
-    expect(
-      resolveBoardAction(
-        click({
-          square: A.square,
-          selectedTowerId: A.id,
-          card: card(3, 'hearts'),
-          playMode: 'support',
-        }),
-      ),
-    ).toEqual({
+  it('places on a square that holds a Tower — the engine refuses, the click is still a placement', () => {
+    // The pending Tower outranks the panel: the hand is committed, so a click
+    // on a Tower is a placement attempt, never a select. `placeTower` in
+    // cardPlays.ts refuses the occupied square and the click is just wasted.
+    expect(resolveBoardAction(click({ square: A.square, pendingTower: 'vertical' }))).toEqual({
       kind: 'play',
-      command: { kind: 'supportTower', cardId: 'card-1', towerId: A.id },
+      command: { kind: 'placeTower', square: A.square },
     })
   })
 
-  it('shields the Tower when a Jack is played for its rank', () => {
+  it('places even with a Card picked — the committed hand outranks a fresh pick', () => {
+    expect(resolveBoardAction(click({ card: card('J'), pendingTower: 'ring' }))).toEqual({
+      kind: 'play',
+      command: { kind: 'placeTower', square: EMPTY },
+    })
+  })
+
+  it('places while a Tower is selected, leaving the panel open', () => {
+    expect(resolveBoardAction(click({ selectedTowerId: A.id, pendingTower: 'vertical' }))).toEqual({
+      kind: 'play',
+      command: { kind: 'placeTower', square: EMPTY },
+    })
+  })
+})
+
+describe('resolveBoardAction: J and Q act on a Tower instead of opening its panel', () => {
+  it('shields the Tower when a Jack is clicked onto it', () => {
     expect(resolveBoardAction(click({ square: A.square, card: card('J') }))).toEqual({
       kind: 'play',
       command: { kind: 'shieldTower', cardId: 'card-1', towerId: A.id },
     })
   })
 
-  it('picks a Queen’s Echo source instead of selecting the Tower', () => {
-    expect(resolveBoardAction(click({ square: A.square, card: card('Q') }))).toEqual({
-      kind: 'pickEchoSource',
-      towerId: A.id,
+  it('shields even the Tower whose panel is already open', () => {
+    expect(
+      resolveBoardAction(click({ square: A.square, selectedTowerId: A.id, card: card('J') })),
+    ).toEqual({
+      kind: 'play',
+      command: { kind: 'shieldTower', cardId: 'card-1', towerId: A.id },
     })
   })
 
-  it('echoes onto an empty square once the source is picked', () => {
+  it('widens range when a Queen is clicked onto a Tower', () => {
+    expect(resolveBoardAction(click({ square: A.square, card: card('Q') }))).toEqual({
+      kind: 'play',
+      command: { kind: 'rangeTower', cardId: 'card-1', towerId: A.id },
+    })
+  })
+
+  it('widens range even for the Tower whose panel is already open', () => {
     expect(
-      resolveBoardAction(click({ card: card('Q'), echoSourceTowerId: A.id })),
+      resolveBoardAction(click({ square: A.square, selectedTowerId: A.id, card: card('Q') })),
     ).toEqual({
       kind: 'play',
-      command: { kind: 'echoTower', cardId: 'card-1', sourceTowerId: A.id, square: EMPTY },
+      command: { kind: 'rangeTower', cardId: 'card-1', towerId: A.id },
     })
   })
 })
 
 describe('resolveBoardAction: a Card that cannot act on the click does not consume it', () => {
-  it('opens the panel when a rank Card is clicked onto an occupied square', () => {
-    // A rank Card builds, and it cannot build where a Tower already stands, so
-    // the click falls through to the panel rather than being swallowed.
+  it('gives a lone numbered Card to the panel — a numbered Card is hand material, not a build', () => {
+    // A numbered Card alone no longer builds: it is committed as part of a poker
+    // hand. Clicking with one picked has no board action, so the panel keeps the
+    // click exactly as if nothing were picked.
+    expect(resolveBoardAction(click({ card: card(4) }))).toEqual({ kind: 'deselect' })
+  })
+
+  it('opens the panel when a numbered Card is clicked onto an occupied square', () => {
     expect(resolveBoardAction(click({ square: A.square, card: card(4) }))).toEqual({
       kind: 'select',
       towerId: A.id,
@@ -178,90 +200,17 @@ describe('resolveBoardAction: a Card that cannot act on the click does not consu
     })
   })
 
-  it('opens the panel for a Joker, which is played from the Deck', () => {
-    expect(resolveBoardAction(click({ square: A.square, card: JOKER }))).toEqual({
+  it('opens the panel for an Ace, which takes no board target at all', () => {
+    expect(resolveBoardAction(click({ square: A.square, card: card('A') }))).toEqual({
       kind: 'select',
       towerId: A.id,
     })
   })
 
-  it('closes the panel when a support Card is clicked onto an empty square', () => {
-    expect(
-      resolveBoardAction(
-        click({ selectedTowerId: A.id, card: card(7, 'hearts'), playMode: 'support' }),
-      ),
-    ).toEqual({ kind: 'deselect' })
-  })
-
-  it('closes the panel when a Queen with no source yet is clicked onto an empty square', () => {
-    expect(
-      resolveBoardAction(click({ selectedTowerId: A.id, card: card('Q') })),
-    ).toEqual({ kind: 'deselect' })
-  })
-
-  it('refuses to support a Joker — it has no suit', () => {
-    expect(
-      resolveBoardAction(click({ square: A.square, card: JOKER, playMode: 'support' })),
-    ).toEqual({ kind: 'select', towerId: A.id })
-  })
-
-  it('opens the panel when a support Card cannot reach the clicked Tower', () => {
-    // A 7♥ has nothing to do with a rank-3 Tower. Without this the click is
-    // swallowed: `commandFor` still produces a supportTower command, the engine
-    // refuses it, and the player gets no play and no panel either.
-    expect(
-      resolveBoardAction(
-        click({ square: A.square, card: card(7, 'hearts'), playMode: 'support' }),
-      ),
-    ).toEqual({ kind: 'select', towerId: A.id })
-  })
-
-  it('supports the Tower the same Card does match', () => {
-    // The same 7♥, one Tower over. B is rank 7.
-    expect(
-      resolveBoardAction(
-        click({ square: B.square, card: card(7, 'hearts'), playMode: 'support' }),
-      ),
-    ).toEqual({
-      kind: 'play',
-      command: { kind: 'supportTower', cardId: 'card-1', towerId: B.id },
-    })
-  })
-
-  it('supports from a face card, which reaches any Tower', () => {
-    expect(
-      resolveBoardAction(
-        click({ square: A.square, card: card('K', 'spades'), playMode: 'support' }),
-      ),
-    ).toEqual({
-      kind: 'play',
-      command: { kind: 'supportTower', cardId: 'card-1', towerId: A.id },
-    })
-  })
-})
-
-describe('resolveBoardAction: building', () => {
-  it('builds on an empty square with a rank Card picked', () => {
-    expect(resolveBoardAction(click({ card: card(4) }))).toEqual({
-      kind: 'play',
-      command: { kind: 'buildTower', cardId: 'card-1', square: EMPTY },
-    })
-  })
-
-  it('leaves an open panel alone while building elsewhere', () => {
-    // Deliberate: a play never touches the panel, so repairing the inspected
-    // Tower and watching its health climb works. Only a click that claims
-    // nothing closes it.
-    expect(resolveBoardAction(click({ card: card(4), selectedTowerId: A.id }))).toEqual({
-      kind: 'play',
-      command: { kind: 'buildTower', cardId: 'card-1', square: EMPTY },
-    })
-  })
-
-  it('builds on any empty square when the board holds no Towers at all', () => {
-    expect(resolveBoardAction(click({ towers: [], card: card(10) }))).toEqual({
-      kind: 'play',
-      command: { kind: 'buildTower', cardId: 'card-1', square: EMPTY },
+  it('opens the panel for a Joker, which is played from the Deck', () => {
+    expect(resolveBoardAction(click({ square: A.square, card: JOKER }))).toEqual({
+      kind: 'select',
+      towerId: A.id,
     })
   })
 })
@@ -269,66 +218,76 @@ describe('resolveBoardAction: building', () => {
 describe('resolveBoardAction: coarse-pointer tap-to-preview', () => {
   const coarse = { pointer: 'coarse' as const }
 
-  it('previews the first tap on a square instead of playing', () => {
-    expect(resolveBoardAction(click({ ...coarse, card: card(4) }))).toEqual({
+  it('previews the first tap on a square instead of placing the pending Tower', () => {
+    expect(resolveBoardAction(click({ ...coarse, pendingTower: 'vertical' }))).toEqual({
       kind: 'preview',
       square: EMPTY,
     })
   })
 
-  it('plays the second tap on the same square', () => {
+  it('places the pending Tower on the second tap on the same square', () => {
     expect(
-      resolveBoardAction(click({ ...coarse, card: card(4), previewedSquare: EMPTY })),
+      resolveBoardAction(
+        click({ ...coarse, pendingTower: 'vertical', previewedSquare: EMPTY }),
+      ),
     ).toEqual({
       kind: 'play',
-      command: { kind: 'buildTower', cardId: 'card-1', square: EMPTY },
+      command: { kind: 'placeTower', square: EMPTY },
     })
   })
 
   it('re-previews a tap on a different square', () => {
     const other = { file: 4, rank: 4 }
     expect(
-      resolveBoardAction(click({ ...coarse, card: card(4), previewedSquare: EMPTY, square: other })),
+      resolveBoardAction(
+        click({ ...coarse, pendingTower: 'vertical', previewedSquare: EMPTY, square: other }),
+      ),
     ).toEqual({ kind: 'preview', square: other })
   })
 
   it('previews on an occupied square — the red marker is how touch shows illegality', () => {
-    expect(resolveBoardAction(click({ ...coarse, card: card(4), square: A.square }))).toEqual({
+    expect(
+      resolveBoardAction(click({ ...coarse, pendingTower: 'vertical', square: A.square })),
+    ).toEqual({
       kind: 'preview',
       square: A.square,
     })
   })
 
-  it('lets the second tap on an occupied square resolve normally', () => {
+  it('lets the second tap on an occupied square resolve to a placement the engine will refuse', () => {
     expect(
       resolveBoardAction(
-        click({ ...coarse, card: card(4), square: A.square, previewedSquare: A.square }),
-      ),
-    ).toEqual({ kind: 'select', towerId: A.id })
-  })
-
-  it('never previews on a fine pointer', () => {
-    expect(resolveBoardAction(click({ card: card(4) }))).toEqual({
-      kind: 'play',
-      command: { kind: 'buildTower', cardId: 'card-1', square: EMPTY },
-    })
-  })
-
-  it('plays a support card on a single tap', () => {
-    expect(
-      resolveBoardAction(
-        click({ ...coarse, square: A.square, card: card(3, 'hearts'), playMode: 'support' }),
+        click({
+          ...coarse,
+          pendingTower: 'vertical',
+          square: A.square,
+          previewedSquare: A.square,
+        }),
       ),
     ).toEqual({
       kind: 'play',
-      command: { kind: 'supportTower', cardId: 'card-1', towerId: A.id },
+      command: { kind: 'placeTower', square: A.square },
     })
   })
 
-  it('picks a Queen’s Echo source on a single tap', () => {
+  it('never previews on a fine pointer', () => {
+    expect(resolveBoardAction(click({ pendingTower: 'vertical' }))).toEqual({
+      kind: 'play',
+      command: { kind: 'placeTower', square: EMPTY },
+    })
+  })
+
+  it('shields on a single tap — a J needs a Tower target and has no footprint to preview', () => {
+    expect(resolveBoardAction(click({ ...coarse, square: A.square, card: card('J') }))).toEqual({
+      kind: 'play',
+      command: { kind: 'shieldTower', cardId: 'card-1', towerId: A.id },
+    })
+  })
+
+  it('widens range on a single tap — a Q needs a Tower target and has no footprint to preview', () => {
     expect(resolveBoardAction(click({ ...coarse, square: A.square, card: card('Q') }))).toEqual({
-      kind: 'pickEchoSource',
-      towerId: A.id,
+      kind: 'play',
+      command: { kind: 'rangeTower', cardId: 'card-1', towerId: A.id },
     })
   })
 

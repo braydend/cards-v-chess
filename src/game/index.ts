@@ -7,16 +7,16 @@
  */
 export { allSquares, isInBounds, squareKey, squaresEqual, stagingRank } from './board'
 export { findCard, isBuildableRank, removeCard } from './cards'
-export { commandFor, type PlayMode, type PlayTarget } from './commandFor'
 export { coveredSquares, coversSquare, isOccluded, reachableSquares } from './coverage'
+export { evaluateHand, HAND_SIZES, HAND_TOWER, type HandType } from './hands'
 export { isStuck, nextMove, type MoveOutcome, type MoveRequest } from './movement'
 export { canAfford, cullCountFor, packPrice } from './packs'
 export { canBuildOn } from './placement'
 export { createInitialState, DEV_SEED } from './state'
 export { step } from './step'
-export { applySupport, canSupport } from './support'
 export { tick } from './tick'
 export type { Rng } from './rng'
+export type { TowerTypeDef, TowerTypeId } from '../data/towerTypes'
 export type {
   BoardSpec,
   BuildableRank,

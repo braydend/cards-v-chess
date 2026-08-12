@@ -1,4 +1,4 @@
-import type { BuildableRank, GameState } from '../game'
+import type { GameState, TowerTypeId } from '../game'
 
 /** A Tower that has fallen, held briefly so its destruction is visible. */
 export interface Ghost {
@@ -11,7 +11,7 @@ export interface Ghost {
    * Tower that reuses the id.
    */
   readonly meshKey: string
-  readonly cardRank: BuildableRank
+  readonly type: TowerTypeId
   readonly file: number
   readonly boardRank: number
 }
@@ -21,12 +21,12 @@ export interface Ghost {
  * written by the frame loop, and routing it through React would be the
  * per-frame render CLAUDE.md forbids.
  *
- * It carries the Tower's square and card rank, because a destroyed Tower
- * leaves `GameState` entirely — this record is the only place the renderer
- * still knows where it was.
+ * It carries the Tower's square and type, because a destroyed Tower leaves
+ * `GameState` entirely — this record is the only place the renderer still knows
+ * where it was.
  */
 export interface TowerAnimation {
-  cardRank: BuildableRank
+  type: TowerTypeId
   file: number
   boardRank: number
   /**
@@ -64,7 +64,7 @@ export function diffTowers(
 
     if (!existing) {
       animations.set(tower.id, {
-        cardRank: tower.cardRank,
+        type: tower.type,
         file: tower.square.file,
         boardRank: tower.square.rank,
         lastDamageTaken: tower.damageTaken,
@@ -88,7 +88,7 @@ export function diffTowers(
       fallen.push({
         id,
         meshKey: `ghost:${id}`,
-        cardRank: animation.cardRank,
+        type: animation.type,
         file: animation.file,
         boardRank: animation.boardRank,
       })
