@@ -23,7 +23,7 @@ The board starts **8×8** and **gains a rank every time an Ace is played**, so i
 
 The Core stays on rank 0 and Pieces enter from the **Staging rank** — one rank past the far rank, off the board — stepping onto the board on their own move interval: every type but a Knight lands on the far rank, while a Knight's L crosses two ranks and so enters one rank deeper. Growth lengthens the run to the Core and buys Towers more shots. That is the Ace's whole effect. An Ace played while Pieces are still waiting on the Staging rank admits them: the rank they occupy becomes the new far rank, which is new space no Tower can have been built on.
 
-**The Staging rank is not a board square.** No Tower can stand there, because placement refuses anything off the board — and that is precisely what stops a Piece appearing on top of a Tower. Entry to the board is an ordinary hop, so a Tower on the entry square blocks it and the Piece grinds from the Staging rank exactly as it would anywhere else. **Damage cannot reach the Staging rank, and it is one-way.** A Piece assembling there is not yet invading: no Tower can shoot it, however far its coverage reaches. The single exception is a **Joker's Clear**, which is not damage but a board wipe — and it must reach the Staging rank, because it is the safety valve for the repair-versus-the-wall stall, and a walled far rank with Pieces queued behind it is exactly the stall it exists to break. Auras are not damage either, so they still reach: a King's buff speeds a Piece's entry, and a Bishop's heal is a harmless no-op on a Piece nothing can hurt. Once a Piece steps onto the board it can never return — every movement rule either advances it, holds its rank, or, for a hunting Knight's occasional rank-increasing hop, bounds-checks the candidate before ever committing to it, so the Staging rank empties in one direction only. The wait is the point — it is a beat of warning about what is coming and on which file.
+**The Staging rank is not a board square.** No Tower can stand there, because placement refuses anything off the board — and that is precisely what stops a Piece appearing on top of a Tower. Entry to the board is an ordinary hop, so a Tower on the entry square blocks it and the Piece grinds from the Staging rank exactly as it would anywhere else. **Damage cannot reach the Staging rank, and it is one-way.** A Piece assembling there is not yet invading: no Tower can shoot it, however far its coverage reaches. The single exception is a **Joker's Clear**, which is not damage but a board wipe — and it must reach the Staging rank, because it is the safety valve for a walled far rank: Pieces queued behind a Tower they cannot shoot are exactly the standoff it exists to break. Auras are not damage either, so they still reach: a King's buff speeds a Piece's entry, and a Bishop's heal is a harmless no-op on a Piece nothing can hurt. Once a Piece steps onto the board it can never return — every movement rule either advances it, holds its rank, or, for a hunting Knight's occasional rank-increasing hop, bounds-checks the candidate before ever committing to it, so the Staging rank empties in one direction only. The wait is the point — it is a beat of warning about what is coming and on which file.
 
 Growing the board retires the *thematic* claim to a true chessboard, deliberately. Nothing mechanical is lost: **square colour is `(file + rank)` parity**, so the checker pattern survives a rectangular board intact. Nothing keys off colour today — the Knight is damageable on every square — so the pattern is preserved for chess-authenticity alone; see "Board geometry" in the open questions.
 
@@ -33,109 +33,81 @@ Growing the board retires the *thematic* claim to a true chessboard, deliberatel
 
 The deck is a **standard 54-card deck** — ranks 2 through 10, Jack, Queen, King, Ace, and two Jokers. Not bespoke designed cards.
 
-Every card is **modal**. Playing it means choosing one of two uses:
+Every card is committed to exactly one thing when played:
 
-> **Rank builds. Suit supports.**
+> **A hand builds. A face card acts. A Joker clears.**
 
-- Played for its **rank**, a numbered card builds a Tower whose firing geometry and power come from that rank. A face card or an Ace performs its own action instead of building.
-- Played for its **suit**, any standard card applies a support action to a Tower already on the board.
+- Numbered cards (2–10) are **hand material only** — the only way to play one is to commit it to a hand, and hands purchase Towers. A numbered card has no solo build and no other play.
+- Face cards (J, Q, K, A) have exactly two lives: play their **action** at any time, or be **committed to a hand** (gap only). They keep no suit-support play.
+- A Joker is not modal: it has neither rank nor suit, and exactly one action — Clear.
 
-So the 5♦ either builds a rank-5 Tower or speeds up a Tower you already have. The choice happens at play time. A Joker is not modal: it has neither rank nor suit, and exactly one action.
+So the 5♦ is committed to a hand that buys a Tower — alone it is a high card and builds a vertical Tower; with a second 5 it forms a pair and builds a Wall. Which hand a card is committed to is the play-time decision.
 
-**The never-stuck property is no longer complete.** It used to read: because every card can always build, the player can never be stuck holding only support cards with nothing to support. Jack and Queen both need a Tower already standing, so a Deck worn down to only those two with an empty board holds cards that cannot be played.
+**The never-stuck property survives, in a new shape.** Because a single numbered card is always a playable high-card hand, a Deck holding any of 2–10 is never dead. Jack and Queen both need a Tower already standing, so a Deck worn down to only those two with an empty board holds cards that cannot be played.
 
 That is **not a softlock** — rounds still start, standing Towers still fire, and the run continues — but those cards do nothing until a Tower exists. Because copies are unlimited and cards come from random packs, it is reachable rather than theoretical. It is recorded rather than closed: giving Jack and Queen a build fallback would blur "face cards change kind" for a rare case.
 
-Preserve the rest of the property. Ranks 2–10, King, Ace and the Jokers are all playable from an empty board, so a Deck holding any of them is never dead.
+Preserve the rest of the property. King, Ace and the Jokers are all playable from an empty board, so a Deck holding any of them is never dead.
 
-### Suit actions
+### The hand ladder
 
-| Suit | Action on a Tower |
-| --- | --- |
-| ♥ Hearts | **Repair** — restore a Tower to full health |
-| ♦ Diamonds | **Speed** — increase fire rate |
-| ♠ Spades | **Health** — increase current and maximum health together |
-| ♣ Clubs | **Damage** — increase damage |
-
-**A numbered Card supports only a Tower of its own rank.** A 5♥ repairs a rank-5 Tower and nothing else; a 7♥ cannot touch it. This is what makes the ranks in a Deck mean something after build time — without it, rank is inert the moment a Tower exists, and any ♥ sustains any Tower. It is a deckbuilding constraint, not a magnitude one: what a support is worth never depends on which Tower it lands on.
-
-**Face cards are exempt and support any Tower.** A Tower's rank is always 2–10, so strict equality would make J♠, Q♦, K♣ and A♥ unplayable for their suit entirely. The exemption is what keeps a face card worth weighing for its suit as well as for its action, and it gives face suits a job no numbered card has: the support that works anywhere.
-
-**Supports are flat, and nothing scales with rank.** Not the Card's rank, not the Tower's. Every ♠ adds the same health wherever it lands, so a 2♠ on a rank-2 Tower is worth exactly what a 10♠ is on a rank-10 Tower, and a Tower's power grows at a predictable rate however it was built. A face card carries a **flat premium** on top of its reach — the same premium for J, Q, K and A alike, so choosing between them is about which action you would rather give up, never about which is the bigger buff. The numbers live in `src/data/cards.ts`; they are tuning, not design.
-
-**♥ restores to full whatever the rank.** A 2♥ repairs exactly as much as a K♥. This is what keeps ♥ and ♠ distinct now that ♠ heals as well: rank-scaled repair made ♥ strictly worse than a ♠ of the same rank — same healing, and ♠ raised the ceiling on top. A full restore gives each a job the other cannot do. **♥ is the emergency**, the answer to a Tower about to fall, and worth most when the Tower is nearly dead. **♠ is the investment**, worth most on a healthy Tower you intend to keep. Rank no longer trades off against repair value at all: a ♥ reaches exactly one Tower rank, so the question is never how much it heals but whether you hold the rank you need — which is precisely the deckbuilding pressure the rank match exists to create.
-
-**♠ raises current and maximum health together**, as a King does for the Core. It was previously specified as raising the ceiling *only*, which read as a bug in play: the renderer's only signal for damage is `health / maxHealth`, so moving the ceiling alone darkened the Tower exactly as a hit does, and two stacked ♠ could start the critical "about to die" pulse on a Tower that had never been touched. A Tower buffed this way is also no closer to dying than before, so the old signal was not merely ugly but wrong. Changed in response to issue #14.
-
-### Rank ladder
-
-| Rank | Firing geometry | Role | Pieces hit per shot |
+| Hand | Cards | Tower | Shape |
 | --- | --- | --- | --- |
-| **2** | Adjacent — the eight surrounding squares | Point-blank executioner | 1 |
-| **3** | Vertical — along its file | Lane sniper | 1 |
-| **4** | Cross — horizontal and vertical | Crossroads | 1 |
-| **5** | Diagonal — the X | The X, blind spot retained | 1 |
-| **6** | Star — cross and diagonal together | 4 and 5 together | 1 |
-| **7** | None — it never fires | **Wall** — blocks and soaks | 0 |
-| **8** | Ring — a band at distance, hollow at its feet | **Amplifier** | 3 |
-| **9** | Adjacent, tight | **Freezer** | 3 |
-| **10** | Band — the full width of the board, ±1 rank | **Toll gate** | **everything it covers** |
+| High card | 1 | **Vertical** | A single file |
+| Pair | 2 | **Wall** | No gun — blocks and soaks |
+| Two pair | 4 | **Sniper** | Long range, single target, high damage |
+| Three of a kind | 3 | **Diagonal** | Four diagonals |
+| Straight | 5 | **Cross** | Four cardinal lines |
+| Flush | 5 | **Star** | Eight rays, shorter reach |
+| Full house | 5 | **Splash** | Small area burst |
+| Four of a kind | 4 | **Ring** | Hits everything its ring covers |
+| Straight flush | 5 | **Toll gate** | Full-board-width band, unlimited targets |
+| Royal flush | 5 | **Choice** | Builds any of the nine Tower types |
 
-**Power rises with rank, but every rank trades something — and the trade is narrower than "coverage rises, damage falls."** Across the ranks that actually fire, single-target damage per second never rises as rank increases: a rank 2 out-damages a rank 10 against one Piece by six times, permanently, so a low rank can never become landfill — and a rank 10 wins only when there is a crowd. Coverage is not the mirror image of that trade — it is not monotonic with rank at all. Measured peak coverage on an 8x8 board is 8, 7, 14, 13, 24, 0, 39, 24, 23 for ranks 2 through 10: it falls at 2→3, 4→5, 6→7, 8→9 and 9→10, and rank 10 covers fewer squares than rank 6. What is actually pinned is a **per-height ceiling** instead — no rank may exceed 39 squares of coverage on the starting 8x8 board, or 47 once board growth has removed every geometry's rank-clipping (see the table below) — not a rise from rank to rank. This replaced a ladder that scaled coverage, damage, fire rate and target count all at once, which made a single rank-6 Tower carry auto-rounds for 45+ rounds unattended. See [`2026-08-06-tower-role-rebalance-design.md`](../superpowers/specs/2026-08-06-tower-role-rebalance-design.md).
+**Strict poker rarity orders the ladder: a rarer hand always builds a stronger Tower.** Hand type alone determines the Tower — the ranks of the cards inside the hand never modulate it, so the result is identical for any cards forming the same hand type. Two pair (4 cards) sits above three of a kind (3 cards) because poker rarity says so: the ladder is ordered by rarity, not card count. Range, damage, fire interval and Tower health are **placeholder balance values** living in `src/data/towerTypes.ts`; the shapes and the rarity order are the design, the specific numbers are tuning. Range is still not comparable across geometries — it counts squares along the pattern, so `vertical` at range 5 reaches the length of a starting file while `splash`'s `adjacent` at range 1 is the eight surrounding squares.
 
-**Ranks 7, 8 and 9 are utility, not damage.** The Wall has no gun at all; the Amplifier doubles what *other* Towers deal inside its ring and never its own shot; the Freezer slows what it covers — and slows a blocked Piece's *attacks* on the Tower it is grinding, exactly as it slows walking, because a blocked Piece attacks on the same move cadence it would otherwise walk on. The King's move-speed buff and the freeze compose rather than override — 0.7 × 1.5 = 1.05 — so a Piece standing beside a King, while also inside a Freezer's coverage, is barely slowed at all. That protection does not extend to the King itself: a King never buffs itself, so a lone King caught in a Freezer's coverage takes the full 1.5× slow like anything else with no buff to compose against. The King is the Chess faction's answer to the Freezer for what stands beside it, not for itself. Both auras are positional — a Piece is slowed or amplified *while it stands in the coverage*, not for a duration after being hit — so they stack no more than the King's own aura does, and placement is the whole decision.
+**The tower roster is the hand ladder.** Towers are keyed by tower type, not by a Card's rank — the old rank-keyed table (2–10) is retired, and a Tower's `type` is its whole identity. The shapes carry over from the rank ladder where they existed — vertical, diagonal, cross and star are the old 3, 5, 4 and 6 — and the roster fills out the rarity span with new identities:
 
-**Rank 10 is where a horizontal line finally works.** Horizontal was tried at rank 2 and rejected: Pieces travel down a file, so a horizontal line catches each Piece for one move interval and therefore one shot. At rank 10, with unlimited targets, "one toll on every Piece and nothing can go around it" is the identity rather than the flaw. Files never grow — only ranks do — so a band spans the full width for an entire run, while an Ace dilutes its share.
+- The **Wall** has no gun at all — it blocks and soaks, and never shoots. The pair is cheap, and a Wall is the game's bluntest commitment: it buys seconds and nothing else.
+- The **Sniper** is a long single file with high single-target damage and no splash — the rare-hand answer to one strong Piece.
+- The **Splash** bursts over the squares around it, the answer to a Pawn swarm.
+- The **Ring** hits *everything* its ring covers each shot. It replaces the Amplifier, now dealing damage directly — the amplify aura is gone.
+- The **Toll gate** fires a full-board-width band with unlimited targets: one toll on every Piece, and nothing can go around it. Files never grow — only ranks do — so a band spans the full width for an entire run, while an Ace dilutes its share.
 
-**Board growth is not uniformly dilutive — that was measured, not assumed.** `vertical`, `cross`, `diagonal` and `ring` are all bounded by Chebyshev distance along the board-rank axis as well as the file axis, so on the starting 8×8 board each one is **rank-clipped**: a centrally-placed Tower's reach along the ranks runs into the top or bottom edge before its shape is complete. Growing the board removes that clipping, permanently — each of those four geometries reaches a larger absolute footprint once it has the room, and none of them shrink back. Only the rank 10 band was never clipped, because its reach along the files was already the full board width; every Ace dilutes its *share* of the board, never its absolute footprint.
+**Cross replaced the Freezer.** The straight-flush Tower is the cross shape; the Freezer does not exist any more.
 
-How fast each geometry finishes growing differs, measured directly rather than assumed (files fixed at 8; only board ranks vary):
+**Towers are generic, never chess-themed.** Their geometry comes from the hand ladder, not from chess pieces.
 
-| Rank | Geometry | 8 ranks | 9 ranks | 11 ranks | 16 ranks | 24 ranks |
-| --- | --- | --- | --- | --- | --- | --- |
-| 3 | vertical | 7 | 8 | 10 | 10 | 10 |
-| 4 | cross | 14 | 15 | 15 | 15 | 15 |
-| 5 | diagonal | 13 | 14 | 14 | 14 | 14 |
-| 8 | ring | 39 | 47 | 47 | 47 | 47 |
-| 10 | band | 23 | 23 | 23 | 23 | 23 |
+### Playing a hand
 
-`ring`, `cross` and `diagonal` all finish growing at the first Ace (9 board ranks); `vertical`'s range of 5 needs 11 board ranks to fully unclip, so "the first Ace" is not one answer that covers every geometry. The design intent still holds throughout: the worst share the board ever shows is 47 of 71 squares (66.2%) at 9 board ranks — worse than the pre-Ace 8×8's 39 of 63 (61.9%), precisely because the ring only reaches full size once the first Ace removes its clipping — and the share dilutes monotonically past that point, so no Tower ever blankets the board. `src/data/towerRanks.test.ts` pins a per-height ceiling rather than one flat number: 39 squares at board height 8, 47 at height 9 and every height above.
-
-Range, damage, fire interval and Tower health beyond the coverage-versus-damage trade above remain **placeholder balance values** living in `src/data/towerRanks.ts`; the trade is the design, the specific numbers are tuning. Range is still not comparable across geometries — it counts squares along the pattern, so `adjacent` at range 1 is the eight surrounding squares while `vertical` at range 5 reaches the length of a starting file.
-
-Rank 2 was originally **horizontal** and was changed after measuring it. Pieces travel down a file, so a horizontal line caught each Piece for exactly one move interval — one shot, which a Pawn survived: 1 damage against rank 3's 6. Adjacent keeps a Piece covered for three squares of its approach instead, and gives the lowest rank a coherent identity as a short-range blocker with teeth.
-
-Chess movement, added afterwards, sharpened this rather than changing it: a pawn is now *strictly* confined to its file, so a horizontal Tower would have been worse still.
-
-**Ranks 4 and 5 tie on single-target DPS, deliberately.** Shape alone gives no power curve — diagonal is not inherently better than cross — and under the rebalanced ladder neither does damage: the two deal identical damage on identical intervals, so what actually separates them is shape and the diagonal blind spot below, not a damage edge.
-
-Rank 5's geometry stands as identity alone: diagonal is simply the shape left once rank 4 has claimed the cross. Diagonal Towers do have a side effect worth naming — they preserve square colour, since a diagonal Tower on a light square can only ever hit light squares — but nothing in the current design keys off that property; the Knight is damageable on every square, colour included. The property stays true and is available if a future mechanic wants a colour-keyed effect.
-
-**Towers are generic, never chess-themed.** Their geometry comes from card rank, not from chess pieces.
+- **When.** The gap between rounds only — committing a hand is the build phase. Face-card actions and a Joker's Clear remain playable mid-round.
+- **How.** The player selects Cards from the Deck. The game shows the strongest hand the selection forms (five same-suit cards show *flush*; a five-card selection with no five-card pattern is refused). A committed set must be **exactly one valid hand of its size** — no kickers, no downgrades. Exact sizes: high card 1, pair 2, three of a kind 3, two pair 4, four of a kind 4, straight 5, flush 5, full house 5, straight flush 5, royal flush 5.
+- **Placement.** Two-step: the player first commits the hand — the Cards are consumed and a Tower of the hand's type appears, awaiting placement — then clicks a square to place it, checked by the existing legal-square rules. Clicking an illegal square does not place (and does not refund the Cards); the pending Tower stays until a legal square is chosen or the play is cancelled. A royal flush's *Choice* is the one hand where the Tower itself is chosen at commit time.
+- **Cost.** The hand itself — the committed Cards are consumed and no Ink is spent. Playing a hand is never legal mid-round.
 
 ### Face cards, the Ace, and the Jokers
 
 These **act instead of building**, under one governing principle:
 
-> **Suits tune numbers. Face cards change kind.**
+> **Face cards change kind.**
 
-♥ ♦ ♠ ♣ already own the whole stat quartet, and a face card can already be played for its suit — at a premium, onto any Tower — so a face card whose rank mode merely bumped a stat would be a fifth suit.
+A face card's action has to be distinct in kind, not a stat bump — it competes with committing the same card to a hand, so its action must be worth giving that up for. Suit support is gone, and a suit's only job now is forming flushes, straight flushes, and royal flushes.
 
 | Card | Action | Needs a Tower? |
 | --- | --- | --- |
 | **Jack — Shield** | Give a Tower a shield of **10** — flat, additive, absorbed before health, never regenerating | Yes |
-| **Queen — Echo** | Build a copy of an existing Tower's **rank** on a square holding neither a Tower nor a Piece | Yes |
+| **Queen — Range** | Add **+1** to any Tower's **range**. Stackable, any Tower, no rank restriction. **Replaces Echo** | Yes |
 | **King — Reinforce** | Raise Core current **and** maximum health by **1** | No |
 | **Ace — Expand** | Grow the board by one rank, lengthening the run to the Core | No |
 | **Joker — Clear** | Destroy every Piece standing on the board | No |
 
-Each touches a different layer — a Tower's durability, the number of Towers, the Core, the battlefield, the Pieces. None of them duplicates a suit.
+Each touches a different layer — a Tower's durability, a Tower's coverage, the Core, the battlefield, the Pieces. None of them duplicates a suit.
 
-**A shield differs from ♥ Repair in kind, not magnitude:** repair is reactive and can be out-paced, a shield is pre-emptive and cannot. Overflow carries into health, so no single hit is wasted and a shield never blocks more than it is worth.
+**A shield differs from repair in kind, not magnitude:** repair (now retired) was reactive and could be out-paced; a shield is pre-emptive and cannot. Overflow carries into health, so no single hit is wasted and a shield never blocks more than it is worth.
 
-**Echo copies the rank only.** Accumulated ♦ ♠ ♣ supports and any shield do not carry across, or Echo would be the strongest support multiplier in the game rather than a second Tower.
+**A Queen buys coverage, not a second Tower.** Range is stackable and uncapped for now — a Tower's range grows from its instance field, so every Queen stacks onto whatever the type seeded and earlier Queens already added. Whether the stack needs a cap is an open question; it mirrors the other uncapped stacks.
 
-**Reinforce is the only card that touches the Core, and the only Core recovery there is** — nothing else ever adds to it. A leak costs exactly 1 Core health, so a King buys exactly one extra leak. Whether that competes with playing the same King for its suit is a live balance question, not a settled one.
+**Reinforce is the only card that touches the Core, and the only Core recovery there is** — nothing else ever adds to it. A leak costs exactly 1 Core health, so a King buys exactly one extra leak.
 
 **Clear leaves Towers and pending spawns alone.** Towers are permanent and only ever destroyed by Pieces, and a round still spawning continues rather than ending early. Being suitless, Clear is a Joker's only play — and it is the one card that can always break a grind, **including a grind on the far rank by Pieces still standing on the Staging rank**. That reach is a designed exception, not an incidental one: damage cannot reach the Staging rank at all, but Clear is not damage, and sparing those Pieces would disarm the safety valve exactly when it is needed most.
 
@@ -155,7 +127,7 @@ rank added.
 
 ### Cards are consumed, and there is no drawing
 
-**Playing a card consumes it.** It has been converted into a Tower, or spent on a support action. There is no discard pile and nothing returns.
+**Playing a card consumes it.** It has been committed to a hand and converted into a Tower, or spent on an action. There is no discard pile and nothing returns.
 
 **Playing a card costs nothing else.** No mana, no Ink cost. The Deck *is* the resource — the player's total supply of plays for the run, replenished only by packs.
 
@@ -163,7 +135,7 @@ rank added.
 
 These belong together. Towers are permanent and playing costs nothing, so reusable cards would allow unlimited Towers — consumption is what bounds the board. And once cards are consumed, drawing would only hide information about a supply the player must plan against.
 
-Consequence accepted: without a cost, a high card is strictly better than a low one in both modes. The decision becomes "build a new Tower, fix an existing one, or hold this card?" rather than an efficiency puzzle.
+Consequence accepted: a card's value is its **hand potential**, not its individual rank. Committing cards to a hand removes them from future hands, so every play is a decision between building now and holding the cards for a stronger hand — or, for a face card, keeping its action in reserve. There is no efficiency puzzle between "build" and "fix" any more, because nothing fixes a Tower.
 
 ### The Deck
 
@@ -184,7 +156,7 @@ Note the loop this creates: **playing cards frees Deck space.** Culling only bit
 
 **A Card's identity is its own `id`, never its rank and suit.** Playing one of three 5♦ consumes that instance and leaves the other two. Anything that looks a card up, or removes it, by rank and suit is a bug the moment a duplicate exists — which is immediately.
 
-**"Hand" is not a term in this game.** There is no draw pile, so there is only one set of cards: the Deck.
+**"Hand" means a committed poker hand, never a drawn hand.** There is still no draw pile — a Hand is a set of Cards the player selects from the Deck and commits to purchase a Tower, and committing consumes them. The Deck remains the whole supply, always visible.
 
 ## Runs
 
@@ -253,12 +225,13 @@ There are **no real-money purchases**. Ink is earned by playing. This keeps the 
 | Scarce | J, Q, K, Joker |
 | Rarest | A, alone |
 
-2–10 are flat because the rank ladder already separates those nine cards by
-geometry, range and damage; charging scarcity for them as well would
-double-count the same difference. The Ace is alone in the rarest tier because
+2–10 are flat because a numbered card's value comes from the hands it can form,
+not from its individual rank — the hand ladder already does the separating, and
+charging scarcity for the numbers as well would double-count the same
+difference. The Ace is alone in the rarest tier because
 nothing else restrains board growth — see the King and Ace hazards under "The
-card actions". The Joker sits with the face cards rather than below them: it is
-the only answer to a repair-versus-the-wall stall, and making the escape hatch
+card actions". The Joker sits with the face cards rather than below them: its
+Clear is the one card that can always break a grind, and making the escape hatch
 the hardest card to obtain would be a trap.
 
 **Court shifts mass into the scarce tier, and never improves Ace odds** — it is
@@ -272,7 +245,7 @@ Bloons-style rounds:
 - The gap between rounds is **untimed** — the player plans and builds with no pressure.
 - The player starts a round manually, or enables **auto-start** so rounds chain. Auto-start is a setting, not a game mode.
 - Once live, combat runs in **real time** and does not wait for the player.
-- The player can play cards **during** a round. Building is not confined to the gap.
+- **Face-card actions and a Joker's Clear can be played during a round.** Committing a hand is a build-phase action and happens only in the gap — see "Playing a hand". Building is confined to the gap.
 
 Chess pieces move in **discrete hops** on a per-piece cadence, not by sliding continuously. The renderer interpolates between squares so motion reads as smooth, while the hop preserves the chess identity and keeps threat ranges legible.
 
@@ -369,13 +342,13 @@ Every spawn is assigned a tier — **green**, **yellow**, **red**, or **black** 
 
 ## Towers
 
-**Towers are destructible.** They have health, take damage from Pieces, are repaired with ♥ cards, and can be shielded by a Jack. A shield absorbs before health and never regenerates.
+**Towers are destructible.** They have health, take damage from Pieces, and can be shielded by a Jack. A shield absorbs before health and never regenerates. Nothing repairs a Tower — a hand-built Tower's health only ever goes down, which is what makes every grind a countdown.
 
 **Towers are permanent once placed** — they are never removed by the player, only destroyed.
 
 ### Towers block, and blocked Pieces attack
 
-**The universal combat rule.** Any Piece deals **full** damage to a Tower that stands on one of its **attack tiles** — a square the Piece could capture onto by its chess movement (a Pawn's forward diagonals, a Knight's L-squares, a slider's lines, a King's neighbouring squares). The one carve-out is **a Pawn blocked straight ahead**: its forward square is not an attack tile, so that attack stays at half (`BLOCKED_ATTACK_MULTIPLIER`). This is a deliberate buff to every Piece's Tower-killing power, and it interacts with "Repair versus the wall" — Towers fall faster under the roster now.
+**The universal combat rule.** Any Piece deals **full** damage to a Tower that stands on one of its **attack tiles** — a square the Piece could capture onto by its chess movement (a Pawn's forward diagonals, a Knight's L-squares, a slider's lines, a King's neighbouring squares). The one carve-out is **a Pawn blocked straight ahead**: its forward square is not an attack tile, so that attack stays at half (`BLOCKED_ATTACK_MULTIPLIER`). This is a deliberate buff to every Piece's Tower-killing power.
 
 **Towers block movement.** This reverses an earlier decision that they never do. The earlier wording was self-contradictory — it declared Towers non-blocking and then defined them as stopping Pieces in the same breath.
 
@@ -383,31 +356,31 @@ Half damage for the straight-ahead Pawn is what keeps the mechanic working for i
 
 **There is no pathfinding.** A blocked Piece waits and grinds; it never routes around. This is deliberate — routing around would let the player steer Pieces by placing Towers, which is exactly the mazing the design rejects. The player can *wall*, but cannot *herd*. Red is the only tier that *deliberately seeks* attack positions; the other tiers only ever attack a Tower that happens to block them. The combat rule itself is universal; the seeking is red's alone.
 
-Every Piece therefore contributes anti-Tower pressure, so repair reliably has a job.
+Every Piece therefore contributes anti-Tower pressure, which is what makes a Tower's health the currency of every grind.
 
-**A Tower's own geometry decides whether it can defend itself.** A vertical, cross, adjacent, or star Tower covers the square a Piece attacks it from, so it shoots back. A **diagonal** Tower does not — a Piece attacking from directly along its file sits in a blind spot, and rank 5 is the only diagonal on the ladder. That asymmetry is emergent from real geometry, not assigned. Repair has since arrived, which makes it the live case: see "Repair versus the wall" in the open questions.
+**A Tower's own geometry decides whether it can defend itself.** A vertical, cross, adjacent, or star Tower covers the square a Piece attacks it from, so it shoots back. A **diagonal** Tower does not — a Piece attacking from directly along its file sits in a blind spot. That asymmetry is emergent from real geometry, not assigned: a Piece that reaches a diagonal Tower's square grinds it in its blind spot, unanswered.
 
-**A Piece grinding a Tower from the Staging rank is never the exception to that asymmetry — it is the general case.** Damage cannot reach the Staging rank at all, regardless of a Tower's geometry, so a Tower whose coverage would otherwise reach back into the Staging rank still cannot kill the Piece grinding it from there. Three things end that standoff: the Tower falling — the finite in-round ♥ supply bounds it exactly as it does an on-board grind, just without a geometry-driven shortcut ever cutting it short — a **Joker's Clear**, which reaches the Staging rank because it is a board wipe rather than damage (see above), and an **Ace**, which admits the waiting Piece to the board and so ends its immunity outright.
+**A Piece grinding a Tower from the Staging rank is never the exception to that asymmetry — it is the general case.** Damage cannot reach the Staging rank at all, regardless of a Tower's geometry, so a Tower whose coverage would otherwise reach back into the Staging rank still cannot kill the Piece grinding it from there. Three things end that standoff: the Tower falling — a Tower's health only ever decreases, so the grind is always a countdown — a **Joker's Clear**, which reaches the Staging rank because it is a board wipe rather than damage (see above), and an **Ace**, which admits the waiting Piece to the board and so ends its immunity outright.
 
 **A Tower and a Piece never share a square, and both routes onto that state are closed.** A Tower cannot be built on a square a Piece occupies: blocking only means something if the two never overlap, and a build is one route the movement rule does not already guard. The other route was spawning, and it is closed differently — Pieces spawn onto the **Staging rank**, off the board, where no Tower can stand, and enter by moving. Neither route needs a special case at the point of collision, because after both fixes there is no collision to arbitrate.
 
-**Towers occlude each other's fire.** A shot whose line to its target passes through another Tower on a compass ray is blocked — the Tower behind cannot hit what the Tower in front hides, so `selectTargets` retargets to the next-nearest reachable Piece or holds fire. Auras are positional fields, not shots, so they pass through: an Amplifier amplifies every Piece in its ring regardless of what stands between it and them, and a Freezer slows the same way. The coverage overlays follow the same split — firing ranks draw `reachableSquares` (a square the Tower can see but cannot hit is not lit), while the aura ranks draw their full covered zone. The rank-10 toll gate is the one exception to the compass-ray reading: it fires a horizontal beam along every covered rank, so a Piece on any band rank is hidden by a Tower on that same rank standing between the gate and it — wall the gate's full height and nothing behind it is shot.
+**Towers occlude each other's fire.** A shot whose line to its target passes through another Tower on a compass ray is blocked — the Tower behind cannot hit what the Tower in front hides, so `selectTargets` retargets to the next-nearest reachable Piece or holds fire. The coverage overlay follows the same reading — a Tower draws `reachableSquares` (a square the Tower can see but cannot hit is not lit). The toll gate is the one exception to the compass-ray reading: it fires a horizontal beam along every covered rank, so a Piece on any band rank is hidden by a Tower on that same rank standing between the gate and it — wall the gate's full height and nothing behind it is shot.
 
 ### Reading a Tower's coverage
 
-**Selecting a Tower lights every square it covers.** Click a Tower and its footprint appears on the board in **amber**, alongside the inspect panel. Since defense is coverage, a footprint the player cannot see is a decision they cannot make: placement is a one-off, but living with the placement is the rest of the run, and every later question — which file is uncovered, which Tower is worth a ♠, where the next Tower goes — is a question about footprints.
+**Selecting a Tower lights every square it covers.** Click a Tower and its footprint appears on the board in **amber**, alongside the inspect panel. Since defense is coverage, a footprint the player cannot see is a decision they cannot make: placement is a one-off, but living with the placement is the rest of the run, and every later question — which file is uncovered, which Tower is worth a Queen's range, where the next Tower goes — is a question about footprints.
 
 **Selection is the only trigger. Hovering a Tower deliberately shows nothing.** Coverage is reserved for a Tower the player has actually picked, so the footprint is something asked for rather than something the board throws up whenever the pointer crosses a Tower. This is settled, not pending: a proposal to preview coverage on hover is reopening it.
 
-**Amber is a Tower you own; teal is a Card you have not played.** The build preview that follows the pointer while a rank Card is picked keeps teal, and both are shown at once rather than one hiding the other — comparing a proposed footprint against the coverage already on the board is how a gap gets found.
+**Amber is a Tower you own; teal is a hand you have not placed.** The build preview that follows the pointer while a hand's Tower is awaiting placement keeps teal, and both are shown at once rather than one hiding the other — comparing a proposed footprint against the coverage already on the board is how a gap gets found.
 
-**For a Tower with an aura, the same footprint is where the aura applies — as far as the highlight can show.** An aura reaches every Piece its Tower covers, so the lit squares are the rank-8 Amplifier's amplified zone and the rank-9 Freezer's slowed zone. But the highlight only ever lights board squares, so it is not the *whole* footprint: a rank-9 Freezer positioned to reach the Staging rank also slows a Piece still waiting there, a real effect (see "Repair versus the wall", below) that no square lights up for, because nothing renders on the Staging rank to light. Those two ranks are utility roles whose value is the area rather than the shot, which makes seeing the area worth more for them than for anything else on the ladder. **The rank-7 Wall lights nothing**, correctly — it covers nothing, and the panel says "Never fires — it blocks and soaks" rather than quoting it a targets figure.
+**The Wall lights nothing**, correctly — it covers nothing, and the panel says "Never fires — it blocks and soaks" rather than quoting it a targets figure.
 
-**The highlight is coverage, not targeting.** It shows every square the Tower *can* hit, not the Pieces a shot *will* hit — a shot is capped at the rank's targets per shot and picks the Pieces nearest the Core. The panel carries that figure beside range and damage, which is what stops a wide disc at the top of the ladder from over-promising: it can light dozens of squares and reach only a handful of the Pieces on them. The moment of a shot is already shown separately, as a pulse over the same footprint.
+**The highlight is coverage, not targeting.** It shows every square the Tower *can* hit, not the Pieces a shot *will* hit — a shot is capped at the type's targets per shot and picks the Pieces nearest the Core. The panel carries that figure beside range and damage, which is what stops a wide disc at the top of the ladder from over-promising: it can light dozens of squares and reach only a handful of the Pieces on them. The moment of a shot is already shown separately, as a pulse over the same footprint.
 
 ### No walls, no mazing
 
-**There are no wall or blocker cards, and the player never reshapes the path.** Pieces move by their own rules toward the Core and cannot be herded.
+**The player never reshapes the path.** There are no blocker cards and no herding — a Tower, even the Wall, blocks but cannot steer. Pieces move by their own rules toward the Core and cannot be herded.
 
 This is a **coverage** tower defense, not a **maze** one: defense is about which squares you can hit. Do not add path manipulation.
 
@@ -420,9 +393,7 @@ This is a **coverage** tower defense, not a **maze** one: defense is about which
 | **Running out of cards** | Cards are consumed and packs are the only source, so a player can reach zero. Loss, stall, or covered by a guaranteed Ink floor? |
 | **Pack weighting and prices** | **Prices are settled** — base prices and per-type escalation are in `src/data/packs.ts` and `src/game/packs.ts`, and the mechanics are recorded in `2026-08-07-scale-pack-prices-design.md`. The **weights** are still open; they are placeholders in `src/data/packs.ts` because a deal cannot happen without them. Pack **sizes** are settled and are not part of this question. |
 | **Ink income values** | Kill rewards per Piece type, and the round-completion lump sum, are **placeholders**. Ink's worth is set by what it buys, and **pack prices now exist — see "Pack weighting and prices" above — so these can be resolved against them**. The *shapes* are settled and are not open — see "Ink and packs" above for the current three income paths, and [`2026-08-06-ink-income-design.md`](../superpowers/specs/2026-08-06-ink-income-design.md) for the reasoning behind them. One more thing to weigh whenever this pass happens: `tick.ts` feeds a freshly promoted Queen into the same tick's Tower fire, so a Pawn worth 1 Ink shot on the way in is worth 8 if left to reach the back rank and die as a Queen instead — withholding fire from an approaching Pawn is a legible, currently uncosted 8x income play. This can finally be resolved — jointly with pack prices, as this row has always said. |
-| **Repair versus the wall** | **Reachable now — ♥ Repair exists.** Towers block and there is no pathfinding, so a repaired Tower a Piece cannot break is a permanent wall, and against a rank-5 Tower's `diagonal` blind spot the Piece cannot even shoot back. **Packs have landed, and the bound survives — because packs are bought only in the gap.** The ♥ supply is fixed for a round's whole duration, so a repaired Tower still runs out of repairs, the Tower still falls, and the round still resumes. `src/game/roundTermination.test.ts` pins both halves: a purchase is refused mid-round and accepted in the gap. What would remove the bound is allowing mid-round purchase, so **that** is the change this question now gates. Two later changes made each ♥ worth more against the wall without touching that bound: ♥ now restores to **full** rather than by magnitude, so one card can absorb a whole Tower's worth of grinding; and ♠ raises `maxHealth`, so a ♠-fed Tower gives each subsequent ♥ a higher ceiling to fill. The wall is the same length in cards and longer in seconds. A third change tightens it in the other direction: a ♥ now reaches only a Tower of its own rank, so fewer of the ♥ in a Deck can sustain any given wall. The bound was already finite; it is now shorter in cards. Nothing here depends on it being loose. Candidate answers: attacked Towers lose *maximum* health permanently so repair only delays; repair capped per round; or a blocked Piece eventually breaks through regardless. Decide with play experience, not on paper. **Rank 7 is now a Wall with no gun at all, which is the sharpest version of this case — it can never break its own stall by shooting something, the way every firing rank eventually can.** It does not loosen the bound: the ♥ supply is still fixed mid-round because `buyPack` is refused while a round is live, so a Wall still runs out of repairs and falls. This is no longer just reasoning — `roundTermination.test.ts` measures it directly: a rank-7 Wall fed every ♥ in a 4-card Deck falls at 76,500ms against an unaided 40,500ms, and the test asserts both that every ♥ was consumed and that the Wall outlived its unaided lifetime, so it cannot pass if repair silently did nothing. Two things now lengthen a stall without unbounding it: the Wall's health — 45, above every firing rank (the highest of which, rank 10, holds 38), because soaking attacks is its whole job — but still tuned deliberately modest in absolute terms, only around 1.7× rank 6's 26, because Wall health directly sets the worst-case round length and pushing it higher would manufacture the very stall this question is about; and the rank 9 Freezer, which slows *grinding* as well as walking because a blocked Piece attacks on its move cadence. That slow reaches the Staging rank too, the same way a King's buff and a Bishop's heal do: a Freezer positioned on the far rank slows a Piece still queued behind a wall there exactly as it slows one already grinding on the board, so it lengthens that standoff further too — without loosening its bound, since each hop still costs the Tower health and the ♥ supply is still fixed for the round. The question stays open; what changed is that the argument for leaving it open is now backed by a passing test rather than reasoning alone. |
-| **♦ Speed and ♣ Damage on a gunless Tower** | **Reachable now — rank 7 is the Wall.** `canSupport` checks only rank match, so a 7♦ or 7♣ is a legal play against a rank-7 Tower, and `applySupport` dutifully raises its `damage` or lowers its `fireIntervalMs`. `fireTowers` in `src/game/tick.ts` skips a gunless Tower before either field is ever read, so the play changes nothing the Tower can act on. Because a numbered Card supports only a Tower of its own rank, a 7♦ or 7♣ has **no other legal suit target in the game** — those two cards are currently dead weight the moment a rank-7 Wall exists. `TowerPanel` compounds it: it prints a damage figure and a fire interval directly under the label "Never fires — it blocks and soaks," stats the Wall can never use. Should `canSupport` (or `applySupport`) refuse ♦ Speed and ♣ Damage against a gunless Tower, or is spending them there an accepted bad play the player is free to make, the same way any card is free to be wasted? Decide deliberately; do not guess. |
-| **Capping stacked supports** | **Reachable now.** Supports stack additively with no limit, so a Tower fed every ♠ in a Deck grows without bound — and with flat values, *n* supports is exactly *n* × the flat amount, which makes the growth easy to reason about but does not bound it. The rank match narrows how many Cards can reach one Tower, which is a constraint but not a cap. Candidate answers: a hard cap per Tower, diminishing returns per stack, or a cap per round. Deliberately left open by the rank-matching work — do not resolve it by guessing. |
+| **Capping Queen range stacks** | **Reachable now.** A Queen's +1 range stacks additively with no limit, so a Tower fed every Queen in a Deck grows without bound. Candidate answers: a hard cap per Tower, diminishing returns per stack, or a cap per round. Deliberately left open by the Queen range work — do not resolve it by guessing. Mirrors the other uncapped stacks (see the poker-hands spec's open follow-ups). |
 | **Board geometry** | Growable, starting at a literal 8x8 — an Ace adds a rank. Square colour is no longer load-bearing, since the Knight is damageable everywhere, so the checkerboard is preserved for chess-authenticity alone. Whether that argument carries enough weight on its own is undecided. |
 | **Tier tuning numbers** | The tier unlock rounds, mix weights, red reach radius, and black miss chance are all placeholders in `src/data/rounds.ts` and `src/data/tiers.ts`. The shapes are settled; the numbers await play experience. |
 | **Multiplayer scope** | Still assumed single-player versus AI, no backend, no netcode. |

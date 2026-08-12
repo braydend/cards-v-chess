@@ -5,9 +5,9 @@ export const SUITS: readonly Suit[] = ['hearts', 'diamonds', 'spades', 'clubs']
 /**
  * Every rank a Card can carry, in ladder order.
  *
- * The nine buildable ranks then the four that act. `BUILDABLE_RANKS` in
- * `towerRanks.ts` is the 2-10 subset — this is the whole set, which is what a
- * pack draws from.
+ * This is the whole draw set — the rank ladder is gone and numbered ranks no
+ * longer build Towers (hands do), so there is no buildable subset to call out.
+ * Packs draw from this full set.
  */
 export const ALL_CARD_RANKS: readonly CardRank[] = [
   2, 3, 4, 5, 6, 7, 8, 9, 10, 'J', 'Q', 'K', 'A',

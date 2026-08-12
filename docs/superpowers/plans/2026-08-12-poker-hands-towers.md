@@ -1407,6 +1407,7 @@ git commit -m "feat(ui): poker hand selection, Queen range, pending placement"
 
 **Files:**
 - Modify: `docs/design/game-design.md`, `CLAUDE.md`
+- Delete: `src/data/towerRanks.ts` (orphaned dead data — the earlier Phase B/C review deferred its retirement until Phase D/E landed; it has now landed and nothing imports it)
 
 - [ ] **Step 1: `game-design.md`**
 
@@ -1419,10 +1420,18 @@ Rewrite the card-mechanics and tower sections per the spec (dated 2026-08-12): t
 - Add to "Domain vocabulary": **Hand** (a committed set of Cards that purchases a Tower), **Hand type**, update **Support** to "retired", update **Echo** → **Range**.
 - Update the "rank" warning: `cardRank` is gone from Tower; towers carry `type`.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Delete the orphaned `src/data/towerRanks.ts`**
 
 ```bash
-git add docs/design/game-design.md CLAUDE.md
+git rm src/data/towerRanks.ts
+```
+
+Verify nothing imports it: `rg "towerRanks" src/`. Fix the stale comment in `src/data/cards.ts:8-10` that says "nine buildable ranks then the four that act" — the rank ladder is gone. (The `BUILDABLE_RANKS`-era comment there must be updated to match `ALL_CARD_RANKS` being the whole draw set.)
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add -A docs src/data
 git commit -m "docs: poker hands build towers"
 ```
 
