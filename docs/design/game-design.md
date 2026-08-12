@@ -162,7 +162,7 @@ Note the loop this creates: **playing cards frees Deck space.** Culling only bit
 
 The game is **run-based**. A run is a sequence of rounds. The Deck is built up during a run and does not survive it. There is no persistent cross-session collection.
 
-**A run opens by opening a pack.** There is no fixed starter Deck — the opening position is whatever the pack deals, and reading it is the first real decision of the run. The pack is a **Scrap** — three cards, deliberately below the baseline, so a run points the player at the store almost immediately. It is free, and it never counts as a purchase toward that type's escalation.
+**A run opens by opening a pack.** There is no fixed starter Deck — the opening position is whatever the pack deals, and reading it is the first real decision of the run. The pack is a **Base** — ten cards, enough to form real hands immediately. It is free, and it never counts as a purchase toward that type's escalation.
 
 ### Seeds
 
