@@ -1,6 +1,6 @@
 import { roundSpec } from '../data/rounds'
 import { buildTower, clearPieces, echoTower, expandBoard, reinforceCore, shieldTower, supportTower } from './cardPlays'
-import { devAddInk, devGrowBoard, devSetCoreHealth, devSetRound } from './dev'
+import { devAddInk, devGrowBoard, devSetCoreHealth, devSetRound, devSpawnPiece } from './dev'
 import { buyPack } from './packs'
 import type { Command, GameState } from './types'
 
@@ -50,6 +50,8 @@ export function step(state: GameState, command: Command): GameState {
       return devSetRound(state, command.roundNumber)
     case 'devGrowBoard':
       return devGrowBoard(state, command.ranks)
+    case 'devSpawnPiece':
+      return devSpawnPiece(state, command.typeId, command.tier, command.square)
   }
 }
 

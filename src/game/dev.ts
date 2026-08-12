@@ -1,4 +1,8 @@
-import type { GameState } from './types'
+import { pieceType } from '../data/pieceTypes'
+import { tierDef } from '../data/tiers'
+import { isInBounds, squaresEqual, stagingRank } from './board'
+import { spawnHealth } from './spawnScaling'
+import type { GameState, Piece, PieceTier, PieceTypeId, Square } from './types'
 
 /**
  * Developer-mode commands: the engine half of issue #60's testing panel.
@@ -46,4 +50,51 @@ export function devGrowBoard(state: GameState, ranks: number): GameState {
   // Ranks only, mirroring the Ace: files are fixed so spawn-file math in
   // data/rounds.ts stays correct and the staging rank stays out of bounds.
   return { ...state, board: { ...state.board, ranks: state.board.ranks + ranks } }
+}
+
+export function devSpawnPiece(
+  state: GameState,
+  typeId: PieceTypeId,
+  tier: PieceTier,
+  square: Square,
+): GameState {
+  // On the board, or on the Staging rank. Both are refused by a Tower/Piece
+  // occupancy check below, and the Staging rank can never hold a Tower, so the
+  // no-shared-square invariant holds for a dev spawn exactly as for a real one.
+  const onBoard = isInBounds(state.board, square)
+  const onStaging =
+    square.rank === stagingRank(state.board) &&
+    square.file >= 0 &&
+    square.file < state.board.files
+  if (!onBoard && !onStaging) return state
+
+  if (state.towers.some((tower) => squaresEqual(tower.square, square))) return state
+  if (state.pieces.some((piece) => squaresEqual(piece.square, square))) return state
+
+  // Identical to a normal spawn (drainDueSpawns in tick.ts): round-scaled
+  // health and handedness from entity-id parity, so a dev-spawned Piece weaves
+  // exactly like one the round would have produced.
+  const health = spawnHealth(pieceType(typeId).maxHealth, state.roundNumber)
+  const piece: Piece = {
+    id: `piece-${state.nextEntityId}`,
+    typeId,
+    tier,
+    square,
+    prevSquare: square,
+    health,
+    maxHealth: health,
+    moveCooldownMs: 0,
+    moveCount: 0,
+    handedness: state.nextEntityId % 2 === 0 ? 1 : -1,
+    auraCooldownMs: 0,
+    buffed: false,
+    hunting: tierDef(tier).huntsFromSpawn && typeId !== 'pawn',
+    promoted: false,
+  }
+
+  return {
+    ...state,
+    pieces: [...state.pieces, piece],
+    nextEntityId: state.nextEntityId + 1,
+  }
 }

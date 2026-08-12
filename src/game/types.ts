@@ -505,3 +505,9 @@ export type Command =
     }
   | { readonly kind: 'devSetRound'; readonly roundNumber: number }
   | { readonly kind: 'devGrowBoard'; readonly ranks: number }
+  | {
+      readonly kind: 'devSpawnPiece'
+      readonly typeId: PieceTypeId
+      readonly tier: PieceTier
+      readonly square: Square
+    }

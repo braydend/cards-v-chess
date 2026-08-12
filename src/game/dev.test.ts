@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { PIECE_TYPES } from '../data/pieceTypes'
 import { roundSpec } from '../data/rounds'
 import { stagingRank } from './board'
+import { pieceAt, liveRound, withTower } from './fixtures'
 import { createInitialState, step, tick } from './index'
+import { spawnHealth } from './spawnScaling'
 import type { GameState } from './types'
 
 const base = (): GameState => createInitialState('dev-test')
@@ -122,5 +125,122 @@ describe('devGrowBoard', () => {
     const after = step(base(), { kind: 'devGrowBoard', ranks: 1 })
 
     expect(stagingRank(after.board)).toBe(after.board.ranks)
+  })
+})
+
+describe('devSpawnPiece', () => {
+  it('is refused off the board and off the staging rank', () => {
+    const state = base()
+
+    expect(
+      step(state, {
+        kind: 'devSpawnPiece',
+        typeId: 'rook',
+        tier: 'red',
+        square: { file: 0, rank: -1 },
+      }),
+    ).toBe(state)
+    expect(
+      step(state, {
+        kind: 'devSpawnPiece',
+        typeId: 'rook',
+        tier: 'red',
+        square: { file: 0, rank: 9 },
+      }),
+    ).toBe(state)
+    expect(
+      step(state, {
+        kind: 'devSpawnPiece',
+        typeId: 'rook',
+        tier: 'red',
+        square: { file: 8, rank: 0 },
+      }),
+    ).toBe(state)
+  })
+
+  it('is refused onto a Tower, so the no-shared-square invariant holds', () => {
+    const state = withTower(2, { file: 2, rank: 2 }, base())
+
+    expect(
+      step(state, {
+        kind: 'devSpawnPiece',
+        typeId: 'pawn',
+        tier: 'green',
+        square: { file: 2, rank: 2 },
+      }),
+    ).toBe(state)
+  })
+
+  it('is refused onto an occupied square', () => {
+    const state = liveRound(base(), [pieceAt('pawn', 'p0', { file: 1, rank: 1 })])
+
+    expect(
+      step(state, {
+        kind: 'devSpawnPiece',
+        typeId: 'pawn',
+        tier: 'green',
+        square: { file: 1, rank: 1 },
+      }),
+    ).toBe(state)
+  })
+
+  it('spawns a round-scaled Piece with its tier flags', () => {
+    const state = base()
+
+    const after = step(state, {
+      kind: 'devSpawnPiece',
+      typeId: 'rook',
+      tier: 'yellow',
+      square: { file: 0, rank: 4 },
+    })
+
+    const piece = after.pieces[0]
+    expect(piece?.typeId).toBe('rook')
+    expect(piece?.tier).toBe('yellow')
+    expect(piece?.square).toEqual({ file: 0, rank: 4 })
+    expect(piece?.prevSquare).toEqual({ file: 0, rank: 4 })
+    expect(piece?.health).toBe(spawnHealth(PIECE_TYPES.rook.maxHealth, state.roundNumber))
+    expect(piece?.maxHealth).toBe(piece?.health)
+    expect(piece?.hunting).toBe(true)
+    expect(after.nextEntityId).toBe(state.nextEntityId + 1)
+  })
+
+  it('spawns onto the staging rank', () => {
+    const state = base()
+    const square = { file: 3, rank: stagingRank(state.board) }
+
+    const after = step(state, { kind: 'devSpawnPiece', typeId: 'king', tier: 'green', square })
+
+    expect(after.pieces[0]?.square).toEqual(square)
+  })
+
+  it('weaves handedness from entity-id parity', () => {
+    const first = step(base(), {
+      kind: 'devSpawnPiece',
+      typeId: 'pawn',
+      tier: 'green',
+      square: { file: 0, rank: 0 },
+    })
+    const second = step(first, {
+      kind: 'devSpawnPiece',
+      typeId: 'pawn',
+      tier: 'green',
+      square: { file: 1, rank: 0 },
+    })
+
+    expect(second.pieces[0]?.handedness).not.toBe(second.pieces[1]?.handedness)
+  })
+
+  it('does not touch the rng streams', () => {
+    const state = base()
+
+    const after = step(state, {
+      kind: 'devSpawnPiece',
+      typeId: 'pawn',
+      tier: 'green',
+      square: { file: 0, rank: 0 },
+    })
+
+    expect(after.rng).toBe(state.rng)
   })
 })
