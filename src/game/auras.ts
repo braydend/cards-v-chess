@@ -112,9 +112,9 @@ export function applyHealing(pieces: readonly Piece[], dtMs: number): Piece[] {
 
     return {
       ...piece,
-      // The cap is the Piece's own spawn-scaled max, not the authored stat —
-      // a round-5+ Piece arrives above the authored value, and healing it back
-      // to the authored value would silently strip the round's added bulk.
+      // The cap is the Piece's own maxHealth — what it spawned with — so a
+      // heal restores to what the Piece actually had, rather than re-reading
+      // the authored stat, which every Piece spawns at.
       health: Math.min(piece.maxHealth, piece.health + amount),
     }
   })
