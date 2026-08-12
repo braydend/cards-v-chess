@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CORE_SQUARE } from '../data/board'
 import { PIECE_TYPES } from '../data/pieceTypes'
+import { VICTORY_ROUND } from '../data/rounds'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { BISHOP_HEAL_INTERVAL_MS, KING_SPEED_MULTIPLIER } from './auras'
 import { liveRound, pawnAt, withTower } from './fixtures'
@@ -241,6 +242,40 @@ describe('tick: round completion', () => {
     const second = step(runFor(first, 60_000), { kind: 'startRound' })
 
     expect(second.pendingSpawns.length).toBeGreaterThan(first.pendingSpawns.length)
+  })
+
+  it('lands on the victory phase when round 100 completes, and pays its income', () => {
+    const hundredth: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      roundNumber: VICTORY_ROUND,
+      pieces: [pieceAt('victory-knight', 'knight', { file: 5, rank: 0 })],
+    }
+
+    const state = runFor(hundredth, 60_000)
+
+    expect(state.phase).toBe('victory')
+    expect(state.won).toBe(true)
+    expect(state.roundNumber).toBe(VICTORY_ROUND)
+    expect(state.pieces).toHaveLength(0)
+    expect(state.pendingSpawns).toHaveLength(0)
+    expect(state.roundElapsedMs).toBe(0)
+    expect(state.ink).toBe(roundIncome(VICTORY_ROUND))
+  })
+
+  it('completes round 99 into a normal gap at round 100, without the win', () => {
+    const ninetyNinth: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      roundNumber: VICTORY_ROUND - 1,
+      pieces: [pieceAt('last-knight', 'knight', { file: 5, rank: 0 })],
+    }
+
+    const state = runFor(ninetyNinth, 60_000)
+
+    expect(state.phase).toBe('gap')
+    expect(state.roundNumber).toBe(VICTORY_ROUND)
+    expect(state.won).toBe(false)
   })
 })
 
