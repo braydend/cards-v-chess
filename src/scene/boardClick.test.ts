@@ -15,6 +15,7 @@ function towerAt(id: string, square: Square, cardRank: BuildableRank = 3): Tower
     shield: 0,
     damageTaken: 0,
     shotsFired: 0,
+    kills: 0,
   }
 }
 

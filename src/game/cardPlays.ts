@@ -35,6 +35,7 @@ function newTower(id: string, square: Square, cardRank: BuildableRank): Tower {
     shield: 0,
     damageTaken: 0,
     shotsFired: 0,
+    kills: 0,
   }
 }
 

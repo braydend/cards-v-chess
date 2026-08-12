@@ -117,6 +117,12 @@ describe('tower firing', () => {
     expect(after.phase).toBe('gap')
     expect(after.roundNumber).toBe(state.roundNumber + 1)
   })
+
+  it('seeds a fresh Tower with zero kills', () => {
+    const state = withTower(2, { file: 3, rank: 3 })
+
+    expect(firstTower(state).kills).toBe(0)
+  })
 })
 
 describe('the Wall (rank 7)', () => {

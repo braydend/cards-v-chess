@@ -15,6 +15,7 @@ function tower(overrides: Partial<Tower> = {}): Tower {
     shield: 0,
     damageTaken: 0,
     shotsFired: 0,
+    kills: 0,
     ...overrides,
   }
 }
