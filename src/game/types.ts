@@ -294,6 +294,20 @@ export interface Tower {
    * per-tick class the key exists to exclude.
    */
   readonly shotsFired: number
+  /**
+   * Lifetime count of Pieces whose finishing blow this Tower dealt.
+   *
+   * Monotonic and never reset within a run. Incremented in `fireTowers`
+   * (`src/game/tick.ts`) when this Tower's damage takes a Piece's health to
+   * zero or below — the finishing blow, even when another Tower did most of
+   * the work. A Joker's Clear destroys Pieces but is a board wipe by the
+   * Joker, never a Tower's shot, so it credits no Tower.
+   *
+   * Kept out of `structuralKey` on purpose: a kill removes the dead Piece
+   * from the keyed `pieces` string, so the panel already publishes on every
+   * kill — keying the counter would add no publishes and just bloat the key.
+   */
+  readonly kills: number
 }
 
 /**

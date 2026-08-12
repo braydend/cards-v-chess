@@ -87,4 +87,13 @@ describe('the black miss', () => {
       runFor(underFire('black'), WINDOW_MS).recentMisses,
     )
   })
+
+  it('a miss acquires nothing, so it never credits a kill', () => {
+    // The window never lets the Rook die — 6 shots at 2 damage = 12, under its
+    // 14 health even if every shot landed — so kills must stay 0 throughout.
+    const black = runFor(underFire('black'), WINDOW_MS)
+
+    expect(black.recentMisses.length).toBeGreaterThan(0)
+    expect(firstTower(black).kills).toBe(0)
+  })
 })

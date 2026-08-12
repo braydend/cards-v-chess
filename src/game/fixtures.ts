@@ -83,6 +83,7 @@ export function towersAt(...squares: Square[]): Map<string, Tower> {
         shield: 0,
         damageTaken: 0,
         shotsFired: 0,
+        kills: 0,
       },
     ]),
   )

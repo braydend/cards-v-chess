@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { TOWER_RANKS } from '../data/towerRanks'
 import { firstTower, liveRound, pawnAt, pieceAt, withTower } from './fixtures'
-import { tick } from './index'
+import { step, tick } from './index'
 import type { BuildableRank, GameState, Square } from './types'
 
 const DT = 1000 / 60
@@ -116,6 +116,80 @@ describe('tower firing', () => {
 
     expect(after.phase).toBe('gap')
     expect(after.roundNumber).toBe(state.roundNumber + 1)
+  })
+
+  it('seeds a fresh Tower with zero kills', () => {
+    const state = withTower(2, { file: 3, rank: 3 })
+
+    expect(firstTower(state).kills).toBe(0)
+  })
+
+  it('credits the finishing blow, not every Tower that damaged the Piece', () => {
+    // Two rank-2 Towers both in range of one Piece. Both fire in the same tick;
+    // the first-listed Tower's shot lands first. Health 5: A deals 3 -> 2,
+    // B deals 3 -> -1, so B is the finisher despite A doing half the work.
+    const piece = { ...pieceAt('rook', 'victim', { file: 3, rank: 4 }), health: 5 }
+    const withA = withTower(2, { file: 3, rank: 3 })
+    const state = liveRound(withTower(2, { file: 4, rank: 3 }, withA), [piece])
+
+    const after = runFor(state, TOWER_RANKS[2].fireIntervalMs + DT)
+
+    const [a, b] = after.towers
+    expect(a?.kills).toBe(0)
+    expect(b?.kills).toBe(1)
+  })
+
+  it('counts one kill for an overkill shot', () => {
+    // Rank 2 deals 3; a 1-health Piece proves excess damage still counts once.
+    const piece = { ...pieceAt('pawn', 'victim', { file: 4, rank: 4 }), health: 1 }
+    const state = liveRound(withTower(2, { file: 3, rank: 3 }), [piece])
+
+    const after = runFor(state, TOWER_RANKS[2].fireIntervalMs + DT)
+
+    expect(after.pieces).toHaveLength(0)
+    expect(firstTower(after).kills).toBe(1)
+  })
+
+  it('never credits the Wall, which has no gun', () => {
+    const state = liveRound(withTower(7, { file: 3, rank: 2 }), [
+      pieceAt('pawn', 'victim', { file: 3, rank: 5 }),
+    ])
+
+    const after = runFor(state, 2000)
+
+    expect(firstTower(after).kills).toBe(0)
+  })
+
+  it("a Joker's Clear credits no Tower", () => {
+    const state = liveRound(withTower(2, { file: 3, rank: 3 }), [
+      pieceAt('pawn', 'victim', { file: 4, rank: 4 }),
+    ])
+    const withJoker = {
+      ...state,
+      deck: [...state.deck, { id: 'joker', kind: 'joker' as const }],
+    }
+
+    const cleared = step(withJoker, { kind: 'clearPieces', cardId: 'joker' })
+
+    expect(cleared.pieces).toHaveLength(0)
+    expect(firstTower(cleared).kills).toBe(0)
+  })
+
+  it('is lifetime across rounds, never reset', () => {
+    const round1 = liveRound(withTower(2, { file: 3, rank: 3 }), [
+      pieceAt('pawn', 'victim-1', { file: 4, rank: 4 }),
+    ])
+    const after1 = runFor(round1, TOWER_RANKS[2].fireIntervalMs + DT)
+
+    expect(after1.phase).toBe('gap')
+    expect(firstTower(after1).kills).toBe(1)
+
+    const round2 = liveRound(step(after1, { kind: 'startRound' }), [
+      pieceAt('pawn', 'victim-2', { file: 4, rank: 4 }),
+    ])
+    const after2 = runFor(round2, TOWER_RANKS[2].fireIntervalMs + DT)
+
+    expect(firstTower(after2).kills).toBe(2)
   })
 })
 

@@ -359,6 +359,10 @@ function fireTowers(
   // Damage accumulates here so that several Towers can share a target within a
   // single tick without one of them shooting a Piece that is already dead.
   const remainingHealth = new Map(pieces.map((piece) => [piece.id, piece.health]))
+  // Which Tower dealt the finishing blow to which Piece. A Piece dies at most
+  // once per tick — `selectTargets` skips anything already at <= 0 health — so
+  // each entry is a distinct kill, and iteration order makes the owner exact.
+  const killers = new Map<string, string>()
   const nextTowers: Tower[] = []
   let combatRng = combat
   const missed: string[] = []
@@ -431,14 +435,15 @@ function fireTowers(
 
       for (const target of acquired) {
         const multiplier = amplificationFor(tower.id, target.id, amplifiers)
-        remainingHealth.set(
-          target.id,
-          (remainingHealth.get(target.id) ?? 0) - tower.damage * multiplier,
-        )
+        const before = remainingHealth.get(target.id) ?? target.health
+        const after = before - tower.damage * multiplier
+        remainingHealth.set(target.id, after)
+        if (before > 0 && after <= 0) killers.set(target.id, tower.id)
       }
     }
 
-    nextTowers.push({ ...tower, fireCooldownMs: cooldown, shotsFired })
+    const kills = tower.kills + [...killers.values()].filter((id) => id === tower.id).length
+    nextTowers.push({ ...tower, fireCooldownMs: cooldown, shotsFired, kills })
   }
 
   // Partitioned in a single pass rather than filtered twice. The dead are the
