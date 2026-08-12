@@ -50,6 +50,49 @@ canvas {
   color: #e8edf4;
 }
 
+/* The announcement banner: one large centered line that flashes in, holds,
+   and fades out over ~4s. It fills the viewport so the flex centering is
+   against the window, and stays pointer-transparent — it must never block
+   the board during a hard round. */
+.banner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
+  white-space: nowrap;
+  font-size: clamp(1.6rem, 5vw, 3.5rem);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #f5e9c8;
+  text-shadow:
+    0 0 1.2rem rgb(245 233 200 / 55%),
+    0 0.2rem 0.6rem rgb(0 0 0 / 80%);
+  animation: banner-flash 4s ease forwards;
+}
+
+@keyframes banner-flash {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  10% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  75% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
 /* Auto-fit rather than a fixed two columns: the Deck widens the panel, and the
    stats should fill that width instead of stretching two columns across it. */
 .hud__stats {
