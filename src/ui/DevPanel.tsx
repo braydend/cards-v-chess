@@ -47,6 +47,10 @@ export function DevPanel() {
   useEffect(() => {
     if (!import.meta.env.DEV) return
     const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        useUiStore.getState().setDevPanelOpen(false)
+        return
+      }
       if (event.key !== '`') return
       event.preventDefault()
       useUiStore.getState().setDevPanelOpen(!useUiStore.getState().devPanelOpen)
