@@ -201,7 +201,7 @@ import { devAddInk, devSetCoreHealth } from './dev'
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `pnpm test:run -- src/game/dev.test.ts`
-Expected: PASS (9 tests).
+Expected: PASS (8 tests).
 
 - [ ] **Step 5: Verify typecheck and lint**
 
@@ -347,7 +347,7 @@ import { devAddInk, devGrowBoard, devSetCoreHealth, devSetRound } from './dev'
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `pnpm test:run -- src/game/dev.test.ts`
-Expected: PASS (17 tests).
+Expected: PASS (15 tests).
 
 - [ ] **Step 5: Verify typecheck and lint**
 
@@ -522,7 +522,7 @@ Expected: FAIL — `step` returns `undefined` for the new kind.
 
 - [ ] **Step 3: Implement the function and wire the case**
 
-In `src/game/dev.ts`, extend the imports:
+In `src/game/dev.ts`, extend the imports (replacing the `import type { GameState } from './types'` added in Task 1):
 
 ```ts
 import { pieceType } from '../data/pieceTypes'
@@ -597,7 +597,7 @@ import { devAddInk, devGrowBoard, devSetCoreHealth, devSetRound, devSpawnPiece }
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `pnpm test:run -- src/game/dev.test.ts`
-Expected: PASS (24 tests).
+Expected: PASS (22 tests).
 
 - [ ] **Step 5: Verify typecheck and lint**
 
@@ -637,10 +637,10 @@ In `src/game/types.ts`, inside the `Command` union, add:
 Append to `src/game/dev.test.ts`:
 
 ```ts
-import { firstTowerId, withTower } from './fixtures'
+import { firstTowerId } from './fixtures'
 ```
 
-(The `pieceAt` / `liveRound` imports already exist from Task 3.)
+(`pieceAt` / `liveRound` / `withTower` imports already exist from Task 3.)
 
 ```ts
 describe('devRemoveTower', () => {
@@ -761,7 +761,7 @@ import {
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `pnpm test:run -- src/game/dev.test.ts`
-Expected: PASS (31 tests).
+Expected: PASS (29 tests).
 
 - [ ] **Step 5: Verify typecheck and lint**
 
@@ -884,10 +884,10 @@ Expected: FAIL — `step` returns `undefined` for the new kind.
 
 - [ ] **Step 3: Implement the function and wire the case**
 
-In `src/game/dev.ts`, extend the imports and add:
+In `src/game/dev.ts`, replace the type import from Task 3 with one that adds the Card types:
 
 ```ts
-import type { Card, CardRank, GameState, Suit } from './types'
+import type { Card, CardRank, GameState, Piece, PieceTier, PieceTypeId, Square, Suit } from './types'
 ```
 
 ```ts
@@ -934,7 +934,7 @@ In `src/game/step.ts`, extend the import and add the case:
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `pnpm test:run -- src/game/dev.test.ts`
-Expected: PASS (38 tests).
+Expected: PASS (36 tests).
 
 - [ ] **Step 5: Verify typecheck and lint**
 
