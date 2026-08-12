@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { BUFF_RING_COLOUR } from './pieceColours'
-import { RANK_COLOURS } from './rankColours'
+import { TOWER_COLOURS } from './rankColours'
 import { TIER_COLOURS } from './tierColours'
 
 describe('tier colours', () => {
@@ -9,10 +9,10 @@ describe('tier colours', () => {
     expect(new Set(Object.values(TIER_COLOURS)).size).toBe(4)
   })
 
-  it('never collide with a Tower rank colour, so the factions stay readable apart', () => {
-    const rankValues = Object.values(RANK_COLOURS)
+  it('never collide with a Tower type colour, so the factions stay readable apart', () => {
+    const typeValues = Object.values(TOWER_COLOURS)
     for (const [tier, colour] of Object.entries(TIER_COLOURS)) {
-      expect(rankValues, `${tier}'s colour ${colour} collides with a rank colour`).not.toContain(colour)
+      expect(typeValues, `${tier}'s colour ${colour} collides with a type colour`).not.toContain(colour)
     }
   })
 

@@ -1,6 +1,6 @@
 import { Color } from 'three'
 import { describe, expect, it } from 'vitest'
-import { RANK_COLOURS } from './rankColours'
+import { TOWER_COLOURS } from './rankColours'
 import { towerColour } from './towerColour'
 
 const scratch = new Color()
@@ -10,17 +10,16 @@ function brightness(
   healthFraction: number,
   flashProgress = 0,
   criticalPhase = 0,
-  dimmed = false,
 ): number {
-  const colour = towerColour(scratch, 4, healthFraction, flashProgress, criticalPhase, dimmed)
+  const colour = towerColour(scratch, 'vertical', healthFraction, flashProgress, criticalPhase)
   return colour.r + colour.g + colour.b
 }
 
 describe('towerColour', () => {
-  it('is exactly the rank colour at full health', () => {
-    const result = towerColour(scratch, 4, 1, 0, 0)
+  it('is exactly the type colour at full health', () => {
+    const result = towerColour(scratch, 'vertical', 1, 0, 0)
 
-    expect(result.getHexString()).toBe(new Color(RANK_COLOURS[4]).getHexString())
+    expect(result.getHexString()).toBe(new Color(TOWER_COLOURS.vertical).getHexString())
   })
 
   it('darkens as health drops', () => {
@@ -50,26 +49,6 @@ describe('towerColour', () => {
   })
 
   it('mutates the colour it is given instead of allocating', () => {
-    expect(towerColour(scratch, 2, 0.5, 0, 0)).toBe(scratch)
-  })
-
-  it('fades a Tower the picked support Card cannot reach', () => {
-    expect(brightness(1, 0, 0, true)).toBeLessThan(brightness(1))
-  })
-
-  it('keeps the fade visible through a hit flash', () => {
-    // The fade is applied last for exactly this reason: a Tower being hit while
-    // out of reach must still read as out of reach, or the flash says "you can
-    // play here" at the worst possible moment.
-    expect(brightness(1, 1, 0, true)).toBeLessThan(brightness(1, 1))
-  })
-
-  it('is undimmed by default, so nothing changes when no support Card is picked', () => {
-    // `scratch` is mutated in place, so the first result must be captured as a
-    // string before the second call overwrites it.
-    const withoutArg = towerColour(scratch, 4, 1, 0, 0).getHexString()
-    const withExplicitFalse = towerColour(scratch, 4, 1, 0, 0, false).getHexString()
-
-    expect(withoutArg).toBe(withExplicitFalse)
+    expect(towerColour(scratch, 'vertical', 0.5, 0, 0)).toBe(scratch)
   })
 })

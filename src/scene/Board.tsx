@@ -116,9 +116,6 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
         const {
           selectedCardId,
           setSelectedCardId,
-          playMode,
-          echoSourceTowerId,
-          setEchoSourceTowerId,
           selectedTowerId,
           setSelectedTowerId,
           previewedSquare,
@@ -138,8 +135,7 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
           towers: state.towers,
           selectedTowerId,
           card: selectedCardId === null ? null : (findCard(state.deck, selectedCardId) ?? null),
-          playMode,
-          echoSourceTowerId,
+          pendingTower: state.pendingTower,
           pointer: coarse ? 'coarse' : 'fine',
           previewedSquare,
         })
@@ -154,11 +150,6 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
           return
         }
 
-        if (action.kind === 'pickEchoSource') {
-          setEchoSourceTowerId(action.towerId)
-          return
-        }
-
         // On touch the first tap commits the square for preview rather than
         // playing. The next tap on the same square falls through to the play
         // branches below — `resolveBoardAction` gates the preview on a
@@ -169,12 +160,10 @@ function PlacementSurface({ board }: { board: BoardSpec }) {
         }
 
         // `dispatch` reports whether the play actually landed. A refusal (an
-        // occupied square, the Core square, an Echo source Tower that died
-        // between the two clicks, ...) must not clear the selection — the
-        // Card was not consumed, so the player should not have to re-pick it.
+        // occupied square, the Core square, ...) must not clear the selection —
+        // the Card was not consumed, so the player should not have to re-pick it.
         if (!dispatch(action.command)) return
 
-        if (action.command.kind === 'echoTower') setEchoSourceTowerId(null)
         setSelectedCardId(null)
         setPreviewedSquare(null)
       }}

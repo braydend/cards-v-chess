@@ -1,13 +1,12 @@
-import { towerRank } from '../data/towerRanks'
+import { towerType } from '../data/towerTypes'
 import {
-  coveredSquares,
   reachableSquares,
   squareKey,
   squaresEqual,
   type BoardSpec,
-  type BuildableRank,
   type Square,
   type Tower,
+  type TowerTypeId,
 } from '../game'
 
 /**
@@ -24,7 +23,7 @@ import {
  * published snapshot carries a fresh `towers` array on every tick that moves a
  * cooldown, so a memo keyed on the array itself would recompute up to a hundred
  * squares every time any Piece hopped or any Tower was hit. `coverageSelection`
- * reduces the selection to the three scalars that actually shape a footprint;
+ * reduces the selection to the four scalars that actually shape a footprint;
  * `selectedFootprint` turns those into squares. The scalars are the memo's
  * dependencies, which is why they are scalars.
  */
@@ -34,15 +33,21 @@ import {
  *
  * `file` and `boardRank` rather than a `Square` because a fresh `Square` object
  * on every render would defeat the memo this type exists to serve. The name
- * `boardRank` keeps it apart from `cardRank` — CLAUDE.md's warning about the two
- * meanings of "rank" applies with force in a type that carries both.
+ * `boardRank` keeps it apart from a card's rank — CLAUDE.md's warning about the
+ * two meanings of "rank" applies with force in a type that also carries a
+ * Tower's `type`.
+ *
+ * `type` picks the geometry from the tower table; `range` is the live instance
+ * field, not the table's, because a Queen's action moves it. Both come from the
+ * Tower object, read in `coverageSelection`.
  *
  * Deliberately does **not** carry health, shield or damage. Those change
  * constantly and none of them moves a covered square, so leaving them out is
  * what makes a hit cost the overlay nothing.
  */
 export interface CoverageSelection {
-  readonly cardRank: BuildableRank
+  readonly type: TowerTypeId
+  readonly range: number
   readonly file: number
   readonly boardRank: number
 }
@@ -90,27 +95,27 @@ export function squaresListsEqual(a: readonly Square[], b: readonly Square[]): b
 }
 
 /**
- * The squares an overlay should draw for a Tower of this rank from `from`,
- * given the standing layout.
+ * The squares an overlay should draw for a Tower of this type with this range
+ * from `from`, given the standing layout.
  *
- * The overlay's contract differs by role. A firing rank's value is the shot,
- * so it draws `reachableSquares` — a square the Tower can see but cannot hit
- * (another Tower strictly between) is not lit. An aura rank's value is the
- * field: rank 8's amplified zone and rank 9's slowed zone apply to the full
- * covered area and are never occluded, so those draw `coveredSquares`
- * instead. One function so the amber footprint and the teal preview cannot
- * disagree, either with each other or with the rank's role.
+ * One role, so one answer: every Tower's value is its shot, so every overlay
+ * draws `reachableSquares` — a square the Tower can see but cannot hit (another
+ * Tower strictly between) is not lit. Auras are gone, and the old split between
+ * a shot-zone footprint and an aura-field footprint is gone with them. One
+ * function so the amber footprint and the teal preview cannot disagree, either
+ * with each other or with the type's role.
+ *
+ * Geometry comes from `towerType(type)`; range is passed in, never read from
+ * the table, because a Queen's action moves it onto the instance.
  */
 export function overlaySquares(
   board: BoardSpec,
-  cardRank: BuildableRank,
+  type: TowerTypeId,
+  range: number,
   from: Square,
   blockers: readonly Square[],
 ): Square[] {
-  const { geometry, range, aura } = towerRank(cardRank)
-  return aura
-    ? coveredSquares(board, geometry, range, from)
-    : reachableSquares(board, geometry, range, from, blockers)
+  return reachableSquares(board, towerType(type).geometry, range, from, blockers)
 }
 
 export interface TowerFootprint {
@@ -138,50 +143,50 @@ export function coverageSelection(
   const tower = towers.find((candidate) => candidate.id === selectedTowerId)
   if (!tower) return null
 
-  return { cardRank: tower.cardRank, file: tower.square.file, boardRank: tower.square.rank }
+  return { type: tower.type, range: tower.range, file: tower.square.file, boardRank: tower.square.rank }
 }
 
 /**
  * Every square the selected Tower covers, or null when nothing is selected.
  *
- * Geometry and range come from `towerRank(cardRank)`, never from fields on the
- * Tower. `Tower` carries `damage` and `fireIntervalMs` as instance values
- * because ♣ and ♦ supports mutate them; geometry and range are not on the
- * instance and nothing mutates them, so `fireTowers` in `src/game/tick.ts` looks
- * them up from the ladder on every shot and so does this. If a support ever
- * moves range onto the instance, that function and this one change together.
+ * Geometry comes from `towerType(type)`; range is a live instance field, read
+ * off the Tower in `coverageSelection` and passed in here — a Queen's action
+ * moves it, so the table's value is a baseline, never the answer. That is the
+ * same source `fireTowers` reads on every shot; see `overlaySquares` for how
+ * the two agree.
  *
  * The squares come from `overlaySquares`, the one place that decides what an
- * overlay draws per rank. Firing ranks get the engine's `reachableSquares`,
+ * overlay draws per type. Every type gets the engine's `reachableSquares`,
  * which is the list form of `coversSquare` + `isOccluded` — the exact answer
  * `fireTowers` gets before it shoots. That is the whole point of the overlay:
  * the highlight the player reads and the shot the Tower takes cannot disagree,
  * because there is one answer and both ask for it. A blocked square is a square
- * the Tower can see but cannot hit, so it is not lit. Aura ranks draw
- * `coveredSquares` instead — see `overlaySquares` for why.
+ * the Tower can see but cannot hit, so it is not lit.
  *
- * Takes the three fields positionally, each admitting `undefined`, rather than a
+ * Takes the four fields positionally, each admitting `undefined`, rather than a
  * `Partial<CoverageSelection>`. The component reads them off a possibly-null
  * `CoverageSelection` with `?.` so it can feed them to a memo one at a time, so
  * `undefined` is genuinely reachable and means the same as no selection: draw
  * nothing. Deciding that here rather than in the component is what keeps it
  * testable. `Partial` would say the same thing far more weakly — every field
- * optional means a caller that forgets one still compiles, and if a fourth
- * footprint-shaping field is ever added (a support that moves range onto the
- * Tower instance is the live candidate) every call site would silently pass
+ * optional means a caller that forgets one still compiles, and if a fifth
+ * footprint-shaping field is ever added every call site would silently pass
  * `undefined` for it while `exhaustive-deps` still read as satisfied. Positional
  * parameters make that a compile error at every call site instead.
  */
 export function selectedFootprint(
   board: BoardSpec,
-  cardRank: BuildableRank | undefined,
+  type: TowerTypeId | undefined,
+  range: number | undefined,
   file: number | undefined,
   boardRank: number | undefined,
   blockers: readonly Square[],
 ): TowerFootprint | null {
-  if (cardRank === undefined || file === undefined || boardRank === undefined) return null
+  if (type === undefined || range === undefined || file === undefined || boardRank === undefined) {
+    return null
+  }
 
   const origin: Square = { file, rank: boardRank }
 
-  return { origin, covered: overlaySquares(board, cardRank, origin, blockers) }
+  return { origin, covered: overlaySquares(board, type, range, origin, blockers) }
 }

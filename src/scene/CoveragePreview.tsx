@@ -1,13 +1,7 @@
 import { Instance, Instances } from '@react-three/drei'
 import { useMemo } from 'react'
-import {
-  canBuildOn,
-  findCard,
-  isBuildableRank,
-  isInBounds,
-  squareKey,
-  type BoardSpec,
-} from '../game'
+import { towerType } from '../data/towerTypes'
+import { canBuildOn, isInBounds, squareKey, type BoardSpec } from '../game'
 import { blockerSquares, overlaySquares, squaresListsEqual } from './towerFootprint'
 import { useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
@@ -29,23 +23,22 @@ const ILLEGAL = '#f56565'
  * `TowerCoverage`'s both report exactly `(0, 0, 0)`. `TowerCoverage.tsx` carries
  * the full reasoning and the ladder.
  *
- * Teal above amber is the design decision: a Card being considered draws over a
- * Tower already standing. The marker is above both because it is a refusal, and
- * a warning that something else can paint over is not a warning.
+ * Teal above amber is the design decision: the Tower about to be placed draws
+ * over one already standing. The marker is above both because it is a refusal,
+ * and a warning that something else can paint over is not a warning.
  */
 const COVERED_RENDER_ORDER = 2
 const ILLEGAL_RENDER_ORDER = 3
 
 /**
- * Highlights the squares the selected Card would cover from the hovered square.
+ * Highlights the squares the pending hand tower would cover from the hovered
+ * square.
  *
- * This exists to make the rank ladder judgeable. Whether a horizontal-only
- * Tower is useful or nearly useless on the board with Pieces converging on
- * the Core is a question you can only answer by seeing the footprint.
- *
- * Only the build mode previews. Played for its suit the same Card supports an
- * existing Tower and builds nothing, so a footprint would promise a Tower the
- * click will not place.
+ * A played hand hands the board a `pendingTower` — the tower about to be
+ * placed by the next click — and this previews its footprint before that click
+ * lands, so the hand ladder is judgeable. Whether a horizontal-only tower is
+ * useful or nearly useless on the board with Pieces converging on the Core is
+ * a question you can only answer by seeing the footprint.
  *
  * It also marks the hovered square itself red when a build there would be
  * refused — a Piece's square, the Core's square, or a square already holding
@@ -59,15 +52,13 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
   // square to `previewedSquare`, and the preview renders against that. On a
   // fine pointer the live hover drives it as before.
   const activeSquare = coarse ? previewedSquare : hoveredSquare
-  const selectedCardId = useUiStore((store) => store.selectedCardId)
-  const playMode = useUiStore((store) => store.playMode)
   // Board.tsx mounts this unconditionally, so this subscription is live
-  // whenever the board is — not only while a build Card is picked. What *is*
-  // bounded to that window is the drawing below (a handful of planes), and the
-  // cost this selector avoids: reading only the Deck rather than the whole
+  // whenever the board is — not only while a hand is pending. What *is* bounded
+  // to that window is the drawing below (a handful of planes), and the cost
+  // this selector avoids: reading only the pending type rather than the whole
   // snapshot means a Piece hop, which changes the snapshot on every hop, does
   // not touch this value and so cannot force a recompute of the footprint.
-  const deck = useGameStore((store) => store.snapshot.deck)
+  const pendingType = useGameStore((store) => store.snapshot.pendingTower)
   // Identity-stable blocker squares, for the same reason as TowerCoverage:
   // this reference changes only on build/destroy, so a Piece hop or a hit
   // cannot recompute the footprint below.
@@ -85,10 +76,7 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
 
   const footprint = useMemo(() => {
     if (!activeSquare || !isInBounds(board, activeSquare)) return null
-    if (!selectedCardId || playMode !== 'build') return null
-
-    const card = findCard(deck, selectedCardId)
-    if (!card || card.kind !== 'standard' || !isBuildableRank(card.rank)) return null
+    if (pendingType === null) return null
 
     return {
       // The engine's own footprint, shared with the selected-Tower overlay so
@@ -96,13 +84,12 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
       // `coversSquare` never covers its own square — so `activeSquare` is
       // never in here, and the red marker below cannot land on a teal one.
       // Decided by `overlaySquares`, the one place that picks what an overlay
-      // draws: firing ranks light `reachableSquares`, aura ranks the full
-      // covered zone — the same rule the amber footprint follows, so the teal
-      // promise and the amber fact always agree.
-      covered: overlaySquares(board, card.rank, activeSquare, blockers),
+      // draws: every type lights `reachableSquares` — the same rule the amber
+      // footprint follows, so the teal promise and the amber fact always agree.
+      covered: overlaySquares(board, pendingType, towerType(pendingType).range, activeSquare, blockers),
       origin: activeSquare,
     }
-  }, [activeSquare, blockers, board, deck, playMode, selectedCardId])
+  }, [activeSquare, blockers, board, pendingType])
 
   if (!footprint) return null
 
@@ -110,11 +97,10 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
     <>
       {/* `key` is keyed on the slot count for the same reason as the board's
           `Instances` — see the comment in Board.tsx. Unreachable today (this
-          unmounts whenever nothing is hovered, and selecting the Ace in the
-          Deck empties the preview, so it always remounts at the new size
-          anyway) but it is the identical defect, and relying on that unmount
-          is relying on a Deck-interaction detail rather than on anything this
-          component controls. */}
+          unmounts whenever nothing is hovered or no tower is pending, so it
+          always remounts at the new size anyway) but it is the identical
+          defect, and relying on that unmount is relying on a hover/pending
+          interaction detail rather than on anything this component controls. */}
       <Instances
         key={board.files * board.ranks}
         limit={board.files * board.ranks}

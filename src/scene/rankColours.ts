@@ -1,7 +1,7 @@
-import type { BuildableRank } from '../game'
+import type { TowerTypeId } from '../game'
 
 /**
- * One colour per Card rank, so a Tower's firing geometry is readable at a
+ * One colour per Tower TYPE, so a Tower's firing geometry is readable at a
  * glance.
  *
  * Kept in its own module rather than exported from a component file: mixing
@@ -9,18 +9,17 @@ import type { BuildableRank } from '../game'
  * as a full reload on every edit instead of a hot update.
  *
  * `Towers.tsx` and `firePulse.ts` are the consumers so far, and nothing
- * duplicates these values in `index.css` — the Deck identifies a Card by suit
- * and rank, not by tower colour. Any future UI wanting a rank's colour must
- * import it from here rather than restating the hex.
+ * duplicates these values in `index.css`. Any future UI wanting a tower type's
+ * colour must import it from here rather than restating the hex.
  */
-export const RANK_COLOURS: Record<BuildableRank, string> = {
-  2: '#2e86c1',
-  3: '#16a085',
-  4: '#8e44ad',
-  5: '#d4ac0d',
-  6: '#c0392b',
-  7: '#e67e22',
-  8: '#2980b9',
-  9: '#27ae60',
-  10: '#7f8c8d',
+export const TOWER_COLOURS: Record<TowerTypeId, string> = {
+  vertical: '#16a085',
+  wall: '#e67e22',
+  sniper: '#2e86c1',
+  diagonal: '#d4ac0d',
+  cross: '#8e44ad',
+  star: '#c0392b',
+  splash: '#2980b9',
+  ring: '#27ae60',
+  tollgate: '#7f8c8d',
 }

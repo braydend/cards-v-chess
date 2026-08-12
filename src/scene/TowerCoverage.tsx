@@ -105,19 +105,16 @@ const RENDER_ORDER = 1
  * thin?" is answered by seeing a new teal footprint against the existing amber
  * one, and hiding either would make the comparison impossible.
  *
- * **For aura ranks this footprint is the aura zone, not the shot zone.** An
- * aura (rank 8 Amplify, rank 9 Freeze) applies to every Piece its Tower covers
- * regardless of what stands between, so those footprints draw the full covered
- * area — a Wall between the Amplifier and a Piece in its ring hides the shot,
- * never the field. For firing ranks the footprint is `reachableSquares`: a
- * square the Tower can see but cannot hit is not lit. The rank-7 Wall is the
- * opposite case and lights nothing at all, which is correct rather than broken:
- * `none` geometry covers no square.
+ * This footprint is `reachableSquares` for every type: a square the Tower can
+ * see but cannot hit is not lit. There are no aura ranks any more — every Tower
+ * deals its damage through its shot, so the "aura zone, not the shot zone"
+ * carve-out died with them. The `wall` type is the one empty case: `none`
+ * geometry covers no square, which is correct rather than broken.
  *
  * This shows coverage, not targeting. A shot is capped at `targetsPerShot` and
  * picks the Pieces nearest the Core, so a footprint of dozens of squares can
- * resolve to a single Piece — a rank-9 Freezer lights a 5x5 disc and hits 3 of
- * the Pieces standing in it. The panel carries that
+ * resolve to a single Piece — a sniper lights a long file and hits one of the
+ * Pieces standing in it. The panel carries that
  * figure. Lighting only the squares a shot would hit would change every tick,
  * which is not what a reference overlay is for.
  *
@@ -158,16 +155,17 @@ export function TowerCoverage({ board }: { board: BoardSpec }) {
   //
   // The blocker list is a second, identity-stable dependency: it is the one
   // thing that genuinely reshapes the footprint beyond the selected Tower's own
-  // rank and square, and `squaresListsEqual` keeps it stable between build and
-  // destroy events.
+  // type, range and square, and `squaresListsEqual` keeps it stable between
+  // build and destroy events.
   const selection = coverageSelection(towers, selectedTowerId)
-  const cardRank = selection?.cardRank
+  const type = selection?.type
+  const range = selection?.range
   const file = selection?.file
   const boardRank = selection?.boardRank
 
   const footprint = useMemo(
-    () => selectedFootprint(board, cardRank, file, boardRank, blockers),
-    [board, cardRank, file, boardRank, blockers],
+    () => selectedFootprint(board, type, range, file, boardRank, blockers),
+    [board, type, range, file, boardRank, blockers],
   )
 
   if (!footprint) return null

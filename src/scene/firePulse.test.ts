@@ -1,16 +1,8 @@
 import { Color } from 'three'
 import { describe, expect, it } from 'vitest'
-import { TOWER_RANKS, towerRank } from '../data/towerRanks'
-import { allSquares, step, tick, type BoardSpec, type BuildableRank, type PieceTier, type Tower } from '../game'
-import {
-  firstTowerId,
-  liveRound,
-  pawnAt,
-  pieceAt,
-  standardCard,
-  withDeck,
-  withTower,
-} from '../game/fixtures'
+import { towerType } from '../data/towerTypes'
+import { allSquares, tick, type BoardSpec, type PieceTier, type Tower, type TowerTypeId } from '../game'
+import { liveRound, pawnAt, pieceAt, withTower } from '../game/fixtures'
 import {
   accumulatePulses,
   detectShots,
@@ -19,29 +11,29 @@ import {
   PULSE_SQUARES_PER_SECOND,
   type FirePulse,
 } from './firePulse'
-import { RANK_COLOURS } from './rankColours'
+import { TOWER_COLOURS } from './rankColours'
 
 /** The fixed timestep `src/state/simulation.ts` drives the engine with. */
 const FIXED_DT_MS = 1000 / 60
 
 /**
- * Steps enough to clear rank 2's `fireIntervalMs` (600ms placeholder) once,
- * with a little headroom, but short of a second interval and short of the
- * Pawn's first hop (900ms placeholder). Derived from `towerRank(2)` rather
- * than a bare literal, because the engine-driven tests below need the budget
- * to stay strictly between "one interval's worth of ticks" and "two", and
- * strictly under the Pawn's first-hop tick count — retuning either
- * PLACEHOLDER value in `src/data/` must not silently change how many pulses
- * these tests see.
+ * Steps enough to clear a splash Tower's `fireIntervalMs` (600ms) once, with a
+ * little headroom, but short of a second interval and short of the Pawn's
+ * first hop (900ms). Derived from `towerType('splash')` rather than a bare
+ * literal, because the engine-driven tests below need the budget to stay
+ * strictly between "one interval's worth of ticks" and "two", and strictly
+ * under the Pawn's first-hop tick count — retuning either PLACEHOLDER value in
+ * `src/data/` must not silently change how many pulses these tests see.
  */
-const STEPS_PAST_ONE_INTERVAL = Math.ceil(towerRank(2).fireIntervalMs / FIXED_DT_MS) + 4
+const STEPS_PAST_ONE_INTERVAL = Math.ceil(towerType('splash').fireIntervalMs / FIXED_DT_MS) + 4
 
 /** A Tower with the fields `detectShots` reads, overridable one at a time. */
 function tower(overrides: Partial<Tower> = {}): Tower {
   return {
     id: 'tower-1',
     square: { file: 3, rank: 3 },
-    cardRank: 2,
+    type: 'vertical',
+    range: towerType('vertical').range,
     fireCooldownMs: 0,
     health: 8,
     maxHealth: 8,
@@ -78,7 +70,9 @@ describe('detectShots', () => {
 
     const pulses = detectShots(last, [tower({ shotsFired: 3 })], 2)
 
-    expect(pulses).toEqual([{ file: 3, boardRank: 3, cardRank: 2, startedAt: 2 }])
+    expect(pulses).toEqual([
+      { file: 3, boardRank: 3, type: 'vertical', range: 5, startedAt: 2 },
+    ])
   })
 
   it('reports one pulse per shot when the counter advances by more than one', () => {
@@ -88,8 +82,8 @@ describe('detectShots', () => {
     const pulses = detectShots(last, [tower({ shotsFired: 2 })], 2)
 
     expect(pulses).toEqual([
-      { file: 3, boardRank: 3, cardRank: 2, startedAt: 2 },
-      { file: 3, boardRank: 3, cardRank: 2, startedAt: 2 },
+      { file: 3, boardRank: 3, type: 'vertical', range: 5, startedAt: 2 },
+      { file: 3, boardRank: 3, type: 'vertical', range: 5, startedAt: 2 },
     ])
   })
 
@@ -105,9 +99,14 @@ describe('detectShots', () => {
     expect(detectShots(last, [tower({ shotsFired: 0, fireCooldownMs: 7 })], 2)).toEqual([])
   })
 
-  it('carries the square and card rank, so a Tower destroyed mid-flight still draws', () => {
+  it('carries the square and type, so a Tower destroyed mid-flight still draws', () => {
     const last = new Map<string, number>()
-    const placed = { id: 'tower-9', cardRank: 5 as const, square: { file: 6, rank: 2 } }
+    const placed = {
+      id: 'tower-9',
+      type: 'diagonal' as const,
+      range: towerType('diagonal').range,
+      square: { file: 6, rank: 2 },
+    }
     detectShots(last, [tower({ ...placed, shotsFired: 2 })], 1)
 
     const pulses = detectShots(last, [tower({ ...placed, shotsFired: 3 })], 2)
@@ -115,7 +114,7 @@ describe('detectShots', () => {
     // The Tower can now leave state entirely and the pulse still knows where it
     // was — the same reason `Ghost` carries its own square in towerDiff.ts.
     expect(detectShots(last, [], 3)).toEqual([])
-    expect(pulses).toEqual([{ file: 6, boardRank: 2, cardRank: 5, startedAt: 2 }])
+    expect(pulses).toEqual([{ file: 6, boardRank: 2, type: 'diagonal', range: 5, startedAt: 2 }])
   })
 
   it('prunes a Tower that has left state', () => {
@@ -131,9 +130,9 @@ describe('detectShots', () => {
   })
 
   it('fires no pulse for a shot the Tower failed to detect', () => {
-    // A black Rook under a rank-3 vertical Tower — the same arrangement
-    // miss.test.ts uses to pin the miss, so on the run's seed it is known to
-    // produce misses. A miss spends the fire interval but fires nothing, so
+    // A black Rook under a vertical Tower — the same arrangement miss.test.ts
+    // uses to pin the miss, so on the run's seed it is known to produce
+    // misses. A miss spends the fire interval but fires nothing, so
     // `fireCooldownMs` drops exactly as a real shot would: the renderer cannot
     // tell the two apart from the cooldown alone. The signal has to come from
     // the engine — how many shot events actually acquired a target.
@@ -144,8 +143,8 @@ describe('detectShots', () => {
     // shot count, and `recentMisses.length` is the miss count.
     function countPulses(tier: PieceTier): { pulses: number; misses: number } {
       const rook = pieceAt('rook', 'sneak', { file: 3, rank: 4 })
-      let state = liveRound(withTower(3, { file: 3, rank: 2 }), [{ ...rook, tier }])
-      const windowMs = TOWER_RANKS[3].fireIntervalMs * 6 + FIXED_DT_MS
+      let state = liveRound(withTower('vertical', { file: 3, rank: 2 }), [{ ...rook, tier }])
+      const windowMs = towerType('vertical').fireIntervalMs * 6 + FIXED_DT_MS
 
       const last = new Map<string, number>()
       let pulses = 0
@@ -174,9 +173,9 @@ describe('detectShots', () => {
     // `fireTowers`'s cooldown bookkeeping fails here instead of silently
     // killing the animation.
     //
-    // Rank 2 is `adjacent` range 1, so a Pawn on the neighbouring square is
+    // Splash is `adjacent` range 1, so a Pawn on the neighbouring square is
     // covered. The Tower is built through the command surface, per CLAUDE.md.
-    let state = liveRound(withTower(2, { file: 3, rank: 3 }), [
+    let state = liveRound(withTower('splash', { file: 3, rank: 3 }), [
       pawnAt('piece-1', { file: 3, rank: 4 }),
     ])
 
@@ -196,56 +195,19 @@ describe('detectShots', () => {
     }
 
     expect(pulses).toHaveLength(1)
-    expect(pulses[0]).toMatchObject({ file: 3, boardRank: 3, cardRank: 2 })
+    expect(pulses[0]).toMatchObject({ file: 3, boardRank: 3, type: 'splash' })
   })
 
   it('reports nothing from a real tick while the Piece is out of range', () => {
-    // Same Tower, Pawn four squares away — outside rank 2's range of 1. The
-    // Tower reaches "ready" and holds there, so the cooldown never falls.
-    let state = liveRound(withTower(2, { file: 3, rank: 3 }), [
+    // Same Tower, Pawn far away — outside splash's range of 1. The Tower
+    // reaches "ready" and holds there, so the cooldown never falls.
+    let state = liveRound(withTower('splash', { file: 3, rank: 3 }), [
       pawnAt('piece-1', { file: 7, rank: 7 }),
     ])
 
     const last = new Map<string, number>()
     const pulses: FirePulse[] = []
 
-    for (let i = 0; i < STEPS_PAST_ONE_INTERVAL; i += 1) {
-      state = tick(state, FIXED_DT_MS)
-      pulses.push(...detectShots(last, state.towers, i / 60))
-    }
-
-    expect(pulses).toEqual([])
-  })
-
-  it('reports nothing when ♦ Speed lowers the interval while a Tower idles at the clamp', () => {
-    // On the old cooldown-diff, a Tower idling at "ready" held `fireCooldownMs`
-    // at its OLD `fireIntervalMs`; ♦ lowers `fireIntervalMs` without touching
-    // the cooldown, so the next tick clamped DOWN to the new interval — a
-    // phantom "shot" with nothing behind it. The counter closes that too: it
-    // moves only on an actual shot, so a cooldown clamp is invisible to it.
-    // Same Tower/Pawn arrangement as the "out of range" test above, so the
-    // Pawn never becomes a real target at any point.
-    let state = liveRound(withTower(2, { file: 3, rank: 3 }), [
-      pawnAt('piece-1', { file: 7, rank: 7 }),
-    ])
-
-    const last = new Map<string, number>()
-
-    // Run the Tower up to its idle clamp first, exactly as the "out of
-    // range" test does, discarding what `detectShots` reports here — the
-    // clamp itself is not a shot and is already covered by that test.
-    for (let i = 0; i < STEPS_PAST_ONE_INTERVAL; i += 1) {
-      state = tick(state, FIXED_DT_MS)
-      detectShots(last, state.towers, i / 60)
-    }
-
-    // A 10♦, played through the engine's command surface per CLAUDE.md, not
-    // by mutating a Tower by hand.
-    const towerId = firstTowerId(state)
-    state = withDeck([standardCard('speed-10d', 10, 'diamonds')], state)
-    state = step(state, { kind: 'supportTower', cardId: 'speed-10d', towerId })
-
-    const pulses: FirePulse[] = []
     for (let i = 0; i < STEPS_PAST_ONE_INTERVAL; i += 1) {
       state = tick(state, FIXED_DT_MS)
       pulses.push(...detectShots(last, state.towers, i / 60))
@@ -267,16 +229,16 @@ function channel(out: Float32Array, file: number, boardRank: number): number {
   return out[(boardRank * board.files + file) * 3] ?? 0
 }
 
-function pulseAt(cardRank: BuildableRank, file = 3, boardRank = 3): FirePulse {
-  return { file, boardRank, cardRank, startedAt: 0 }
+function pulseAt(type: TowerTypeId, file = 3, boardRank = 3): FirePulse {
+  return { file, boardRank, type, range: towerType(type).range, startedAt: 0 }
 }
 
 describe('accumulatePulses', () => {
   it('lights nothing outside the footprint', () => {
     const out = new Float32Array(board.files * board.ranks * 3)
-    // Rank 4 is `cross`. The square directly up-file is covered; its diagonal
-    // neighbour, at the same Chebyshev distance, is not.
-    accumulatePulses(out, board, [pulseAt(4)], 1 / PULSE_SQUARES_PER_SECOND, [])
+    // Cross. The square directly up-file is covered; its diagonal neighbour,
+    // at the same Chebyshev distance, is not.
+    accumulatePulses(out, board, [pulseAt('cross')], 1 / PULSE_SQUARES_PER_SECOND, [])
 
     expect(channel(out, 3, 4)).toBeGreaterThan(0)
     expect(channel(out, 4, 4)).toBe(0)
@@ -284,9 +246,9 @@ describe('accumulatePulses', () => {
 
   it('lights nothing the wave has not reached yet', () => {
     const out = new Float32Array(board.files * board.ranks * 3)
-    // Rank 4 reaches 4 squares. At 50ms the ring has passed d=1 (45ms) but is
+    // Cross reaches 4 squares. At 50ms the ring has passed d=1 (45ms) but is
     // nowhere near d=4 (182ms).
-    accumulatePulses(out, board, [pulseAt(4)], 0.05, [])
+    accumulatePulses(out, board, [pulseAt('cross')], 0.05, [])
 
     expect(channel(out, 3, 4)).toBeGreaterThan(0)
     expect(channel(out, 3, 7)).toBe(0)
@@ -294,7 +256,7 @@ describe('accumulatePulses', () => {
 
   it('fades a square from full to nothing over PULSE_FADE_MS', () => {
     const out = new Float32Array(board.files * board.ranks * 3)
-    const pulse = pulseAt(4)
+    const pulse = pulseAt('cross')
     const arrival = 1 / PULSE_SQUARES_PER_SECOND
     const fadeSec = PULSE_FADE_MS / 1000
 
@@ -310,17 +272,17 @@ describe('accumulatePulses', () => {
     // fail the assertion below for no behavioural reason.
     accumulatePulses(out, board, [pulse], arrival + fadeSec + 0.01, [])
 
-    // Compared against the rank colour rather than a hard-coded float, so a
+    // Compared against the type colour rather than a hard-coded float, so a
     // palette change does not break this. `new Color(hex)` converts sRGB into
     // the renderer's working space, which is what the implementation stores.
-    expect(full).toBeCloseTo(new Color(RANK_COLOURS[4]).r, 5)
+    expect(full).toBeCloseTo(new Color(TOWER_COLOURS.cross).r, 5)
     expect(half).toBeCloseTo(full / 2, 5)
     expect(channel(out, 3, 4)).toBe(0)
   })
 
   it('zeroes the buffer before summing, so a departed pulse leaves no residue', () => {
     const out = new Float32Array(board.files * board.ranks * 3)
-    accumulatePulses(out, board, [pulseAt(4)], 1 / PULSE_SQUARES_PER_SECOND, [])
+    accumulatePulses(out, board, [pulseAt('cross')], 1 / PULSE_SQUARES_PER_SECOND, [])
     expect(channel(out, 3, 4)).toBeGreaterThan(0)
 
     accumulatePulses(out, board, [], 1 / PULSE_SQUARES_PER_SECOND, [])
@@ -328,15 +290,15 @@ describe('accumulatePulses', () => {
     expect(channel(out, 3, 4)).toBe(0)
   })
 
-  it('lights across the full board width for the rank-10 band, not just file ± range', () => {
-    // Finding 1 (whole-branch review): rank 10's range (1) bounds ranks only —
+  it('lights across the full board width for the tollgate band, not just file ± range', () => {
+    // Finding 1 (whole-branch review): tollgate's range (1) bounds ranks only —
     // `coversSquare('band', ...)` covers every file. The old scan window
     // clipped to `file ± range` regardless of geometry, so a shot from file 3
     // lit only files 2-4 and never reached file 7. This pins file 7 — five
     // files past the old window's far edge — lighting once the wave carrying
     // Chebyshev distance 4 (3 to 7) has arrived.
     const out = new Float32Array(board.files * board.ranks * 3)
-    const pulse = pulseAt(10, 3, 3)
+    const pulse = pulseAt('tollgate', 3, 3)
     const arrival = 4 / PULSE_SQUARES_PER_SECOND
 
     accumulatePulses(out, board, [pulse], arrival, [])
@@ -351,18 +313,18 @@ describe('accumulatePulses', () => {
     // A very late sample would catch a scan window that forgot the rank bound
     // just as easily as an early one would miss a fix to the file bound.
     const out = new Float32Array(board.files * board.ranks * 3)
-    const pulse = pulseAt(10, 3, 3)
+    const pulse = pulseAt('tollgate', 3, 3)
 
     accumulatePulses(out, board, [pulse], 10, [])
 
-    // Rank distance 2 from the origin's rank 3, past rank 10's range of 1.
+    // Rank distance 2 from the origin's rank 3, past tollgate's range of 1.
     expect(channel(out, 3, 5)).toBe(0)
   })
 
   it('sums two pulses covering the same square', () => {
     const out = new Float32Array(board.files * board.ranks * 3)
-    const below = pulseAt(4, 3, 3)
-    const above = pulseAt(4, 3, 5)
+    const below = pulseAt('cross', 3, 3)
+    const above = pulseAt('cross', 3, 5)
     const arrival = 1 / PULSE_SQUARES_PER_SECOND
 
     accumulatePulses(out, board, [below], arrival, [])
@@ -380,13 +342,13 @@ describe('accumulatePulses', () => {
     const out = new Float32Array(squareFloats + 12)
     out.fill(-1, squareFloats)
 
-    // Rank 8 is `ring` at range 4, so from the corner its footprint still
-    // wants files and ranks below 0 on both axes, which get clamped to the
-    // board's edges -- that clamping is what this test guards. The probed
-    // square sits at Chebyshev distance 4 from the corner: inside the ring's
-    // outer edge, not its distance 1-2 hollow core, which is blind and would
-    // read back 0 regardless of whether the bounds guard worked.
-    accumulatePulses(out, board, [pulseAt(8, 0, 0)], 0.2, [])
+    // Ring at range 4, so from the corner its footprint still wants files and
+    // ranks below 0 on both axes, which get clamped to the board's edges —
+    // that clamping is what this test guards. The probed square sits at
+    // Chebyshev distance 4 from the corner: inside the ring's outer edge, not
+    // its distance 1-2 hollow core, which is blind and would read back 0
+    // regardless of whether the bounds guard worked.
+    accumulatePulses(out, board, [pulseAt('ring', 0, 0)], 0.2, [])
 
     expect(channel(out, 4, 4)).toBeGreaterThan(0)
     expect(out[squareFloats]).toBe(-1)
@@ -394,14 +356,20 @@ describe('accumulatePulses', () => {
   })
 
   it('does not light a square another Tower occludes, but keeps the near side', () => {
-    // A rank-3 Tower at {3,7} fires vertically. A rank-7 Wall at {3,4} stands
+    // A vertical Tower at {3,7} fires along the file. A Wall at {3,4} stands
     // between it and {3,2}: geometrically covered, actually blocked. The pulse
     // must not sweep past the Wall — the same `isOccluded` the engine consults
     // before a shot, so the animation cannot claim a shot the Tower is blocked
     // from making. {3,6}, between the shooter and the Wall, still lights.
-    const shooter = { ...tower(), id: 'shooter', cardRank: 3 as const, square: { file: 3, rank: 7 } }
-    const wall = { ...tower(), id: 'wall', cardRank: 7 as const, square: { file: 3, rank: 4 } }
-    const pulse: FirePulse = { file: 3, boardRank: 7, cardRank: 3, startedAt: 0 }
+    const shooter = { ...tower(), id: 'shooter', square: { file: 3, rank: 7 } }
+    const wall = { ...tower(), id: 'wall', type: 'wall' as const, square: { file: 3, rank: 4 } }
+    const pulse: FirePulse = {
+      file: 3,
+      boardRank: 7,
+      type: 'vertical',
+      range: towerType('vertical').range,
+      startedAt: 0,
+    }
 
     // {3,2} is 5 squares up the file: 5/22s for the ring to arrive, then this
     // sample lands halfway through that square's fade window. The same instant
@@ -425,14 +393,20 @@ describe('accumulatePulses', () => {
   })
 
   it('does not light a band square on a walled rank, but keeps the near side', () => {
-    // A rank-10 band at {0,3} sweeps ranks 2-4 across the full width. A rank-7
-    // Wall at {2,4} hides the band's rank-4 line. {3,4} is geometrically
-    // covered but occluded — the center line at rank 3 already worked, so this
-    // pins the off-rank line the wall now hides. {1,4}, between the shooter and
-    // the Wall, still lights.
-    const shooter = { ...tower(), id: 'shooter', cardRank: 10 as const, square: { file: 0, rank: 3 } }
-    const wall = { ...tower(), id: 'wall', cardRank: 7 as const, square: { file: 2, rank: 4 } }
-    const pulse: FirePulse = { file: 0, boardRank: 3, cardRank: 10, startedAt: 0 }
+    // A tollgate band at {0,3} sweeps ranks 2-4 across the full width. A Wall
+    // at {2,4} hides the band's rank-4 line. {3,4} is geometrically covered
+    // but occluded — the center line at rank 3 already worked, so this pins
+    // the off-rank line the wall now hides. {1,4}, between the shooter and the
+    // Wall, still lights.
+    const shooter = { ...tower(), id: 'shooter', type: 'tollgate' as const, square: { file: 0, rank: 3 } }
+    const wall = { ...tower(), id: 'wall', type: 'wall' as const, square: { file: 2, rank: 4 } }
+    const pulse: FirePulse = {
+      file: 0,
+      boardRank: 3,
+      type: 'tollgate',
+      range: towerType('tollgate').range,
+      startedAt: 0,
+    }
 
     // {3,4} is 3 squares away: 3/22s for the ring to arrive, then this sample
     // lands halfway through that square's fade window. The same instant with and
@@ -469,8 +443,8 @@ describe('accumulatePulses', () => {
 
 describe('isPulseLive', () => {
   it('stays live while the ring travels and through the outermost fade', () => {
-    // Rank 4, range 4: sweep 182ms, plus 160ms of fade, so 342ms of life.
-    const pulse = pulseAt(4)
+    // Cross, range 4: sweep 182ms, plus 160ms of fade, so 342ms of life.
+    const pulse = pulseAt('cross')
 
     expect(isPulseLive(pulse, 0.1, board)).toBe(true)
     expect(isPulseLive(pulse, 0.3, board)).toBe(true)
@@ -478,14 +452,14 @@ describe('isPulseLive', () => {
   })
 
   it('gives a short-range Tower a shorter life than a long-range one', () => {
-    // Rank 2 reaches 1 square (205ms of life); rank 8 reaches 4 (342ms).
-    expect(isPulseLive(pulseAt(2), 0.25, board)).toBe(false)
-    expect(isPulseLive(pulseAt(8), 0.25, board)).toBe(true)
+    // Splash reaches 1 square (205ms of life); ring reaches 4 (342ms).
+    expect(isPulseLive(pulseAt('splash'), 0.25, board)).toBe(false)
+    expect(isPulseLive(pulseAt('ring'), 0.25, board)).toBe(true)
   })
 
-  it('outlives a bounded-by-range life for the rank-10 band, which reaches the far edge', () => {
+  it('outlives a bounded-by-range life for the tollgate band, which reaches the far edge', () => {
     // Finding 1 (whole-branch review): `band` covers the full board width, not
-    // `range` squares either side. Rank 10 is range 1: the old, wrong formula
+    // `range` squares either side. Tollgate is range 1: the old, wrong formula
     // (`range / PULSE_SQUARES_PER_SECOND + FADE_SECONDS`) declares this pulse
     // dead at 1/22 + 0.16 = 0.2045s. From file 3 on an 8-file board the
     // farthest covered file is 7, at Chebyshev distance 4 — the ring does not
@@ -493,7 +467,7 @@ describe('isPulseLive', () => {
     // alone finish fading (4/22 + 0.16 = 0.3418s). This pin fails against the
     // old range-only formula and passes once the file reach is measured from
     // the board's own width.
-    const pulse = pulseAt(10, 3, 3)
+    const pulse = pulseAt('tollgate', 3, 3)
 
     expect(isPulseLive(pulse, 0.3, board)).toBe(true)
     expect(isPulseLive(pulse, 0.34, board)).toBe(true)
@@ -505,8 +479,8 @@ describe('isPulseLive', () => {
     // from file 3 above. A fixed reach (whatever board.files - 1 happened to
     // be at the last board size) would get this wrong the moment the origin
     // moves; measuring per-origin does not.
-    const centred = pulseAt(10, 3, 3)
-    const edged = pulseAt(10, 0, 3)
+    const centred = pulseAt('tollgate', 3, 3)
+    const edged = pulseAt('tollgate', 0, 3)
 
     // Long past centred's life (distance 4: dead by 0.3418s) but still within
     // edged's (distance 7: 7/22 + 0.16 = 0.4818s).

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
-import { TOWER_RANKS } from '../data/towerRanks'
+import { towerType } from '../data/towerTypes'
 import { createInitialState, step, tick, type GameState } from '../game'
 import { jokerCard, liveRound, pawnAt, withDeck, withTower } from '../game/fixtures'
 import {
@@ -64,15 +64,15 @@ describe('diffPieceExits', () => {
   })
 
   it('reports a Tower kill in place, at the Piece last published square', () => {
-    // Rank 2 deals 3 to a Pawn's 3 health, so the shot at 400ms kills it inside
-    // the Pawn's 900ms hop — the Piece never moves, so "last published" and
-    // "where the player last saw it" are the same square here. Rank 2 is
-    // 'adjacent' with range 1, and the victim sits at Chebyshev distance 1
-    // from the Tower, so it is covered throughout.
-    const before = liveRound(withTower(2, { file: 0, rank: 4 }), [
+    // A sniper deals 4 to a Pawn's 3 health, so its shot at 800ms kills it
+    // inside the Pawn's 900ms hop — the Piece never moves, so "last published"
+    // and "where the player last saw it" are the same square here. The sniper
+    // is 'vertical' geometry with range 7, and the victim sits on the same
+    // file as the Tower, so it is covered throughout.
+    const before = liveRound(withTower('sniper', { file: 0, rank: 4 }), [
       pawnAt('victim', { file: 0, rank: 5 }),
     ])
-    const after = runFor(before, TOWER_RANKS[2].fireIntervalMs + DT)
+    const after = runFor(before, towerType('sniper').fireIntervalMs + DT)
     const diff = diffPieceExits(seededOn(before), after)
 
     expect(diff.ghosts).toEqual([
@@ -93,18 +93,18 @@ describe('diffPieceExits', () => {
     // told apart exactly, not guessed at by re-running movement. Drives both
     // in the same window so a single diff has to carry both reasons at once.
     //
-    // Rank 2 fires every 400ms for 3 damage, one-shotting a 3-health Pawn
+    // A sniper fires at 800ms for 4 damage, one-shotting a 3-health Pawn
     // well inside the Pawn's 900ms hop — the victim never moves before it
     // dies, so "last published" and "where it stood" agree (see the
     // single-kill test above). The leaker sits one hop from the Core at
     // {3, 1} and reaches it on its first hop, at 900ms.
     //
-    // Rank 2 is 'adjacent' with range 1, so only a Chebyshev distance of
-    // exactly 1 is covered. The Tower sits at {7, 4}: distance 1 from its own
-    // victim at {7, 5}, but distance 4 from the leaker at {3, 1} — well out
-    // of range, so the Tower can never touch the leaker and the leaker's exit
-    // is a genuine leak, not a kill.
-    const before = liveRound(withTower(2, { file: 7, rank: 4 }), [
+    // The sniper is 'vertical' geometry with range 7, so only its own file is
+    // covered. The Tower sits at {7, 4}: the victim at {7, 5} is on that file,
+    // but the leaker at {3, 1} is on a different one — well out of range, so
+    // the Tower can never touch the leaker and the leaker's exit is a genuine
+    // leak, not a kill.
+    const before = liveRound(withTower('sniper', { file: 7, rank: 4 }), [
       pawnAt('leaker', { file: 3, rank: 1 }),
       pawnAt('victim', { file: 7, rank: 5 }),
     ])

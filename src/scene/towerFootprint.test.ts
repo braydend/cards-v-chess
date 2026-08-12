@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUILDABLE_RANKS, towerRank, type TowerRankDef } from '../data/towerRanks'
+import { TOWER_TYPE_IDS, towerType, type TowerTypeDef } from '../data/towerTypes'
 import {
   allSquares,
   coveredSquares,
@@ -57,7 +57,8 @@ function footprintOf(state: GameState, towerId: string, board: BoardSpec = state
   const selection = coverageSelection(state.towers, towerId)
   const footprint = selectedFootprint(
     board,
-    selection?.cardRank,
+    selection?.type,
+    selection?.range,
     selection?.file,
     selection?.boardRank,
     blockerSquares(state.towers),
@@ -68,15 +69,15 @@ function footprintOf(state: GameState, towerId: string, board: BoardSpec = state
 }
 
 /**
- * Whether a footprint is exactly what a ladder entry says, on this board, from
- * this square.
+ * Whether a footprint is exactly what a type table entry says, on this board,
+ * from this square.
  *
  * Checked against `coversSquare` — the engine's own predicate, the one
  * `fireTowers` tests before it shoots — rather than against a square count,
- * because every value in `src/data/towerRanks.ts` bar the geometry is a
+ * because every value in `src/data/towerTypes.ts` bar the geometry is a
  * placeholder and a balance tweak must not break this file.
  */
-function matchesLadder(board: BoardSpec, def: TowerRankDef, footprint: TowerFootprint): boolean {
+function matchesLadder(board: BoardSpec, def: TowerTypeDef, footprint: TowerFootprint): boolean {
   return allSquares(board).every((square) => {
     const lit = footprint.covered.some((covered) => squaresEqual(covered, square))
 
@@ -86,7 +87,7 @@ function matchesLadder(board: BoardSpec, def: TowerRankDef, footprint: TowerFoot
 
 describe('coverageSelection', () => {
   it('returns null when no Tower is selected', () => {
-    const state = withTower(3, CENTRE)
+    const state = withTower('vertical', CENTRE)
 
     expect(coverageSelection(state.towers, null)).toBeNull()
   })
@@ -95,45 +96,49 @@ describe('coverageSelection', () => {
     // A Tower destroyed while its panel was open. The overlay clears itself the
     // way the panel and the selection ring already do — the id simply stops
     // being found, so there is no stale id to invalidate.
-    const state = withTower(3, CENTRE)
+    const state = withTower('vertical', CENTRE)
 
     expect(coverageSelection([], firstTower(state).id)).toBeNull()
   })
 
-  it('reduces the selected Tower to the rank and square that shape its footprint', () => {
-    const state = withTower(5, CENTRE)
+  it('reduces the selected Tower to the type, range, and square that shape its footprint', () => {
+    const state = withTower('diagonal', CENTRE)
 
     expect(coverageSelection(state.towers, firstTower(state).id)).toEqual({
-      cardRank: 5,
+      type: 'diagonal',
+      range: towerType('diagonal').range,
       file: CENTRE.file,
       boardRank: CENTRE.rank,
     })
   })
 
   it('picks the selected Tower rather than the first one on the board', () => {
-    const state = withTower(4, CORNER, withTower(3, CENTRE))
+    const state = withTower('cross', CORNER, withTower('vertical', CENTRE))
 
     expect(coverageSelection(state.towers, towerOn(state, CORNER).id)).toEqual({
-      cardRank: 4,
+      type: 'cross',
+      range: towerType('cross').range,
       file: CORNER.file,
       boardRank: CORNER.rank,
     })
   })
 
-  it('distinguishes two Towers of the same rank, so the id selects and not the rank', () => {
-    // Duplicate ranks are normal — packs are random, and a Queen's Echo exists
-    // precisely to copy a rank onto another square. Selecting on anything but the
-    // id would light the wrong Tower's footprint the moment a run holds two of a
-    // kind. `CLAUDE.md` makes the same point about Cards being a multiset.
-    const state = withTower(3, CORNER, withTower(3, CENTRE))
+  it('distinguishes two Towers of the same type, so the id selects and not the type', () => {
+    // Duplicate types are normal — packs are random, and the two-pair flow can
+    // purchase the same Tower twice. Selecting on anything but the id would
+    // light the wrong Tower's footprint the moment a run holds two of a kind.
+    // `CLAUDE.md` makes the same point about Cards being a multiset.
+    const state = withTower('vertical', CORNER, withTower('vertical', CENTRE))
 
     expect(coverageSelection(state.towers, towerOn(state, CORNER).id)).toEqual({
-      cardRank: 3,
+      type: 'vertical',
+      range: towerType('vertical').range,
       file: CORNER.file,
       boardRank: CORNER.rank,
     })
     expect(coverageSelection(state.towers, towerOn(state, CENTRE).id)).toEqual({
-      cardRank: 3,
+      type: 'vertical',
+      range: towerType('vertical').range,
       file: CENTRE.file,
       boardRank: CENTRE.rank,
     })
@@ -144,19 +149,19 @@ describe('selectedFootprint', () => {
   const BOARD: BoardSpec = { files: 8, ranks: 8 }
 
   it('returns null when there is no selection', () => {
-    expect(selectedFootprint(BOARD, undefined, undefined, undefined, [])).toBeNull()
+    expect(selectedFootprint(BOARD, undefined, undefined, undefined, undefined, [])).toBeNull()
   })
 
   it('returns null when a selection is missing the square it would be drawn at', () => {
-    // The component reads the three fields off a possibly-null selection, so a
+    // The component reads the four fields off a possibly-null selection, so a
     // partial one is reachable. Half a selection draws nothing, not a footprint
     // at the board's origin.
-    expect(selectedFootprint(BOARD, 3, undefined, undefined, [])).toBeNull()
-    expect(selectedFootprint(BOARD, 3, 4, undefined, [])).toBeNull()
+    expect(selectedFootprint(BOARD, 'vertical', 5, undefined, undefined, [])).toBeNull()
+    expect(selectedFootprint(BOARD, 'vertical', 5, 4, undefined, [])).toBeNull()
   })
 
   it("puts the footprint at the selected Tower's square", () => {
-    const state = withTower(3, CENTRE)
+    const state = withTower('vertical', CENTRE)
 
     expect(footprintOf(state, firstTower(state).id).origin).toEqual(CENTRE)
   })
@@ -164,13 +169,13 @@ describe('selectedFootprint', () => {
   it("never includes the Tower's own square", () => {
     // A Tower never covers the square it stands on, and nothing can stand there
     // anyway — a Piece that would land on a Tower attacks it instead.
-    const state = withTower(6, CENTRE)
+    const state = withTower('star', CENTRE)
 
     expect(footprintOf(state, firstTower(state).id).covered).not.toContainEqual(CENTRE)
   })
 
   it('clips to the board rather than running off the edge', () => {
-    const state = withTower(6, CORNER)
+    const state = withTower('star', CORNER)
 
     const { covered } = footprintOf(state, firstTower(state).id)
 
@@ -178,25 +183,25 @@ describe('selectedFootprint', () => {
     expect(covered.every((square) => isInBounds(state.board, square))).toBe(true)
   })
 
-  it("uses each Tower's own rank, not a neighbour's", () => {
-    // Two Towers of different ranks on the board at once. Reading the wrong
-    // Tower, or sharing one rank across both, is what this catches.
-    const state = withTower(4, CORNER, withTower(3, CENTRE))
+  it("uses each Tower's own type, not a neighbour's", () => {
+    // Two Towers of different types on the board at once. Reading the wrong
+    // Tower, or sharing one type across both, is what this catches.
+    const state = withTower('cross', CORNER, withTower('vertical', CENTRE))
 
-    expect(matchesLadder(state.board, towerRank(3), footprintOf(state, towerOn(state, CENTRE).id))).toBe(
+    expect(matchesLadder(state.board, towerType('vertical'), footprintOf(state, towerOn(state, CENTRE).id))).toBe(
       true,
     )
-    expect(matchesLadder(state.board, towerRank(4), footprintOf(state, towerOn(state, CORNER).id))).toBe(
+    expect(matchesLadder(state.board, towerType('cross'), footprintOf(state, towerOn(state, CORNER).id))).toBe(
       true,
     )
   })
 
-  it('matches the ladder definition for every buildable rank', () => {
-    for (const cardRank of BUILDABLE_RANKS) {
-      const state = withTower(cardRank, CENTRE)
+  it('matches the type table definition for every tower type', () => {
+    for (const type of TOWER_TYPE_IDS) {
+      const state = withTower(type, CENTRE)
 
       expect(
-        matchesLadder(state.board, towerRank(cardRank), footprintOf(state, firstTower(state).id)),
+        matchesLadder(state.board, towerType(type), footprintOf(state, firstTower(state).id)),
       ).toBe(true)
     }
   })
@@ -204,7 +209,7 @@ describe('selectedFootprint', () => {
   it('reads the extent from the board it is given, so an Ace widens the footprint', () => {
     // The board grows: an Ace adds a rank, and a footprint derived from a
     // module constant would stop at the old edge.
-    const state = withTower(3, FAR_RANK)
+    const state = withTower('vertical', FAR_RANK)
     const towerId = firstTower(state).id
     const grown: BoardSpec = { files: state.board.files, ranks: state.board.ranks + 1 }
 
@@ -216,13 +221,13 @@ describe('selectedFootprint', () => {
 
 describe('selectedFootprint under occlusion', () => {
   it('omits squares another Tower hides', () => {
-    // Rank 3 vertical at {4,7}. A rank-7 Wall at {4,5} sits between it and
-    // every square below rank 5 on the file, so those leave the footprint even
-    // though the geometry covers them.
-    const withWall = withTower(7, { file: 4, rank: 5 })
-    const state = withTower(3, { file: 4, rank: 7 }, withWall)
-    const shooter = state.towers.find((tower) => tower.cardRank === 3)
-    if (!shooter) throw new Error('expected the rank-3 Tower')
+    // Vertical at {4,7}. A Wall at {4,5} sits between it and every square
+    // below rank 5 on the file, so those leave the footprint even though the
+    // geometry covers them.
+    const withWall = withTower('wall', { file: 4, rank: 5 })
+    const state = withTower('vertical', { file: 4, rank: 7 }, withWall)
+    const shooter = state.towers.find((tower) => tower.type === 'vertical')
+    if (!shooter) throw new Error('expected the vertical Tower')
 
     const footprint = footprintOf(state, shooter.id)
 
@@ -233,8 +238,8 @@ describe('selectedFootprint under occlusion', () => {
   it('never lets a Tower hide itself', () => {
     // The selected Tower is in the blocker list (blockerSquares returns every
     // standing Tower), and must not occlude its own shots.
-    const state = withTower(3, CENTRE)
-    const def = towerRank(3)
+    const state = withTower('vertical', CENTRE)
+    const def = towerType('vertical')
 
     const footprint = footprintOf(state, firstTower(state).id)
 
@@ -244,44 +249,10 @@ describe('selectedFootprint under occlusion', () => {
   })
 })
 
-describe('aura ranks draw the full covered zone', () => {
-  it('a Wall between an Amplifier and a ring square does not hide that square', () => {
-    // Rank 8's ring from {4,4} covers Chebyshev distance 3-4, so {4,7} is in
-    // the ring. The Wall at {4,5} sits in the hollow core (distance 1) and its
-    // presence would occlude the SHOT to {4,7} — but the aura field passes
-    // through, so the overlay still lights it.
-    const withWall = withTower(7, { file: 4, rank: 5 })
-    const state = withTower(8, { file: 4, rank: 4 }, withWall)
-    const amplifier = state.towers.find((tower) => tower.cardRank === 8)
-    if (!amplifier) throw new Error('expected the rank-8 Tower')
-
-    const footprint = footprintOf(state, amplifier.id)
-    const def = towerRank(8)
-
-    expect(footprint.covered).toEqual(coveredSquares(state.board, def.geometry, def.range, { file: 4, rank: 4 }))
-    expect(footprint.covered).toContainEqual({ file: 4, rank: 7 })
-  })
-
-  it('a Wall between a Freezer and a disc square does not hide that square', () => {
-    // Rank 9 adjacent range 2 from {4,2} covers {4,4} (distance 2). The Wall at
-    // {4,3} is strictly between for a shot, but the slow field passes through.
-    const withWall = withTower(7, { file: 4, rank: 3 })
-    const state = withTower(9, { file: 4, rank: 2 }, withWall)
-    const freezer = state.towers.find((tower) => tower.cardRank === 9)
-    if (!freezer) throw new Error('expected the rank-9 Tower')
-
-    const footprint = footprintOf(state, freezer.id)
-    const def = towerRank(9)
-
-    expect(footprint.covered).toEqual(coveredSquares(state.board, def.geometry, def.range, { file: 4, rank: 2 }))
-    expect(footprint.covered).toContainEqual({ file: 4, rank: 4 })
-  })
-})
-
 describe('blockerSquares', () => {
   it('returns one square per Tower, sorted into a canonical order', () => {
-    const withFirst = withTower(3, { file: 4, rank: 5 })
-    const state = withTower(7, { file: 2, rank: 3 }, withFirst)
+    const withFirst = withTower('vertical', { file: 4, rank: 5 })
+    const state = withTower('wall', { file: 2, rank: 3 }, withFirst)
 
     // Sorted by squareKey, not by build order: {2,3} then {4,5}.
     expect(blockerSquares(state.towers)).toEqual([

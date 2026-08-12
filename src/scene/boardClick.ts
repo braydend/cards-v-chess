@@ -1,15 +1,4 @@
-import {
-  canSupport,
-  commandFor,
-  isBuildableRank,
-  squaresEqual,
-  type Card,
-  type Command,
-  type PlayMode,
-  type PlayTarget,
-  type Square,
-  type Tower,
-} from '../game'
+import { squaresEqual, type Card, type Command, type Square, type Tower, type TowerTypeId } from '../game'
 
 export type BoardClick =
   | { readonly kind: 'select'; readonly towerId: string }
@@ -54,9 +43,8 @@ export interface BoardClickContext {
   readonly selectedTowerId: string | null
   /** The Card picked from the Deck, or null when none is. */
   readonly card: Card | null
-  readonly playMode: PlayMode
-  /** The Tower a Queen will copy, once its first click has picked one. */
-  readonly echoSourceTowerId: string | null
+  /** The Tower type awaiting placement after a hand was committed, or null. */
+  readonly pendingTower: TowerTypeId | null
   /** How the pointer engages: `fine` is click-to-play, `coarse` is tap-to-preview. */
   readonly pointer: 'fine' | 'coarse'
   /** The square already previewed by a previous tap, or null. */
@@ -68,9 +56,7 @@ export type BoardAction =
   | { readonly kind: 'select'; readonly towerId: string }
   /** Close the inspect panel. */
   | { readonly kind: 'deselect' }
-  /** Remember this Tower as the Queen's Echo source; the next click picks the square. */
-  | { readonly kind: 'pickEchoSource'; readonly towerId: string }
-  /** Play the picked Card. */
+  /** Play the picked Card, or place a pending Tower. */
   | { readonly kind: 'play'; readonly command: Command }
   /** On touch, the first tap on a square previews its coverage instead of playing. */
   | { readonly kind: 'preview'; readonly square: Square }
@@ -80,79 +66,56 @@ export type BoardAction =
  * function, for the same reason `resolveBoardClick` exists: there are no
  * component tests, so this cannot live in `Board.tsx`.
  *
- * Two features meet on this gesture. The Tower inspect panel wants a click on a
- * Tower to select it; the card system wants a click on a Tower to be the target
- * of a ♥ repair, a Jack's shield, or a Queen's Echo source.
+ * Three features meet on this gesture. The Tower inspect panel wants a click on
+ * a Tower to select it; a pending Tower wants any click to be its placement
+ * square; the card system wants a click on a Tower to be the target of a Jack's
+ * shield or a Queen's range action.
  *
- * **A Card that can act on the clicked target wins.** That is the whole rule:
- * with no Card picked the inspect panel behaves exactly as it did before the
- * card system existed, and a Card that cannot be played at what was clicked
- * (a rank Card clicked onto an occupied square, a King, which takes no board
- * target at all) does not consume the click either — the panel opens instead.
- * A support Card aimed at a Tower of the wrong rank is the same case: it cannot
- * act on what was clicked, so the panel gets the click.
+ * A pending Tower wins outright: the hand was already committed, so any square
+ * click (coarse pointers previewing first) produces a `placeTower` command, and
+ * the engine refuses illegal squares. Otherwise a Card that can act on the
+ * clicked target wins. With no Card picked — or a Card that takes no board
+ * target (K, A, Joker) or cannot act on what was clicked — the inspect panel
+ * gets the click.
  *
- * Which Command a target produces is `commandFor`'s job, not this function's.
- * All that is decided here is *which* target the click is, and whether the card
- * play or the panel gets it.
+ * Which Command a target produces is built inline here — `commandFor` is
+ * superseded by this function and the hand flow, and no longer has a seat at
+ * this table.
  */
 export function resolveBoardAction(context: BoardClickContext): BoardAction {
-  const { square, towers, selectedTowerId, card, playMode, echoSourceTowerId, pointer, previewedSquare } =
-    context
+  const { square, towers, selectedTowerId, card, pendingTower, pointer, previewedSquare } = context
 
   const inspect = resolveBoardClick(square, towers, selectedTowerId)
-
-  // `build` is only reachable on an empty square, and on its own it now means
-  // the player clicked past whatever they were inspecting — so it closes the
-  // panel. A play deliberately leaves the panel alone: repairing the Tower on
-  // screen and watching its health climb is the point of having a panel.
   const panel: BoardAction = inspect.kind === 'build' ? { kind: 'deselect' } : inspect
+
+  if (pendingTower !== null) {
+    // On a coarse pointer the first tap previews instead of playing: touch has
+    // no hover, so this tap and the teal/red CoveragePreview it triggers are
+    // the only way the player learns a square's footprint — or that a square
+    // is illegal — before committing. Preview fires on ANY square, legal or
+    // not, exactly as desktop hover does; the red marker is what teaches
+    // illegality, and the second tap's play is refused by the engine. A fine
+    // pointer never previews: hover already shows the preview. A J or Q needs
+    // a Tower target and has no footprint, so no preview gate applies to them.
+    if (pointer === 'coarse' && !(previewedSquare && squaresEqual(previewedSquare, square))) {
+      return { kind: 'preview', square }
+    }
+    return { kind: 'play', command: { kind: 'placeTower', square } }
+  }
 
   if (!card) return panel
 
-  // On a coarse pointer the first tap previews instead of playing: touch has no
-  // hover, so this tap and the teal/red CoveragePreview it triggers are the
-  // only way the player learns a square's footprint — or that a square is
-  // illegal — before committing. Preview fires on ANY square, legal or not,
-  // exactly as desktop hover does; the red marker is what teaches illegality,
-  // and the second tap's play is refused by the engine with the selection
-  // preserved. A fine pointer never previews: hover already shows the preview.
-  // Support-mode and face-card plays have no footprint to preview, so the gate
-  // is restricted to a buildable rank in build mode.
-  if (
-    pointer === 'coarse' &&
-    playMode === 'build' &&
-    card.kind === 'standard' &&
-    isBuildableRank(card.rank) &&
-    !(previewedSquare && squaresEqual(previewedSquare, square))
-  ) {
-    return { kind: 'preview', square }
-  }
-
+  // A J or Q needs a Tower target; K/A/Joker play from the Deck and have no
+  // board target at all. Numbered cards are hand material — they are committed
+  // as part of a poker hand, never selected alone for a board action.
+  if (card.kind !== 'standard') return panel
   const clickedTower = towers.find((tower) => squaresEqual(tower.square, square))
-
-  // A support Card that cannot reach this Tower must not consume the click.
-  // `commandFor` does not validate — it would still return a supportTower
-  // command, which the engine then refuses — so the player would get neither a
-  // play nor the inspect panel. This is the check that keeps the panel.
-  if (playMode === 'support' && clickedTower && !canSupport(card, clickedTower)) return panel
-
-  // Echo is the only play needing two board targets: a source Tower to copy,
-  // then a square to build the copy on. Sequencing those two clicks is UX and
-  // belongs here; what the resulting target means does not, and comes from
-  // `commandFor` below.
-  if (playMode === 'build' && card.kind === 'standard' && card.rank === 'Q' && !echoSourceTowerId) {
-    return clickedTower ? { kind: 'pickEchoSource', towerId: clickedTower.id } : panel
+  if (card.rank === 'J' && clickedTower) {
+    return { kind: 'play', command: { kind: 'shieldTower', cardId: card.id, towerId: clickedTower.id } }
+  }
+  if (card.rank === 'Q' && clickedTower) {
+    return { kind: 'play', command: { kind: 'rangeTower', cardId: card.id, towerId: clickedTower.id } }
   }
 
-  const target: PlayTarget =
-    playMode === 'build' && echoSourceTowerId !== null
-      ? { kind: 'echo', sourceTowerId: echoSourceTowerId, square }
-      : clickedTower
-        ? { kind: 'tower', towerId: clickedTower.id }
-        : { kind: 'square', square }
-
-  const command = commandFor(card, playMode, target)
-
-  return command ? { kind: 'play', command } : panel
+  return panel
 }
