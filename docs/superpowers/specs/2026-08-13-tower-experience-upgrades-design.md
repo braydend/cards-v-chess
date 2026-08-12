@@ -120,7 +120,7 @@ New `src/scene/UpgradeReady.tsx` renders a small pulsing golden ring/burst above
 Engine suites only — no jsdom, no `.tsx` tests:
 
 - **`src/game/upgrades.ts`** — `upgradeThreshold` cadence (10, 12, 15, 18, 22, …), `thresholdsCleared` at/around boundaries, `pendingUpgrades` accounting, clamp at 0.
-- **`upgradeTower` in `step`** — each stat mutates correctly (health 10/14 → 15.4/11.4; fire rate subtracts from the stored base, not the live interval), a second pick compounds correctly (14 → 15.4 vs base 14 → 12.6), refusal on no pending / missing Tower / Wall, valid mid-round and in the gap, spending a second time at pending 0 refused.
+- **`upgradeTower` in `step`** — each stat mutates correctly: health at 10/14 with max 14 becomes 15.4/11.4 (both read the old max); fire rate with `fireIntervalMs` 14 and `fireIntervalBaseMs` 14 becomes 12.6, and a second pick becomes 11.2 — always subtracting `0.1 * base` (1.4), never a percentage of the live interval; damage is +1 each pick. Refusals: no pending, missing Tower, Wall. Valid mid-round and in the gap; a spend at pending 0 is refused.
 - **`structuralKey`** — a spend changes the key (it already keys the mutated stats).
 - **`src/scene/upgradeReady.ts`** — pending > 0 decision.
 - **Existing suites** — stay green. The Wall's no-kill path means `roundTermination.test.ts` is untouched.
