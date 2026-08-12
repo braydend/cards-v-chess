@@ -65,6 +65,16 @@ export function TowerPanel() {
           <dt>Damage taken</dt>
           <dd>{formatStat(tower.damageTaken)}</dd>
         </div>
+        <div>
+          <dt>Pieces defeated</dt>
+          <dd>{formatStat(tower.kills)}</dd>
+        </div>
+        {def.geometry !== 'none' && (
+          <div>
+            <dt>DPS</dt>
+            <dd>{formatStat(tower.damage / (tower.fireIntervalMs / 1000))}</dd>
+          </div>
+        )}
       </dl>
 
       <p className="towerPanel__geometry">{GEOMETRY_LABELS[def.geometry]}</p>
