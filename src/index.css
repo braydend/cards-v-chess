@@ -589,6 +589,22 @@ canvas {
   color: #4fd1c5;
 }
 
+/* The victory screen: the pack-shop modal frame, with a celebration in place
+   of a form. The scrim is a button like the shop's, but here it does nothing
+   — the modal cannot be dismissed, only continued past. */
+.victory__title {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #4fd1c5;
+}
+
+.victory__subtitle {
+  margin: 0;
+  line-height: 1.5;
+  color: #c3cdda;
+}
+
 /* Marked for destruction. Red because it is destructive and irreversible once
    the purchase commits.
 

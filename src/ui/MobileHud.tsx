@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { VICTORY_ROUND } from '../data/rounds'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { resetRun } from './cardActions'
@@ -18,7 +19,7 @@ import { supportModeLabel } from './supportLabel'
  */
 export function MobileHud() {
   const snapshot = useGameStore((store) => store.snapshot)
-  const { phase, roundNumber, core, ink } = snapshot
+  const { phase, roundNumber, core, ink, won } = snapshot
 
   const deck = useGameStore((store) => store.snapshot.deck)
   const towers = useGameStore((store) => store.snapshot.towers)
@@ -97,6 +98,15 @@ export function MobileHud() {
           Credits
         </button>
       </div>
+
+      {phase === 'defeated' ? (
+        <p className="hud__hint">
+          The Core has fallen.
+          {won
+            ? ` You beat round ${VICTORY_ROUND}; free play ended on round ${roundNumber}.`
+            : null}
+        </p>
+      ) : null}
 
       {selected ? (
         <div className="mobileStrip">
