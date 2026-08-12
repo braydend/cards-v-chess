@@ -42,7 +42,7 @@ What exists:
 What does **not** exist yet:
 
 - **The pack-opening animation** (issue #10's stretch goal). The shop reveals a pack's contents as a grid, with no animation.
-- **A visible or enterable seed.** Runs are seeded and reproducible, but the seed is internal — `src/state/simulation.ts` mints it and nothing shows it.
+- **An enterable seed.** The current run's seed is visible and copyable in the About modal, but there is still no way to start a run from a typed seed.
 - **Caps on King and Ace accumulation.** Both hazards are now reachable and neither is capped; scarcity is the only mitigation.
 
 Towers fire and can kill Pieces outright, so a round does not resolve by leaking out — it ends when nothing on the board can still act, whether that means every Piece destroyed or through the Core. No Piece type can end a round genuinely stranded any more: every type has a designed way off `stuck`.

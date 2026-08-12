@@ -700,6 +700,24 @@ canvas {
   cursor: pointer;
 }
 
+/* The run seed row in the About modal. The monospace value inherits the
+   panel's text colour; the Copy button uses the standard hud__button. */
+.about__seed {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.about__seed-code {
+  padding: 0.15rem 0.4rem;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 0.3rem;
+  background: rgb(0 0 0 / 25%);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.95rem;
+  letter-spacing: 0.03em;
+}
+
 /* The credits attribution. Teal links match the teal used for selection
    elsewhere; the text inherits the modal panel's colour. */
 .credits__line {
