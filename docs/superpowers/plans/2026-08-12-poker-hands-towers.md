@@ -777,19 +777,21 @@ const HAND_FOR_TYPE: Record<TowerTypeId, CardRank[]> = {
   sniper: [5, 5, 9, 9],
   diagonal: [5, 5, 5],
   cross: [2, 3, 4, 5, 6], // straight
-  star: [2, 4, 6, 8, 10], // flush — see note below
+  star: [2, 4, 6, 8, 10], // flush — see suit note below
   splash: [5, 5, 5, 9, 9],
   ring: [5, 5, 5, 5],
-  tollgate: [2, 3, 4, 5, 6], // straight flush — see note below
+  tollgate: [2, 3, 4, 5, 6], // straight flush — see suit note below
 }
 ```
 
-> `star` needs a flush, and it must NOT also be a straight (or it would
-> evaluate as a straight flush). Use ranks `[2, 4, 6, 8, 10]` all hearts.
-> `cross` (a straight) needs five consecutive ranks of mixed suits — hearts,
-> diamonds, spades, clubs, hearts — so it is not a flush. `tollgate` (a
-> straight flush) needs five consecutive same-suit ranks, e.g. `[2,3,4,5,6]`
-> all clubs.
+> A flush and a straight flush cannot be formed from mixed suits, so `star`
+> and `tollgate` get a uniform suit assignment while every other hand keeps
+> the cycling assignment:
+> - `star`: ranks `[2, 4, 6, 8, 10]` ALL hearts — a flush that is NOT a
+>   straight (consecutive ranks would evaluate as a straight flush).
+> - `tollgate`: ranks `[2, 3, 4, 5, 6]` ALL clubs — a straight flush.
+> - `cross`: ranks `[2, 3, 4, 5, 6]` across suits hearts, diamonds, spades,
+>   clubs, hearts — a straight that is not a flush.
 
 ```ts
 export function withTower(
@@ -798,10 +800,17 @@ export function withTower(
   state: GameState = createInitialState(),
 ): GameState {
   const ranks = HAND_FOR_TYPE[type]
-  const suits = SUITS
-  const cards = ranks.map((rank, index) =>
-    standardCard(`seed-${type}-${index}`, rank, suits[index % suits.length]),
-  )
+
+  // Uniform suits for the two flush-based hands; cycling for the rest.
+  const cards = ranks.map((rank, index) => {
+    const suit =
+      type === 'star'
+        ? 'hearts'
+        : type === 'tollgate'
+          ? 'clubs'
+          : (SUITS[index % SUITS.length] as Suit)
+    return standardCard(`seed-${type}-${index}`, rank, suit)
+  })
   const seeded: GameState = { ...state, deck: [...state.deck, ...cards] }
 
   let after = step(seeded, {
@@ -811,7 +820,7 @@ export function withTower(
   if (after.pendingTower === null) throw new Error('withTower: hand refused, no pending Tower')
 
   after = step(after, { kind: 'placeTower', square })
-  if (after.pendingTower !== null || after.towers.length === state.towers.length + 1 === false) {
+  if (after.towers.length !== state.towers.length + 1 || after.pendingTower !== null) {
     throw new Error('withTower: placement refused')
   }
 
@@ -819,9 +828,7 @@ export function withTower(
 }
 ```
 
-> The `throw` condition above is awkward; use a clear check instead: after placement, `after.towers.length` must be `state.towers.length + 1`. Import `SUITS` from `../data/cards`.
-
-Update the doc comment: "A Tower of this TYPE on this square, built by committing the canonical hand for the type and placing it."
+> Import `SUITS` from `../data/cards`. Update the doc comment: "A Tower of this TYPE on this square, built by committing the canonical hand for the type and placing it."
 
 - [ ] **Step 2: Rework `towersAt`**
 
