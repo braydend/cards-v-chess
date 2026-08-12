@@ -497,3 +497,9 @@ export type Command =
       /** Exactly `cullCountFor(deck.length, pack)` ids, no more and no fewer. */
       readonly cullCardIds: readonly string[]
     }
+  | { readonly kind: 'devAddInk'; readonly amount: number }
+  | {
+      readonly kind: 'devSetCoreHealth'
+      readonly health: number
+      readonly maxHealth: number
+    }
