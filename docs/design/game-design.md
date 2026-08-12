@@ -198,6 +198,20 @@ A run is identified by a **seed**, making it reproducible and shareable: same se
 
 This requires a **seeded PRNG carried in `GameState`**. `Math.random` must never appear in `src/game/` — it breaks determinism and seeds alike. Streams are **named**: one run seed hashed with a stream name derives an independent generator per purpose, so adding a second random consumer later cannot shift what an existing seed deals to packs. See `src/game/rng.ts`.
 
+### The goal: beat round 100, then free play
+
+**A run's goal is to beat round 100.** Completing round 100 — the round
+completes, nothing on the board can still act — records the win and shows a
+victory screen. From there the player may continue into **free play**: the same
+game, the difficulty curve still escalating (`spawnHealthMultiplier`'s tail is
+unbounded), no further goal, until the Core falls. Free play changes nothing
+mechanical — cards, packs, Ink, and the roster behave identically. The victory
+interstitial is a `'victory'` phase: `tick` freezes and every command is refused
+except `continueToFreePlay`, which moves into the round-101 gap. A phase rather
+than a gap, because auto-start fires from the gap and would chain round 101
+under the victory screen. `VICTORY_ROUND` lives in `src/data/rounds.ts`. See
+[`docs/superpowers/specs/2026-08-12-round-100-victory-design.md`](../superpowers/specs/2026-08-12-round-100-victory-design.md).
+
 ### Round composition
 
 > **King's Guard rounds.** Every 8th round starting at round 15 (15, 23, 31, …) replaces the normal composition with one or more **squads**: a King flanked by sliders (Bishop, Rook, Queen only) on adjacent files, spawning together so the King's aura fires as the squad enters. Both the squad count and each squad's size grow with the round number. The King and its sliders all draw tiers from the normal tier pool, so a late Guard round's King can be yellow, red, or black. Composition lives in `src/data/guardRounds.ts`; the squad and size formulas are placeholder tuning. See [`docs/superpowers/specs/2026-08-08-kings-guard-rounds-design.md`](../superpowers/specs/2026-08-08-kings-guard-rounds-design.md) for the full reasoning.
@@ -403,7 +417,6 @@ This is a **coverage** tower defense, not a **maze** one: defense is about which
 
 | Question | Notes |
 | --- | --- |
-| **Run length and loss condition** | How long a run is, what ends it, and whether difficulty scales per round or in stages. |
 | **Running out of cards** | Cards are consumed and packs are the only source, so a player can reach zero. Loss, stall, or covered by a guaranteed Ink floor? |
 | **Pack weighting and prices** | **Prices are settled** — base prices and per-type escalation are in `src/data/packs.ts` and `src/game/packs.ts`, and the mechanics are recorded in `2026-08-07-scale-pack-prices-design.md`. The **weights** are still open; they are placeholders in `src/data/packs.ts` because a deal cannot happen without them. Pack **sizes** are settled and are not part of this question. |
 | **Ink income values** | Kill rewards per Piece type, and the round-completion lump sum, are **placeholders**. Ink's worth is set by what it buys, and **pack prices now exist — see "Pack weighting and prices" above — so these can be resolved against them**. The *shapes* are settled and are not open — see "Ink and packs" above for the current three income paths, and [`2026-08-06-ink-income-design.md`](../superpowers/specs/2026-08-06-ink-income-design.md) for the reasoning behind them. One more thing to weigh whenever this pass happens: `tick.ts` feeds a freshly promoted Queen into the same tick's Tower fire, so a Pawn worth 1 Ink shot on the way in is worth 8 if left to reach the back rank and die as a Queen instead — withholding fire from an approaching Pawn is a legible, currently uncosted 8x income play. This can finally be resolved — jointly with pack prices, as this row has always said. |

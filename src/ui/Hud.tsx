@@ -5,6 +5,7 @@ import { GuardRoundBanner } from './GuardRoundBanner'
 import { MobileHud } from './MobileHud'
 import { PackShop } from './PackShop'
 import { TowerPanel } from './TowerPanel'
+import { VictoryScreen } from './VictoryScreen'
 
 /**
  * The HUD, in one of two layouts.
@@ -23,6 +24,7 @@ export function Hud() {
       {isMobile ? <MobileHud /> : <DesktopHud />}
       <TowerPanel />
       <PackShop />
+      <VictoryScreen />
       <Credits />
       <GuardRoundBanner />
     </div>

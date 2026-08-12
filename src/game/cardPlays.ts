@@ -10,6 +10,7 @@ import { towerRank } from '../data/towerRanks'
 import { findCard, isBuildableRank, removeCard } from './cards'
 import { clearReward } from './ink'
 import { canBuildOn } from './placement'
+import { isTerminal } from './phase'
 import { applySupport, canSupport } from './support'
 import type { BuildableRank, GameState, Square, Tower } from './types'
 
@@ -45,7 +46,7 @@ function newTower(id: string, square: Square, cardRank: BuildableRank): Tower {
  * packs and is never spent to play.
  */
 export function buildTower(state: GameState, cardId: string, square: Square): GameState {
-  if (state.phase === 'defeated') return state
+  if (isTerminal(state.phase)) return state
 
   const card = findCard(state.deck, cardId)
   if (!card || card.kind !== 'standard') return state
@@ -68,7 +69,7 @@ export function buildTower(state: GameState, cardId: string, square: Square): Ga
  * it. See `canSupport`.
  */
 export function supportTower(state: GameState, cardId: string, towerId: string): GameState {
-  if (state.phase === 'defeated') return state
+  if (isTerminal(state.phase)) return state
 
   const card = findCard(state.deck, cardId)
   if (!card || card.kind !== 'standard') return state
@@ -104,7 +105,7 @@ export function supportTower(state: GameState, cardId: string, towerId: string):
  * can be out-paced, a shield is pre-emptive and cannot.
  */
 export function shieldTower(state: GameState, cardId: string, towerId: string): GameState {
-  if (state.phase === 'defeated') return state
+  if (isTerminal(state.phase)) return state
 
   const card = findCard(state.deck, cardId)
   if (!card || card.kind !== 'standard' || card.rank !== 'J') return state
@@ -133,7 +134,7 @@ export function echoTower(
   sourceTowerId: string,
   square: Square,
 ): GameState {
-  if (state.phase === 'defeated') return state
+  if (isTerminal(state.phase)) return state
 
   const card = findCard(state.deck, cardId)
   if (!card || card.kind !== 'standard' || card.rank !== 'Q') return state
@@ -160,7 +161,7 @@ export function echoTower(
  * exactly 1 Core health, so this buys exactly one extra leak.
  */
 export function reinforceCore(state: GameState, cardId: string): GameState {
-  if (state.phase === 'defeated') return state
+  if (isTerminal(state.phase)) return state
 
   const card = findCard(state.deck, cardId)
   if (!card || card.kind !== 'standard' || card.rank !== 'K') return state
@@ -188,7 +189,7 @@ export function reinforceCore(state: GameState, cardId: string): GameState {
  * one. It will want a cap then.
  */
 export function expandBoard(state: GameState, cardId: string): GameState {
-  if (state.phase === 'defeated') return state
+  if (isTerminal(state.phase)) return state
 
   const card = findCard(state.deck, cardId)
   if (!card || card.kind !== 'standard' || card.rank !== 'A') return state
@@ -218,7 +219,7 @@ export function expandBoard(state: GameState, cardId: string): GameState {
  * share floors on the total rather than per Piece — see `clearReward`.
  */
 export function clearPieces(state: GameState, cardId: string): GameState {
-  if (state.phase === 'defeated') return state
+  if (isTerminal(state.phase)) return state
 
   const card = findCard(state.deck, cardId)
   if (!card || card.kind !== 'joker') return state

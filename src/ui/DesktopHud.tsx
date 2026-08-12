@@ -1,3 +1,4 @@
+import { VICTORY_ROUND } from '../data/rounds'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { resetRun } from './cardActions'
@@ -14,7 +15,7 @@ import { Deck } from './Deck'
  */
 export function DesktopHud() {
   const snapshot = useGameStore((store) => store.snapshot)
-  const { phase, roundNumber, core, autoStart, ink } = snapshot
+  const { phase, roundNumber, core, autoStart, ink, won } = snapshot
 
   return (
     <div className="hud__panel">
@@ -83,7 +84,14 @@ export function DesktopHud() {
         </label>
       </div>
 
-      {phase === 'defeated' ? <p className="hud__hint">The Core has fallen.</p> : null}
+      {phase === 'defeated' ? (
+        <p className="hud__hint">
+          The Core has fallen.
+          {won
+            ? ` You beat round ${VICTORY_ROUND}; free play ended on round ${roundNumber}.`
+            : null}
+        </p>
+      ) : null}
     </div>
   )
 }

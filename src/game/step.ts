@@ -21,6 +21,8 @@ export function step(state: GameState, command: Command): GameState {
   switch (command.kind) {
     case 'startRound':
       return startRound(state)
+    case 'continueToFreePlay':
+      return continueToFreePlay(state)
     case 'setAutoStart':
       return { ...state, autoStart: command.enabled }
     case 'buildTower':
@@ -50,5 +52,25 @@ function startRound(state: GameState): GameState {
     phase: 'inProgress',
     roundElapsedMs: 0,
     pendingSpawns: roundSpec(state.roundNumber).spawns,
+  }
+}
+
+/**
+ * The only command valid in the victory phase: moves the run into free play.
+ *
+ * Free play is the round-101 gap — a normal, startable round. The win is
+ * already recorded (`won` latched at the victory transition) and stays true.
+ * `roundElapsedMs` and `pendingSpawns` are reset so the gap reads as a fresh
+ * round about to begin, exactly as a round completion leaves it.
+ */
+function continueToFreePlay(state: GameState): GameState {
+  if (state.phase !== 'victory') return state
+
+  return {
+    ...state,
+    phase: 'gap',
+    roundNumber: state.roundNumber + 1,
+    roundElapsedMs: 0,
+    pendingSpawns: [],
   }
 }

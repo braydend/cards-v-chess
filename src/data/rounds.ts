@@ -24,6 +24,14 @@ export const INTRODUCED_AT: Record<PieceTypeId, number> = {
 }
 
 /**
+ * The round that completes a run — the goal of the game.
+ *
+ * Surviving this round records the win and shows the victory screen; the player
+ * may then continue into free play. See the round-100 victory spec.
+ */
+export const VICTORY_ROUND = 100
+
+/**
  * The round a tier starts appearing. The spread is a deliberate delay: the
  * player meets one behaviour change at a time, on top of the steadily growing
  * roster. PLACEHOLDER tuning.

@@ -1,4 +1,5 @@
 import { BLOCKED_ATTACK_MULTIPLIER, pieceType } from '../data/pieceTypes'
+import { VICTORY_ROUND } from '../data/rounds'
 import { tierDef } from '../data/tiers'
 import { towerRank, type TowerRankDef } from '../data/towerRanks'
 import { KING_SPEED_MULTIPLIER, applyHealing, buffedPieceIds, slideBonusFor } from './auras'
@@ -6,6 +7,7 @@ import { isInBounds, squareKey, stagingRank } from './board'
 import { coversSquare, hittableSquares, isOccluded } from './coverage'
 import { roundIncome, totalKillReward } from './ink'
 import { isStuck, nextMove } from './movement'
+import { isTerminal } from './phase'
 import { spawnHealth } from './spawnScaling'
 import { next, type Rng } from './rng'
 import { step } from './step'
@@ -92,7 +94,7 @@ function appendMisses(
  * completion safe.
  */
 export function tick(state: GameState, dtMs: number): GameState {
-  if (state.phase === 'defeated') return state
+  if (isTerminal(state.phase)) return state
 
   // Auto-start lives here rather than in the caller so that every rule stays
   // inside the engine. It is a setting, not a game mode: it simply issues the
@@ -249,6 +251,33 @@ export function tick(state: GameState, dtMs: number): GameState {
   )
 
   if (!stillActive && pendingSpawns.length === 0) {
+    // Beating round 100 is the goal of a run. The completion that lands here
+    // at `VICTORY_ROUND` records the win: the phase becomes `victory` — a
+    // frozen interstitial, like `defeated`, whose only way out is the
+    // `continueToFreePlay` command — and `roundNumber` stays at 100, the round
+    // just beaten. A `'victory'` phase rather than a gap: auto-start fires
+    // from the gap, so a victory gap would chain round 101 under the victory
+    // screen before the player chooses to continue.
+    if (state.roundNumber === VICTORY_ROUND) {
+      return {
+        ...state,
+        phase: 'victory',
+        won: true,
+        roundElapsedMs: 0,
+        core,
+        leaks,
+        recentExits,
+        recentMisses,
+        rng: { ...state.rng, combat: fired.rng },
+        // `state.roundNumber` is VICTORY_ROUND here — the round just played.
+        ink: ink + roundIncome(state.roundNumber),
+        pieces: healed,
+        towers: fired.towers,
+        pendingSpawns: [],
+        nextEntityId: entityIdAfterPromotion,
+      }
+    }
+
     return {
       ...state,
       phase: 'gap',

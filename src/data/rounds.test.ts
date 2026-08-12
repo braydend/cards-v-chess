@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { isGuardRound } from './guardRounds'
-import { INTRODUCED_AT, TIER_INTRODUCED_AT, roundSpec } from './rounds'
+import { INTRODUCED_AT, TIER_INTRODUCED_AT, VICTORY_ROUND, roundSpec } from './rounds'
 import type { PieceTier, PieceTypeId } from '../game/types'
 
 function typesIn(roundNumber: number): Set<PieceTypeId> {
@@ -44,6 +44,10 @@ describe('round composition', () => {
     for (const [typeId, count] of counts) {
       if (typeId !== 'pawn') expect(pawns).toBeGreaterThanOrEqual(count)
     }
+  })
+
+  it('is beatable at round 100', () => {
+    expect(VICTORY_ROUND).toBe(100)
   })
 })
 

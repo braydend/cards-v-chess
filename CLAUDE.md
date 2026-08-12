@@ -13,7 +13,8 @@ It is a **one-sided defense**. The player is always Cards; Chess is always the a
 
 ## Current state
 
-`pnpm dev` gives a playable loop: the board renders, rounds start manually or automatically, the full Chess roster advances on chess rules, Towers fire, blocked Pieces grind Towers down, cards are played from the Deck, and the run ends when the Core falls.
+`pnpm dev` gives a playable loop: the board renders, rounds start manually or automatically, the full Chess roster advances on chess rules, Towers fire, blocked Pieces grind Towers down, cards are played from the Deck, beating round 100 records a win with free play
+beyond, and the run ends when the Core falls.
 
 What exists:
 
@@ -245,6 +246,7 @@ Use these terms exactly and consistently — in code, comments, and UI copy.
 | **Promotion** | A surviving Pawn becoming a Queen |
 | **Core** | What the player defends |
 | **Round** | One wave of invaders. Always "round", never "wave" |
+| **Free play** | The run continuing after round 100 is beaten — the same game, difficulty still escalating, no further goal |
 | **Tick** | One fixed-timestep simulation step |
 | **Command** | A player action entering the engine |
 | **Leak** | A Piece reaching the Core |
