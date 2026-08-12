@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { VICTORY_ROUND } from '../data/rounds'
 import { firstTowerId, jokerCard, liveRound, pawnAt, standardCard, withDeck, withTower } from './fixtures'
 import { createInitialState, squaresEqual, step, tick } from './index'
 import type { Command, GameState } from './types'
@@ -211,5 +212,47 @@ describe('step: the defeated guard', () => {
     const state = defeatedState()
 
     expect(step(state, buildCommand(firstTowerId(state)))).toBe(state)
+  })
+
+  it.each<[string, (towerId: string) => Command]>([
+    ['buildTower', () => ({ kind: 'buildTower', cardId: 'build', square: BUILD_SQUARE })],
+    ['supportTower', (towerId) => ({ kind: 'supportTower', cardId: 'support', towerId })],
+    ['shieldTower', (towerId) => ({ kind: 'shieldTower', cardId: 'shield', towerId })],
+    [
+      'echoTower',
+      (towerId) => ({ kind: 'echoTower', cardId: 'echo', sourceTowerId: towerId, square: BUILD_SQUARE }),
+    ],
+    ['reinforceCore', () => ({ kind: 'reinforceCore', cardId: 'king' })],
+    ['expandBoard', () => ({ kind: 'expandBoard', cardId: 'ace' })],
+    ['clearPieces', () => ({ kind: 'clearPieces', cardId: 'joker' })],
+  ])('%s: refuses to act once victorious, leaving state (and the Card) untouched', (_kind, buildCommand) => {
+    const state = { ...defeatedState(), phase: 'victory' as const }
+
+    expect(step(state, buildCommand(firstTowerId(state)))).toBe(state)
+  })
+})
+
+describe('step: continueToFreePlay', () => {
+  it('is refused outside the victory phase', () => {
+    const state = createInitialState()
+
+    expect(step(state, { kind: 'continueToFreePlay' })).toBe(state)
+  })
+
+  it('moves from victory into the round-101 gap, keeping the win', () => {
+    const victor: GameState = {
+      ...createInitialState(),
+      phase: 'victory',
+      won: true,
+      roundNumber: VICTORY_ROUND,
+    }
+
+    const after = step(victor, { kind: 'continueToFreePlay' })
+
+    expect(after.phase).toBe('gap')
+    expect(after.roundNumber).toBe(VICTORY_ROUND + 1)
+    expect(after.won).toBe(true)
+    expect(after.roundElapsedMs).toBe(0)
+    expect(after.pendingSpawns).toHaveLength(0)
   })
 })

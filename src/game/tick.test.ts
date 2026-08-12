@@ -104,6 +104,12 @@ describe('tick: phase handling', () => {
 
     expect(tick(defeated, DT)).toBe(defeated)
   })
+
+  it('is inert once victorious', () => {
+    const victor: GameState = { ...createInitialState(), phase: 'victory' }
+
+    expect(tick(victor, DT)).toBe(victor)
+  })
 })
 
 describe('tick: spawning', () => {

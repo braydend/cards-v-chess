@@ -6,6 +6,7 @@ import { isInBounds, squareKey, stagingRank } from './board'
 import { coversSquare, hittableSquares, isOccluded } from './coverage'
 import { roundIncome, totalKillReward } from './ink'
 import { isStuck, nextMove } from './movement'
+import { isTerminal } from './phase'
 import { spawnHealth } from './spawnScaling'
 import { next, type Rng } from './rng'
 import { step } from './step'
@@ -92,7 +93,7 @@ function appendMisses(
  * completion safe.
  */
 export function tick(state: GameState, dtMs: number): GameState {
-  if (state.phase === 'defeated') return state
+  if (isTerminal(state.phase)) return state
 
   // Auto-start lives here rather than in the caller so that every rule stays
   // inside the engine. It is a setting, not a game mode: it simply issues the

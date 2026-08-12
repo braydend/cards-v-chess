@@ -298,9 +298,9 @@ export interface Tower {
 
 /**
  * `gap` is the untimed window between rounds — the player plans and builds.
- * `inProgress` is live combat. `defeated` is terminal.
+ * `inProgress` is live combat. `defeated` and `victory` are terminal.
  */
-export type RoundPhase = 'gap' | 'inProgress' | 'defeated'
+export type RoundPhase = 'gap' | 'inProgress' | 'defeated' | 'victory'
 
 export interface Spawn {
   /** Milliseconds into the round at which this piece appears. */
@@ -338,6 +338,14 @@ export interface GameState {
   readonly towers: readonly Tower[]
   /** Count of pieces that have reached the Core. */
   readonly leaks: number
+  /**
+   * Whether this run has beaten round `VICTORY_ROUND` — the goal of a run.
+   *
+   * Latches true when round 100 completes (see `tick.ts`) and never clears
+   * within the run. What free play and the defeat screen read: the run-outcome
+   * fact "this run won", in the same class as `leaks`.
+   */
+  readonly won: boolean
   /**
    * The most recent leaks and promotions, for the renderer to animate. Kills
    * are deliberately absent — see `ExitRecord`.
@@ -456,6 +464,7 @@ export interface GameState {
 
 export type Command =
   | { readonly kind: 'startRound' }
+  | { readonly kind: 'continueToFreePlay' }
   | { readonly kind: 'setAutoStart'; readonly enabled: boolean }
   | { readonly kind: 'buildTower'; readonly cardId: string; readonly square: Square }
   | { readonly kind: 'supportTower'; readonly cardId: string; readonly towerId: string }
