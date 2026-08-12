@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { ACE_BOARD_RANKS, JACK_SHIELD, KING_CORE_HEALTH } from '../data/cards'
+import { BOARD } from '../data/board'
+import { PIECE_TYPES } from '../data/pieceTypes'
 import { towerType } from '../data/towerTypes'
+import { hittableSquares } from './coverage'
 import { firstTower, firstTowerId, jokerCard, liveRound, pawnAt, pieceAt, standardCard, withDeck, withTower } from './fixtures'
-import { createInitialState, stagingRank, step, tick } from './index'
+import { createInitialState, squareKey, stagingRank, step, tick } from './index'
 import { clearReward, roundIncome, totalKillReward } from './ink'
 import type { GameState, Piece } from './types'
 
@@ -96,6 +99,58 @@ describe('Queen — Range', () => {
     expect(
       step(state, { kind: 'rangeTower', cardId: 'five', towerId: firstTowerId(state) }),
     ).toBe(state)
+  })
+
+  it("a boosted range widens the footprint the firing path reads", () => {
+    // A vertical Tower on the back rank at base range 5 covers the whole file
+    // up to rank 5; the rank-6 square is one beyond it. Range is the ONE value
+    // a Queen changes, so the footprint must grow from the Tower's *instance*
+    // range, not the type table's — a regression that read `towerType(...)`
+    // here would silently keep the base footprint and this test would fail.
+    const base = withDeck(
+      [standardCard('q', 'Q', 'diamonds')],
+      withTower('vertical', { file: 4, rank: 0 }),
+    )
+    const beyondBase = { file: 4, rank: towerType('vertical').range + 1 }
+
+    expect(hittableSquares(BOARD, base.towers).has(squareKey(beyondBase))).toBe(false)
+
+    const boosted = step(base, { kind: 'rangeTower', cardId: 'q', towerId: firstTowerId(base) })
+
+    expect(firstTower(boosted).range).toBe(towerType('vertical').range + 1)
+    expect(hittableSquares(BOARD, boosted.towers).has(squareKey(beyondBase))).toBe(true)
+  })
+
+  it("a boosted range reaches a Piece one square beyond the base range", () => {
+    // The firing-path twin of the footprint test: same arrangement, but this
+    // one drives the engine and asks what actually took damage. `hittableSquares`
+    // is the overlay the firing loop and yellow's hunt share, so this pins that
+    // the boosted range reaches real shots, not just the preview.
+    const WINDOW_MS = 704
+    const DT_MS = 16
+    const target = { file: 4, rank: towerType('vertical').range + 1 }
+    const before = PIECE_TYPES.pawn.maxHealth
+    const boosted = () =>
+      step(
+        withDeck([standardCard('q', 'Q', 'diamonds')], withTower('vertical', { file: 4, rank: 0 })),
+        { kind: 'rangeTower', cardId: 'q', towerId: firstTowerId(withTower('vertical', { file: 4, rank: 0 })) },
+      )
+
+    let unboosted = liveRound(
+      withTower('vertical', { file: 4, rank: 0 }),
+      [pawnAt('probe', target)],
+    )
+    for (let elapsed = 0; elapsed < WINDOW_MS; elapsed += DT_MS) unboosted = tick(unboosted, DT_MS)
+    const unhit = unboosted.pieces.find((piece) => piece.id === 'probe')
+
+    expect(unhit).toBeDefined()
+    expect(unhit?.health).toBe(before)
+
+    let live = liveRound(boosted(), [pawnAt('probe', target)])
+    for (let elapsed = 0; elapsed < WINDOW_MS; elapsed += DT_MS) live = tick(live, DT_MS)
+    const hit = live.pieces.find((piece) => piece.id === 'probe')
+
+    expect(hit?.health).toBeLessThan(before)
   })
 })
 

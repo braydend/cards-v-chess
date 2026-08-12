@@ -78,9 +78,10 @@ export type BoardAction =
  * target (K, A, Joker) or cannot act on what was clicked — the inspect panel
  * gets the click.
  *
- * Which Command a target produces is built inline here — `commandFor` is
- * superseded by this function and the hand flow, and no longer has a seat at
- * this table.
+ * Which Command a target produces is built inline here. A K, A, or Joker plays
+ * with no target, so its command is built by `faceActionCommand` in
+ * `src/ui/handSelection.ts`; a J or Q needs a Tower target and is this
+ * function's job. The old `commandFor` no longer has a seat at this table.
  */
 export function resolveBoardAction(context: BoardClickContext): BoardAction {
   const { square, towers, selectedTowerId, card, pendingTower, pointer, previewedSquare } = context

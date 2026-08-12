@@ -135,6 +135,16 @@ describe('step: playHand and placeTower', () => {
     expect(step(initial, { kind: 'playHand', cardIds: ['ghost'] })).toBe(initial)
   })
 
+  it('refuses a duplicate id, so a pair cannot be read from one Card', () => {
+    // `['five', 'five']` on a one-card Deck evaluates as a pair of fives — a
+    // Wall bought for the price of a single Card. The Deck is a multiset, so
+    // each played Card must be named once.
+    const initial = withDeck([FIVE])
+
+    expect(step(initial, { kind: 'playHand', cardIds: ['five', 'five'] })).toBe(initial)
+    expect(initial.deck).toHaveLength(1)
+  })
+
   it('refuses an invalid hand, and keeps the Cards', () => {
     // Two Cards of different ranks form no valid hand of size 2.
     const initial = withDeck([standardCard('a', 5, 'clubs'), standardCard('b', 6, 'hearts')])

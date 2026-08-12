@@ -826,6 +826,22 @@ canvas {
     width: 2.6rem;
   }
 
+  /* The multi-card count under the first selected card's face — the strip
+     shows one face but may represent a whole hand, so say so. */
+  .mobileStrip__count {
+    position: absolute;
+    bottom: -0.45rem;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0.05rem 0.35rem;
+    border-radius: 0.6rem;
+    background: #2a323d;
+    color: #b9c6d6;
+    font-size: 0.7rem;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
   .mobileStrip__cancel {
     position: absolute;
     top: -0.5rem;

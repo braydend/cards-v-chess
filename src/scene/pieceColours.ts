@@ -2,7 +2,7 @@
  * The King-buff ring at a Piece's base.
  *
  * Teal, deliberately distinct from every `TIER_COLOURS` value (a yellow-tier
- * Piece would swallow a yellow ring) and every `RANK_COLOURS` value — the aura
+ * Piece would swallow a yellow ring) and every `TOWER_COLOURS` value — the aura
  * ring must read as an aura, not as a tier marker, a Tower, or a buff of
  * another colour. `tierColours.test.ts` guards the disjointness.
  *

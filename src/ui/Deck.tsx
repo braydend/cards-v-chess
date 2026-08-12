@@ -1,9 +1,9 @@
-import type { Card } from '../game'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { toggleCardForHand } from './cardActions'
 import { CardFace } from './CardFace'
 import { HandPanel } from './HandPanel'
+import { selectedCards } from './handSelection'
 
 /**
  * The Deck: every Card held this run, always visible and always playable.
@@ -22,9 +22,7 @@ export function Deck() {
   const clearSelection = useUiStore((store) => store.clearSelection)
   const setPreviewedSquare = useUiStore((store) => store.setPreviewedSquare)
 
-  const selected = selectedCardIds
-    .map((id) => deck.find((card) => card.id === id))
-    .filter((card): card is Card => card !== undefined)
+  const selected = selectedCards(deck, selectedCardIds)
 
   return (
     <div className="deck">

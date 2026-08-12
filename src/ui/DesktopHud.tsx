@@ -58,7 +58,7 @@ export function DesktopHud() {
         <button
           type="button"
           className="hud__button"
-          disabled={phase !== 'gap'}
+          disabled={phase !== 'gap' || pendingTower !== null}
           onClick={() => useUiStore.getState().setPackShopOpen(true)}
         >
           Buy a pack

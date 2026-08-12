@@ -1,5 +1,7 @@
 import type { Card, CardRank } from './types'
 
+type StandardCard = Extract<Card, { kind: 'standard' }>
+
 /**
  * Poker hands, the new way Towers are purchased. A committed set of Cards must
  * be EXACTLY one valid hand of its size — no kickers, no downgrades. The hand
@@ -115,25 +117,24 @@ export function evaluateHand(cards: readonly Card[]): HandType | null {
   return null
 }
 
-function rankCounts(cards: readonly Card[]): Record<string, number> {
+function rankCounts(cards: readonly StandardCard[]): Record<string, number> {
   const counts: Record<string, number> = {}
   for (const card of cards) {
-    if (card.kind === 'standard') counts[card.rank] = (counts[card.rank] ?? 0) + 1
+    counts[card.rank] = (counts[card.rank] ?? 0) + 1
   }
   return counts
 }
 
-function evaluateFive(cards: readonly Card[]): HandType | null {
-  const standard = cards.filter((card): card is Extract<Card, { kind: 'standard' }> => card.kind === 'standard')
-  if (standard.length !== 5) return null
+function evaluateFive(cards: readonly StandardCard[]): HandType | null {
+  if (cards.length !== 5) return null
 
-  const suits = new Set(standard.map((card) => card.suit))
+  const suits = new Set(cards.map((card) => card.suit))
   const isFlush = suits.size === 1
 
-  const values = standard.map((card) => rankValue(card.rank))
+  const values = cards.map((card) => rankValue(card.rank))
   const straight = straightValues(values)
 
-  const counts = Object.values(rankCounts(standard))
+  const counts = Object.values(rankCounts(cards))
   const isFullHouse = counts.includes(3) && counts.includes(2)
 
   if (straight) {

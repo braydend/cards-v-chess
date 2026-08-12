@@ -5,13 +5,30 @@ import type { Card, CardRank, Suit } from './types'
 
 const card = (id: string, rank: CardRank, suit: Suit = 'hearts'): Card => standardCard(id, rank, suit)
 
-const SUITS: readonly Suit[] = ['hearts', 'diamonds', 'spades', 'clubs']
-
-let suitIndex = 0
+// One fixed suit per rank, so the same rank always gets the same suit and test
+// order never matters. The assignment is constrained, not arbitrary: a five-
+// card set built from these must never be a FLUSH, since several tests rely on
+// mixed suits — the straights, the full house (5,5,5,9,9), and the invalid
+// five-card set (5,5,2,3,4) would all otherwise read as a flush. Cycling off
+// the rank VALUE fails this (5 and 9 share a residue mod 4), hence the table.
+const SUIT_FOR_RANK: Record<CardRank, Suit> = {
+  2: 'hearts',
+  3: 'diamonds',
+  4: 'spades',
+  5: 'hearts',
+  6: 'clubs',
+  7: 'hearts',
+  8: 'diamonds',
+  9: 'spades',
+  10: 'hearts',
+  J: 'clubs',
+  Q: 'diamonds',
+  K: 'spades',
+  A: 'clubs',
+}
 
 const c = (rank: CardRank): Card => {
-  const suit = SUITS[suitIndex % SUITS.length] ?? 'hearts'
-  suitIndex += 1
+  const suit = SUIT_FOR_RANK[rank]
   return card(String(rank), rank, suit)
 }
 

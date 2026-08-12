@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import type { Card, Command, FaceRank, HandType, RoundPhase } from '../game'
+import type { Card, HandType, RoundPhase } from '../game'
 import { HAND_SIZES } from '../game'
 import { TOWER_TYPE_IDS, type TowerTypeId } from '../data/towerTypes'
 import { dispatch } from '../state/store'
-import { FACE_ACTION, commitCommand, selectionSummary } from './handSelection'
+import { FACE_ACTION, commitCommand, faceActionCommand, selectionSummary } from './handSelection'
 
 /** Player-facing name of each hand. */
 const HAND_LABELS: Record<HandType, string> = {
@@ -23,17 +23,6 @@ const HAND_LABELS: Record<HandType, string> = {
 const FACE_TARGET_HINT: Record<'J' | 'Q', string> = {
   J: 'Click a Tower to shield it',
   Q: 'Click a Tower to add +1 range',
-}
-
-/**
- * The command a face Card's action produces straight from the Deck, or null
- * when the action needs a board target. J/Q need a Tower click, which the
- * board resolves; K/A are untargeted and play from here.
- */
-function faceActionCommand(rank: FaceRank, cardId: string): Command | null {
-  if (rank === 'K') return { kind: 'reinforceCore', cardId }
-  if (rank === 'A') return { kind: 'expandBoard', cardId }
-  return null
 }
 
 /**
@@ -83,7 +72,7 @@ export function HandPanel({
             type="button"
             className="deck__play"
             onClick={() => {
-              const command = faceActionCommand(summary.rank, face.id)
+              const command = faceActionCommand(face)
               if (command && dispatch(command)) onCommitted()
             }}
           >
@@ -110,8 +99,8 @@ export function HandPanel({
             type="button"
             className="deck__play"
             onClick={() => {
-              const command: Command = { kind: 'clearPieces', cardId: joker.id }
-              if (dispatch(command)) onCommitted()
+              const command = faceActionCommand(joker)
+              if (command && dispatch(command)) onCommitted()
             }}
           >
             Play

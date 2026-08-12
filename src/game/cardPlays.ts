@@ -61,6 +61,11 @@ export function playHand(
   if (state.phase !== 'gap') return state
   if (state.pendingTower !== null) return state
 
+  // Each Card is named once. The Deck is a multiset, so `['five', 'five']`
+  // on a one-Card Deck would otherwise read as a pair of fives and buy a Wall
+  // for the price of one Card.
+  if (new Set(cardIds).size !== cardIds.length) return state
+
   const cards = cardIds
     .map((id) => findCard(state.deck, id))
     .filter((card): card is Card => card !== undefined)

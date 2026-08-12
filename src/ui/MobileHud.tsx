@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import type { Card } from '../game'
 import { VICTORY_ROUND } from '../data/rounds'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
@@ -7,6 +6,7 @@ import { resetRun } from './cardActions'
 import { DeckOverlay } from './DeckOverlay'
 import { CardFace } from './CardFace'
 import { HandPanel } from './HandPanel'
+import { selectedCards } from './handSelection'
 
 /**
  * The mobile HUD: a thin always-visible bar plus a deck overlay.
@@ -29,9 +29,7 @@ export function MobileHud() {
 
   const [deckOpen, setDeckOpen] = useState(false)
 
-  const selected = selectedCardIds
-    .map((id) => deck.find((card) => card.id === id))
-    .filter((card): card is Card => card !== undefined)
+  const selected = selectedCards(deck, selectedCardIds)
 
   const first = selected[0]
 
@@ -74,7 +72,7 @@ export function MobileHud() {
         <button
           type="button"
           className="hud__button"
-          disabled={phase !== 'gap'}
+          disabled={phase !== 'gap' || pendingTower !== null}
           onClick={() => setPackShopOpen(true)}
         >
           Packs
@@ -110,6 +108,9 @@ export function MobileHud() {
         <div className="mobileStrip">
           <div className="mobileStrip__card">
             {first ? <CardFace card={first} /> : null}
+            {selected.length > 1 ? (
+              <span className="mobileStrip__count">×{selected.length}</span>
+            ) : null}
             <button
               type="button"
               className="mobileStrip__cancel"
@@ -139,6 +140,27 @@ export function MobileHud() {
               }}
             />
           </div>
+        </div>
+      ) : null}
+
+      {/*
+       * A pending Tower stands between commit and placement: the hand is
+       * consumed and the selection strip is gone (commit cleared it), so this
+       * hint and Cancel are the touch player's only way out — the start button
+       * is disabled while the Tower awaits. Mirrors the desktop Deck's pending
+       * branch; the play is cancelled, not undone — the Cards are spent either
+       * way.
+       */}
+      {pendingTower !== null ? (
+        <div className="mobileStrip">
+          <p className="hud__hint">Place this Tower on the board, or cancel.</p>
+          <button
+            type="button"
+            className="deck__play"
+            onClick={() => dispatch({ kind: 'cancelPlacement' })}
+          >
+            Cancel
+          </button>
         </div>
       ) : null}
 

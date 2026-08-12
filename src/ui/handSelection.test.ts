@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { jokerCard, standardCard } from '../game/fixtures'
 import type { Card, CardRank, Suit } from '../game'
-import { commitCommand, selectionSummary } from './handSelection'
+import {
+  commitCommand,
+  faceActionCommand,
+  selectedCards,
+  selectionSummary,
+} from './handSelection'
 
 const card = (id: string, rank: CardRank, suit: Suit = 'hearts'): Card => standardCard(id, rank, suit)
 
@@ -107,5 +112,40 @@ describe('commitCommand', () => {
 
   it('refuses to commit a lone Joker as a hand', () => {
     expect(commitCommand([jokerCard('jk1')])).toBeNull()
+  })
+})
+
+describe('faceActionCommand', () => {
+  it('builds the untargeted play for a King, an Ace, and a Joker', () => {
+    expect(faceActionCommand(card('k1', 'K'))).toEqual({ kind: 'reinforceCore', cardId: 'k1' })
+    expect(faceActionCommand(card('a1', 'A'))).toEqual({ kind: 'expandBoard', cardId: 'a1' })
+    expect(faceActionCommand(jokerCard('jk1'))).toEqual({ kind: 'clearPieces', cardId: 'jk1' })
+  })
+
+  it('returns null for a Jack or Queen, which need a Tower target', () => {
+    expect(faceActionCommand(card('j1', 'J'))).toBeNull()
+    expect(faceActionCommand(card('q1', 'Q'))).toBeNull()
+  })
+
+  it('returns null for a numbered Card — it is hand material, not a solo play', () => {
+    expect(faceActionCommand(card('n1', 5))).toBeNull()
+  })
+})
+
+describe('selectedCards', () => {
+  it('resolves the selected ids to their Cards, in pick order', () => {
+    const deck = [card('a', 5), card('b', 'J'), jokerCard('jk')]
+
+    expect(selectedCards(deck, ['b', 'a'])).toEqual([card('b', 'J'), card('a', 5)])
+  })
+
+  it('drops an id with no Card behind it', () => {
+    const deck = [card('a', 5)]
+
+    expect(selectedCards(deck, ['a', 'ghost'])).toEqual([card('a', 5)])
+  })
+
+  it('returns an empty list for an empty selection', () => {
+    expect(selectedCards([card('a', 5)], [])).toEqual([])
   })
 })

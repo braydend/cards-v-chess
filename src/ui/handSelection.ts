@@ -89,3 +89,43 @@ export function commitCommand(cards: readonly Card[], chosenType?: TowerTypeId):
   if (summary.hand === 'royalFlush' && chosenType === undefined) return null
   return { kind: 'playHand' as const, cardIds: cards.map((card) => card.id), chosenType }
 }
+
+/**
+ * The command a no-target face play produces from the Deck, or null when the
+ * Card needs a board target.
+ *
+ * K, A, and the Joker play straight from the Deck — no target — so this covers
+ * exactly those three. A Jack's shield and a Queen's range action need a Tower
+ * click, which `src/scene/boardClick.ts` resolves, and a numbered Card is hand
+ * material with no solo play, so this returns null for both. The old
+ * `commandFor` in `src/game/` had exactly this one caller, so the mapping lives
+ * here where it is tested beside the panel that uses it.
+ */
+export function faceActionCommand(card: Card): Command | null {
+  if (card.kind === 'joker') return { kind: 'clearPieces', cardId: card.id }
+
+  switch (card.rank) {
+    case 'K':
+      return { kind: 'reinforceCore', cardId: card.id }
+    case 'A':
+      return { kind: 'expandBoard', cardId: card.id }
+  }
+
+  return null
+}
+
+/**
+ * The Cards the current selection's ids resolve to, in pick order.
+ *
+ * Both the desktop Deck and the mobile strip resolve their selected ids
+ * against the live Deck; this is that lookup, once, so the two cannot drift.
+ * An id whose Card is gone (already played elsewhere) is dropped.
+ */
+export function selectedCards(
+  deck: readonly Card[],
+  selectedCardIds: readonly string[],
+): Card[] {
+  return selectedCardIds
+    .map((id) => deck.find((card) => card.id === id))
+    .filter((card): card is Card => card !== undefined)
+}

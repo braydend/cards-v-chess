@@ -544,9 +544,10 @@ export type Command =
        * holds a half-finished purchase and Cancel needs no rollback. The
        * in-progress cull selection is view state — see `src/state/uiStore.ts`.
        *
-       * Valid only in the `gap` phase. That is the one exception to "commands
-       * are valid both between rounds and mid-round", and it is what keeps round
-       * termination bounded — see `src/game/roundTermination.test.ts`.
+       * Valid only in the `gap` phase, like hand plays and Tower placement —
+       * the gap-only exceptions to "commands are valid both between rounds and
+       * mid-round". For packs, that rule is what keeps round termination
+       * bounded — see `src/game/roundTermination.test.ts`.
        */
       readonly kind: 'buyPack'
       readonly pack: PackType
