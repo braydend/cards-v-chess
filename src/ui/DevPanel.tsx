@@ -8,6 +8,7 @@ import type { CardRank, PieceTier, PieceTypeId, Suit } from '../game'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { resetRun } from './cardActions'
+import { cardRankFromSelectValue } from './cardRankSelect'
 
 const PIECE_IDS = Object.keys(PIECE_TYPES) as PieceTypeId[]
 const TIER_IDS = Object.keys(TIERS) as PieceTier[]
@@ -110,9 +111,10 @@ export function DevPanel() {
         <div className="dev-panel__row">
           <select
             value={cardRank}
-            onChange={(event) =>
-              setCardRank(event.target.value === '' ? '' : (event.target.value as CardRank))
-            }
+            onChange={(event) => {
+              const value = event.target.value
+              setCardRank(value === '' ? '' : (cardRankFromSelectValue(value) ?? ''))
+            }}
           >
             <option value="">Joker</option>
             {ALL_CARD_RANKS.map((rank) => (
