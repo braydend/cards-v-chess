@@ -42,9 +42,10 @@ export function DevPanel() {
   const [growInput, setGrowInput] = useState('1')
 
   // Backquote toggles the panel. The listener is a plain event handler — no
-  // setState in an effect — and it ships nowhere because the guard below
-  // strips this component from production builds.
+  // setState in an effect — and it ships nowhere because the guard at the top
+  // of the effect body skips registration outside dev builds.
   useEffect(() => {
+    if (!import.meta.env.DEV) return
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== '`') return
       event.preventDefault()
