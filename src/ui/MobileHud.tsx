@@ -25,7 +25,7 @@ export function MobileHud() {
   const clearSelection = useUiStore((store) => store.clearSelection)
   const setPreviewedSquare = useUiStore((store) => store.setPreviewedSquare)
   const setPackShopOpen = useUiStore((store) => store.setPackShopOpen)
-  const setCreditsOpen = useUiStore((store) => store.setCreditsOpen)
+  const setAboutOpen = useUiStore((store) => store.setAboutOpen)
 
   const [deckOpen, setDeckOpen] = useState(false)
 
@@ -89,9 +89,9 @@ export function MobileHud() {
         <button
           type="button"
           className="hud__button hud__button--quiet"
-          onClick={() => setCreditsOpen(true)}
+          onClick={() => setAboutOpen(true)}
         >
-          Credits
+          About
         </button>
       </div>
 

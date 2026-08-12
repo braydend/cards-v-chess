@@ -14,7 +14,7 @@ import type { RefObject } from 'react'
  * snapshot publish. The latest `close` lives in a ref instead, and the listener
  * reads through it.
  *
- * The focusable selector is buttons plus links, matching `Credits`, which traps
+ * The focusable selector is buttons plus links, matching `About`, which traps
  * links because its panel holds only the attribution links. `PackShop` and the
  * deck overlay have no links, so for them the `a[href]` clause matches nothing
  * and the trap is effectively buttons-only.
