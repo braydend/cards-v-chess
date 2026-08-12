@@ -21,6 +21,7 @@ import {
 } from './dev'
 import { buyPack } from './packs'
 import type { Command, GameState } from './types'
+import { upgradeTower } from './upgrades'
 
 /**
  * Applies a player command. Pure: returns new state, never mutates.
@@ -61,6 +62,8 @@ export function step(state: GameState, command: Command): GameState {
       return expandBoard(state, command.cardId)
     case 'clearPieces':
       return clearPieces(state, command.cardId)
+    case 'upgradeTower':
+      return upgradeTower(state, command.towerId, command.stat)
     case 'buyPack':
       return buyPack(state, command.pack, command.suit, command.cullCardIds)
     case 'devAddInk':

@@ -525,6 +525,9 @@ export interface GameState {
   readonly deck: readonly Card[]
 }
 
+/** The three upgrade options a Tower can spend one pending upgrade on. */
+export type UpgradeStat = 'damage' | 'fireRate' | 'health'
+
 export type Command =
   | { readonly kind: 'startRound' }
   | { readonly kind: 'continueToFreePlay' }
@@ -556,6 +559,20 @@ export type Command =
   | { readonly kind: 'reinforceCore'; readonly cardId: string }
   | { readonly kind: 'expandBoard'; readonly cardId: string }
   | { readonly kind: 'clearPieces'; readonly cardId: string }
+  | {
+      /**
+       * Spend one pending upgrade on a Tower stat.
+       *
+       * Valid any time except terminal phases — mid-round and in the gap
+       * alike, because a Tower earns kills mid-round and the heal must be
+       * spendable when it matters. Requires `pendingUpgrades(tower.kills,
+       * tower.upgradesSpent) > 0`, so the Wall (which never kills) is refused
+       * by construction.
+       */
+      readonly kind: 'upgradeTower'
+      readonly towerId: string
+      readonly stat: UpgradeStat
+    }
   | {
       /**
        * Buy a pack, culling to the cap in the same step.

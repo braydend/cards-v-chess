@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { towerType } from '../data/towerTypes'
+import { firstTower, withTower } from './fixtures'
+import { step } from './step'
 import { pendingUpgrades, thresholdsCleared, upgradeThreshold } from './upgrades'
+import type { GameState } from './types'
 
 describe('upgradeThreshold', () => {
   it('starts at the first threshold and escalates 20% each level, ceiled', () => {
@@ -35,5 +39,112 @@ describe('pendingUpgrades', () => {
   it('never goes below zero', () => {
     expect(pendingUpgrades(5, 1)).toBe(0)
     expect(pendingUpgrades(0, 3)).toBe(0)
+  })
+})
+
+describe('upgradeTower', () => {
+  /** A live Tower with a chosen kill count. */
+  function towerWithKills(state: GameState, kills: number): GameState {
+    return {
+      ...state,
+      towers: state.towers.map((tower) => ({ ...tower, kills })),
+    }
+  }
+
+  function damageOf(state: GameState): number {
+    return firstTower(state).damage
+  }
+
+  it('spends one upgrade on +1 damage', () => {
+    const vertical = towerType('vertical')
+    const base = towerWithKills(withTower('vertical', { file: 3, rank: 3 }), 10)
+
+    const after = step(base, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'damage' })
+
+    expect(damageOf(after)).toBe(vertical.damage + 1)
+    expect(firstTower(after).upgradesSpent).toBe(1)
+  })
+
+  it('spends one upgrade on 10% faster firing, additive off the base interval', () => {
+    const vertical = towerType('vertical')
+    const base = towerWithKills(withTower('vertical', { file: 3, rank: 3 }), 12)
+
+    const once = step(base, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'fireRate' })
+    const twice = step(once, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'fireRate' })
+
+    expect(firstTower(once).fireIntervalMs).toBe(
+      vertical.fireIntervalMs - 0.1 * vertical.fireIntervalMs,
+    )
+    // Second pick still subtracts 10% of BASE — 450 -> 400 — not 10% of 450.
+    expect(firstTower(twice).fireIntervalMs).toBe(
+      vertical.fireIntervalMs - 0.2 * vertical.fireIntervalMs,
+    )
+  })
+
+  it('spends one upgrade on +10% health, healing by exactly the increase', () => {
+    const vertical = towerType('vertical')
+    const base = towerWithKills(withTower('vertical', { file: 3, rank: 3 }), 10)
+    const damaged = {
+      ...base,
+      towers: base.towers.map((tower) => ({ ...tower, health: 10 })),
+    }
+
+    const after = step(damaged, { kind: 'upgradeTower', towerId: firstTower(damaged).id, stat: 'health' })
+
+    const tower = firstTower(after)
+    // Old max was vertical.maxHealth; both fields gain 10% of the OLD max.
+    expect(tower.maxHealth).toBe(vertical.maxHealth + 0.1 * vertical.maxHealth)
+    expect(tower.health).toBe(10 + 0.1 * vertical.maxHealth)
+    expect(tower.upgradesSpent).toBe(1)
+  })
+
+  it('refuses when no upgrade is pending', () => {
+    const base = towerWithKills(withTower('vertical', { file: 3, rank: 3 }), 9)
+
+    const after = step(base, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'damage' })
+
+    expect(after).toBe(base)
+  })
+
+  it('refuses after the pending balance is spent', () => {
+    const base = towerWithKills(withTower('vertical', { file: 3, rank: 3 }), 10)
+    const spent = step(base, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'damage' })
+
+    const refused = step(spent, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'health' })
+
+    expect(refused).toBe(spent)
+  })
+
+  it('refuses for a missing Tower', () => {
+    const base = towerWithKills(withTower('vertical', { file: 3, rank: 3 }), 10)
+
+    const after = step(base, { kind: 'upgradeTower', towerId: 'nope', stat: 'damage' })
+
+    expect(after).toBe(base)
+  })
+
+  it('refuses for the Wall, which can never earn an upgrade', () => {
+    // Defense in depth: a Wall's kills can only ever be 0 through the engine,
+    // but the refusal must be explicit so a hand-built state cannot slip one.
+    const base = towerWithKills(withTower('wall', { file: 3, rank: 3 }), 10)
+
+    const after = step(base, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'health' })
+
+    expect(after).toBe(base)
+  })
+
+  it('is valid mid-round and in the gap', () => {
+    const midRound: GameState = { ...towerWithKills(withTower('vertical', { file: 3, rank: 3 }), 10), phase: 'inProgress' }
+    const after = step(midRound, { kind: 'upgradeTower', towerId: firstTower(midRound).id, stat: 'damage' })
+
+    expect(damageOf(after)).toBeGreaterThan(damageOf(midRound))
+  })
+
+  it('is refused in a terminal phase', () => {
+    const defeated: GameState = { ...towerWithKills(withTower('vertical', { file: 3, rank: 3 }), 10), phase: 'defeated' }
+
+    const after = step(defeated, { kind: 'upgradeTower', towerId: firstTower(defeated).id, stat: 'damage' })
+
+    expect(after).toBe(defeated)
   })
 })
