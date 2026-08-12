@@ -60,3 +60,14 @@ export function towerType(id: TowerTypeId): TowerTypeDef {
 export const TOWER_TYPE_IDS: readonly TowerTypeId[] = [
   'vertical', 'wall', 'sniper', 'diagonal', 'cross', 'star', 'splash', 'ring', 'tollgate',
 ]
+
+/**
+ * Tower experience upgrades (issue #67).
+ *
+ * PLACEHOLDER tuning numbers; the shape is the design. The first upgrade
+ * banks at `UPGRADE_FIRST_THRESHOLD` kills, and each next threshold is the
+ * previous one escalated by `UPGRADE_THRESHOLD_ESCALATION`, ceiled. Kills are
+ * the only XP source, so the Wall — which never fires — can never earn one.
+ */
+export const UPGRADE_FIRST_THRESHOLD = 10
+export const UPGRADE_THRESHOLD_ESCALATION = 1.2
