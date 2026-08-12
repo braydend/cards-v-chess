@@ -10,7 +10,7 @@ import { Deck } from './Deck'
  * The previous HUD panel, moved verbatim — reading top to bottom follows the
  * order the player works in — see where the run stands, play Cards, then start
  * the round. The Deck owns all card copy, so nothing here repeats it. The
- * shared modals (`TowerPanel`, `PackShop`, `Credits`) mount in `Hud.tsx`, which
+ * shared modals (`TowerPanel`, `PackShop`, `About`) mount in `Hud.tsx`, which
  * branches between this and `MobileHud` by viewport shape.
  */
 export function DesktopHud() {
@@ -67,9 +67,9 @@ export function DesktopHud() {
         <button
           type="button"
           className="hud__button"
-          onClick={() => useUiStore.getState().setCreditsOpen(true)}
+          onClick={() => useUiStore.getState().setAboutOpen(true)}
         >
-          Credits
+          About
         </button>
 
         <label className="hud__toggle">

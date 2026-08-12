@@ -58,13 +58,13 @@ interface UiStore {
   setPackShopOpen: (open: boolean) => void
 
   /**
-   * Whether the credits modal is open.
+   * Whether the About modal is open.
    *
    * Purely view state: the attribution is static text, so nothing about it
    * lives in `GameState`.
    */
-  creditsOpen: boolean
-  setCreditsOpen: (open: boolean) => void
+  aboutOpen: boolean
+  setAboutOpen: (open: boolean) => void
 
   /**
    * Whether the developer panel is open.
@@ -107,8 +107,8 @@ export const useUiStore = create<UiStore>((set) => ({
   setSelectedTowerId: (selectedTowerId) => set({ selectedTowerId }),
   packShopOpen: false,
   setPackShopOpen: (packShopOpen) => set({ packShopOpen }),
-  creditsOpen: false,
-  setCreditsOpen: (creditsOpen) => set({ creditsOpen }),
+  aboutOpen: false,
+  setAboutOpen: (aboutOpen) => set({ aboutOpen }),
   devPanelOpen: false,
   setDevPanelOpen: (devPanelOpen) => set({ devPanelOpen }),
   markedForCullIds: [],

@@ -14,8 +14,8 @@ import type { PieceTypeId } from '../game'
  * (https://creativecommons.org/licenses/by/4.0/).
  *
  * The model archive lives in `public/models/chess_pieces/` alongside its
- * `license.txt`. The same credit appears in the HUD's Credits panel
- * (`src/ui/Credits.tsx`) and in `README.md`.
+ * `license.txt`. The same credit appears in the HUD's About panel
+ * (`src/ui/About.tsx`) and in `README.md`.
  */
 
 /** Base-aware URL: dev serves at `/`, GitHub Pages at `/cards-v-chess/`. */
