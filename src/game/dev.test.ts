@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { roundSpec } from '../data/rounds'
 import { stagingRank } from './board'
-import { pieceAt, liveRound, withTower } from './fixtures'
+import { pieceAt, liveRound, withTower, firstTowerId } from './fixtures'
 import { createInitialState, step, tick } from './index'
 import { spawnHealth } from './spawnScaling'
 import type { GameState } from './types'
@@ -240,6 +240,74 @@ describe('devSpawnPiece', () => {
       tier: 'green',
       square: { file: 0, rank: 0 },
     })
+
+    expect(after.rng).toBe(state.rng)
+  })
+})
+
+describe('devRemoveTower', () => {
+  it('removes the named Tower and leaves the rest', () => {
+    const seeded = withTower(2, { file: 0, rank: 0 }, base())
+    const state = withTower(5, { file: 3, rank: 3 }, seeded)
+    const target = firstTowerId(state)
+
+    const after = step(state, { kind: 'devRemoveTower', towerId: target })
+
+    expect(after.towers).toHaveLength(1)
+    expect(after.towers[0]?.id).not.toBe(target)
+  })
+
+  it('is a no-op for an unknown id', () => {
+    const state = withTower(2, { file: 0, rank: 0 }, base())
+
+    expect(step(state, { kind: 'devRemoveTower', towerId: 'ghost' })).toBe(state)
+  })
+
+  it('does not touch the rng streams', () => {
+    const state = withTower(2, { file: 0, rank: 0 }, base())
+
+    const after = step(state, { kind: 'devRemoveTower', towerId: firstTowerId(state) })
+
+    expect(after.rng).toBe(state.rng)
+  })
+})
+
+describe('devClearPieces', () => {
+  it('empties pieces but leaves pending spawns', () => {
+    const state: GameState = {
+      ...liveRound(base(), [pieceAt('pawn', 'p0', { file: 1, rank: 1 })]),
+      pendingSpawns: roundSpec(1).spawns,
+    }
+
+    const after = step(state, { kind: 'devClearPieces' })
+
+    expect(after.pieces).toHaveLength(0)
+    expect(after.pendingSpawns).toEqual(state.pendingSpawns)
+  })
+
+  it('pays no ink and does not bump the clears counter', () => {
+    const state: GameState = {
+      ...liveRound(base(), [pieceAt('queen', 'q0', { file: 2, rank: 2 })]),
+      ink: 5,
+      clears: 3,
+    }
+
+    const after = step(state, { kind: 'devClearPieces' })
+
+    expect(after.ink).toBe(5)
+    expect(after.clears).toBe(3)
+  })
+
+  it('is a no-op when the board is already clear', () => {
+    const state = liveRound(base(), [])
+
+    expect(step(state, { kind: 'devClearPieces' })).toBe(state)
+  })
+
+  it('does not touch the rng streams', () => {
+    const state = liveRound(base(), [pieceAt('pawn', 'p0', { file: 1, rank: 1 })])
+
+    const after = step(state, { kind: 'devClearPieces' })
 
     expect(after.rng).toBe(state.rng)
   })

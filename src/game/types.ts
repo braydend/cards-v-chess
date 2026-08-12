@@ -511,3 +511,5 @@ export type Command =
       readonly tier: PieceTier
       readonly square: Square
     }
+  | { readonly kind: 'devRemoveTower'; readonly towerId: string }
+  | { readonly kind: 'devClearPieces' }

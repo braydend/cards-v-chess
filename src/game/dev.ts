@@ -98,3 +98,17 @@ export function devSpawnPiece(
     nextEntityId: state.nextEntityId + 1,
   }
 }
+
+export function devRemoveTower(state: GameState, towerId: string): GameState {
+  if (!state.towers.some((tower) => tower.id === towerId)) return state
+
+  return { ...state, towers: state.towers.filter((tower) => tower.id !== towerId) }
+}
+
+export function devClearPieces(state: GameState): GameState {
+  if (state.pieces.length === 0) return state
+
+  // A testing utility, not the Joker: no ink, no clears bump, and pending
+  // spawns untouched so a live round keeps its schedule.
+  return { ...state, pieces: [] }
+}
