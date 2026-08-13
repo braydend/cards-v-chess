@@ -24,7 +24,7 @@ const MAX_CATCHUP_STEPS = 5
  * whole reason the engine takes a seed rather than minting one. Base 36 keeps it
  * short enough to read aloud, for when a seed becomes shareable.
  */
-function newSeed(): string {
+export function newSeed(): string {
   return Math.random().toString(36).slice(2, 10)
 }
 
