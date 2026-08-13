@@ -65,9 +65,15 @@ export const TOWER_TYPE_IDS: readonly TowerTypeId[] = [
  * Tower experience upgrades (issue #67).
  *
  * PLACEHOLDER tuning numbers; the shape is the design. The first upgrade
- * banks at `UPGRADE_FIRST_THRESHOLD` kills, and each next threshold is the
- * previous one escalated by `UPGRADE_THRESHOLD_ESCALATION`, ceiled. Kills are
- * the only XP source, so the Wall — which never fires — can never earn one.
+ * banks at `UPGRADE_FIRST_THRESHOLD` kills, the second at
+ * `UPGRADE_SECOND_THRESHOLD`, and each next threshold after that is the
+ * previous one escalated by `UPGRADE_THRESHOLD_ESCALATION`, ceiled — so the
+ * milestones run 10, 22, 27, 33, 40, ... The second milestone is its own
+ * constant rather than derived, because `ceil(10 * 1.2)` is 12, not 22 — the
+ * jump from the first to the second is deliberately larger than the steady
+ * 20% climb that follows. Kills are the only XP source, so the Wall — which
+ * never fires — can never earn one.
  */
 export const UPGRADE_FIRST_THRESHOLD = 10
+export const UPGRADE_SECOND_THRESHOLD = 22
 export const UPGRADE_THRESHOLD_ESCALATION = 1.2

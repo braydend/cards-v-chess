@@ -380,10 +380,11 @@ Every Piece therefore contributes anti-Tower pressure, which is what makes a Tow
 ### Experience upgrades
 
 **Towers earn upgrades from kills.** A Tower's lifetime kills are its experience:
-every `UPGRADE_FIRST_THRESHOLD` kills (10), and each further threshold escalated by
-20% (ceiled — 10, 12, 15, 18, 22, ...), it banks one **pending upgrade**. Pending
-is derived from kills, never stored; the only bookkeeping is how many have been
-spent.
+the first upgrade banks at `UPGRADE_FIRST_THRESHOLD` kills (10), the second at
+`UPGRADE_SECOND_THRESHOLD` (22), and each further threshold after that is the
+previous one escalated by 20% (ceiled — 10, 22, 27, 33, 40, ...). Each crossed
+threshold banks one **pending upgrade**. Pending is derived from kills, never
+stored; the only bookkeeping is how many have been spent.
 
 **The player spends pending upgrades any time** — mid-round and in the gap alike,
 because kills happen mid-round and the heal must be spendable when it matters.
@@ -393,7 +394,7 @@ and **+10% max health**, which raises the ceiling and heals by exactly the
 increase — never to full, never more than the ceiling rises. Upgrades stack
 uncapped for now.
 
-**A ready Tower glows.** A small golden ring floats above any Tower with a
+**A ready Tower glows.** A soft golden halo hugs any Tower with a
 banked, unspent upgrade — the only in-scene signal; the choice itself lives in
 the Tower's inspect panel.
 

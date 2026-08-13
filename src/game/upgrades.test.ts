@@ -6,12 +6,12 @@ import { pendingUpgrades, thresholdsCleared, upgradeThreshold } from './upgrades
 import type { GameState } from './types'
 
 describe('upgradeThreshold', () => {
-  it('starts at the first threshold and escalates 20% each level, ceiled', () => {
+  it('starts at 10, jumps to 22, then escalates 20% each level, ceiled', () => {
     expect(upgradeThreshold(1)).toBe(10)
-    expect(upgradeThreshold(2)).toBe(12)
-    expect(upgradeThreshold(3)).toBe(15)
-    expect(upgradeThreshold(4)).toBe(18)
-    expect(upgradeThreshold(5)).toBe(22)
+    expect(upgradeThreshold(2)).toBe(22)
+    expect(upgradeThreshold(3)).toBe(27)
+    expect(upgradeThreshold(4)).toBe(33)
+    expect(upgradeThreshold(5)).toBe(40)
   })
 })
 
@@ -20,25 +20,30 @@ describe('thresholdsCleared', () => {
     expect(thresholdsCleared(0)).toBe(0)
     expect(thresholdsCleared(9)).toBe(0)
     expect(thresholdsCleared(10)).toBe(1)
-    expect(thresholdsCleared(11)).toBe(1)
-    expect(thresholdsCleared(12)).toBe(2)
-    expect(thresholdsCleared(14)).toBe(2)
-    expect(thresholdsCleared(15)).toBe(3)
-    expect(thresholdsCleared(22)).toBe(5)
-    expect(thresholdsCleared(23)).toBe(5)
+    expect(thresholdsCleared(21)).toBe(1)
+    expect(thresholdsCleared(22)).toBe(2)
+    expect(thresholdsCleared(26)).toBe(2)
+    expect(thresholdsCleared(27)).toBe(3)
+    expect(thresholdsCleared(32)).toBe(3)
+    expect(thresholdsCleared(33)).toBe(4)
+    expect(thresholdsCleared(40)).toBe(5)
+    expect(thresholdsCleared(47)).toBe(5)
+    expect(thresholdsCleared(48)).toBe(6)
   })
 })
 
 describe('pendingUpgrades', () => {
   it('is thresholds cleared minus upgrades spent', () => {
     expect(pendingUpgrades(10, 0)).toBe(1)
-    expect(pendingUpgrades(23, 2)).toBe(3)
-    expect(pendingUpgrades(22, 5)).toBe(0)
+    expect(pendingUpgrades(22, 0)).toBe(2)
+    expect(pendingUpgrades(27, 2)).toBe(1)
+    expect(pendingUpgrades(48, 3)).toBe(3)
   })
 
   it('never goes below zero', () => {
     expect(pendingUpgrades(5, 1)).toBe(0)
     expect(pendingUpgrades(0, 3)).toBe(0)
+    expect(pendingUpgrades(10, 5)).toBe(0)
   })
 })
 
@@ -67,7 +72,7 @@ describe('upgradeTower', () => {
 
   it('spends one upgrade on 10% faster firing, additive off the base interval', () => {
     const vertical = towerType('vertical')
-    const base = towerWithKills(withTower('vertical', { file: 3, rank: 3 }), 12)
+    const base = towerWithKills(withTower('vertical', { file: 3, rank: 3 }), 22)
 
     const once = step(base, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'fireRate' })
     const twice = step(once, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'fireRate' })
