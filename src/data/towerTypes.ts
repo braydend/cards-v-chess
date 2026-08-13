@@ -41,7 +41,7 @@ export interface TowerTypeDef {
  * damage directly). `tollgate` is the full-width band.
  */
 export const TOWER_TYPES: Record<TowerTypeId, TowerTypeDef> = {
-  vertical: { geometry: 'vertical', range: 5, damage: 2, fireIntervalMs: 500, maxHealth: 14, targetsPerShot: 1 },
+  vertical: { geometry: 'vertical', range: 5, damage: 2, fireIntervalMs: 700, maxHealth: 14, targetsPerShot: 1 },
   wall: { geometry: 'none', range: 0, damage: 0, fireIntervalMs: 1000, maxHealth: 45, targetsPerShot: 0 },
   sniper: { geometry: 'vertical', range: 7, damage: 4, fireIntervalMs: 800, maxHealth: 18, targetsPerShot: 1 },
   diagonal: { geometry: 'diagonal', range: 5, damage: 2, fireIntervalMs: 550, maxHealth: 22, targetsPerShot: 1 },
