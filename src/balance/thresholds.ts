@@ -20,15 +20,20 @@ export interface ThresholdResult {
 }
 
 /**
- * The ratchet. PLACEHOLDER values measured from the game during the bootstrap
- * task and committed there; raised by hand as tuning lands. Not a statement of
- * what a balanced game should be — a floor under today's reality.
+ * The ratchet. Values measured from the game on 2026-08-13 (issue #72
+ * bootstrap): 4 wins of 15 (0.267), 10 starved runs, median core health at
+ * win 61.5, median failure round 14. Slack set just under the measured
+ * reality; raised by hand as tuning lands. Not a statement of what a balanced
+ * game should be — a floor under today's reality.
  */
 export const BALANCE_THRESHOLDS: BalanceThresholds = {
-  minWinRate: 0,
-  maxStarvedRuns: 0,
-  minMedianCoreHealthAtWin: 0,
-  minMedianFailureRound: null,
+  // Measured from the game on 2026-08-13 (issue #72 bootstrap). A ratchet,
+  // not a target — raise by hand as tuning lands. minWinRate is a fraction
+  // (0.5 = 50%), not a percentage.
+  minWinRate: 0.16,
+  maxStarvedRuns: 10,
+  minMedianCoreHealthAtWin: 30,
+  minMedianFailureRound: 11,
 }
 
 export function checkThresholds(
