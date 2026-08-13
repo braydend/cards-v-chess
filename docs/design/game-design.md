@@ -391,8 +391,13 @@ because kills happen mid-round and the heal must be spendable when it matters.
 Three choices, each a deliberate axis: **+1 damage**, **−10% fire interval off the
 type's base** (additive, so every pick is a true 10% of the original interval),
 and **+10% max health**, which raises the ceiling and heals by exactly the
-increase — never to full, never more than the ceiling rises. Upgrades stack
-uncapped for now.
+increase — never to full, never more than the ceiling rises. Upgrades are
+capped at **10 total spends per Tower**, uniform across types (issue #59): a
+Tower that has spent 10 stops taking upgrades, stops glowing, and the panel
+reports **Upgrades maxed**. A capped Tower keeps earning kills and keeps
+crossing thresholds, but the derived pending balance is clamped out of the
+UI. The fire-rate 0-interval safety still floors a `vertical`'s interval at
+10% of base (9 picks) before the cap could.
 
 **A ready Tower glows.** A soft golden halo hugs any Tower with a
 banked, unspent upgrade — the only in-scene signal; the choice itself lives in
