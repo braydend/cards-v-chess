@@ -55,4 +55,24 @@ describe('bots', () => {
     const result = runSimulation('bravo', AGGRO_BOT, { maxRounds: 2 })
     expect(result.rounds).toHaveLength(2)
   })
+
+  it('a Suited pack purchase carries a suit', () => {
+    const state = { ...createInitialState('alpha'), ink: 250, deck: [] }
+    const command = CONSERVATIVE_BOT.decide(state)
+    expect(command?.kind).toBe('buyPack')
+    if (command && command.kind === 'buyPack') {
+      expect(command.pack).toBe('suited')
+      expect(['hearts', 'diamonds', 'spades', 'clubs']).toContain(command.suit)
+    }
+  })
+
+  it('a non-Suited pack purchase carries no suit', () => {
+    const state = { ...createInitialState('alpha'), ink: 60, deck: [] }
+    const command = VALUE_BOT.decide(state)
+    expect(command?.kind).toBe('buyPack')
+    if (command && command.kind === 'buyPack') {
+      expect(command.pack).toBe('scrap')
+      expect(command.suit).toBeUndefined()
+    }
+  })
 })

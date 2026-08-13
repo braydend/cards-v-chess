@@ -1,5 +1,6 @@
 import { pendingUpgrades } from '../game'
 import type { Command, GameState, Tower } from '../game'
+import { SUITS } from '../data/cards'
 import { HAND_STRENGTH, bestBuildSquare, bestHandInDeck, cullIdsFor, preferredPack } from './strategy'
 import type { Bot, BotParams } from './types'
 
@@ -20,7 +21,14 @@ function decideGap(state: GameState, params: BotParams): Command | null {
   if (face) return face
 
   const pack = preferredPack(state, params.packPreference, params.inkReserve)
-  if (pack) return { kind: 'buyPack', pack, cullCardIds: cullIdsFor(state.deck, pack) }
+  if (pack) {
+    // A Suited pack must name a suit or the engine refuses it (the only
+    // pack type that carries one). Derive it deterministically from state —
+    // Math.random is banned here — so it varies across the run and seeds
+    // without breaking reproducibility.
+    const suit = pack === 'suited' ? (SUITS[state.deck.length % SUITS.length] ?? 'hearts') : undefined
+    return { kind: 'buyPack', pack, suit, cullCardIds: cullIdsFor(state.deck, pack) }
+  }
 
   const pick = bestHandInDeck(state.deck)
   if (pick && HAND_STRENGTH[pick.hand] >= HAND_STRENGTH[params.minHand]) {
