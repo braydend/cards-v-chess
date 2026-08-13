@@ -1,4 +1,5 @@
 import {
+  MAX_UPGRADES_PER_TOWER,
   UPGRADE_FIRST_THRESHOLD,
   UPGRADE_SECOND_THRESHOLD,
   UPGRADE_THRESHOLD_ESCALATION,
@@ -44,11 +45,14 @@ export function thresholdsCleared(kills: number): number {
  *
  * Derived, never stored: kills are the XP source, `upgradesSpent` the only
  * bookkeeping, and the count is `thresholdsCleared(kills) - upgradesSpent`,
- * clamped at 0 so an over-spent Tower (impossible through the engine, possible
- * through a hand-built test state) never reports a negative balance.
+ * clamped below by 0 (an over-spent Tower, impossible through the engine but
+ * possible through a hand-built test state) and above by the remaining room
+ * under `MAX_UPGRADES_PER_TOWER` — a capped Tower reports 0, so the glow and
+ * the panel go quiet even while kills keep crossing thresholds.
  */
 export function pendingUpgrades(kills: number, upgradesSpent: number): number {
-  return Math.max(0, thresholdsCleared(kills) - upgradesSpent)
+  const banked = Math.max(0, thresholdsCleared(kills) - upgradesSpent)
+  return Math.min(Math.max(0, MAX_UPGRADES_PER_TOWER - upgradesSpent), banked)
 }
 
 /**
@@ -56,11 +60,12 @@ export function pendingUpgrades(kills: number, upgradesSpent: number): number {
  *
  * Refuses (returns the state unchanged) on a terminal phase, a missing Tower,
  * the Wall — which can never earn an upgrade, checked explicitly so a
- * hand-built test state cannot slip one through — an empty pending balance, or
- * a `fireRate` spend whose result would drive the interval to 0 or below (a
- * 0ms interval would hang the engine's firing loop in `tick.ts`). A refused
- * fire-rate spend leaves the upgrade pending, so the player can still spend it
- * on `damage` or `health`.
+ * hand-built test state cannot slip one through — a Tower at
+ * `MAX_UPGRADES_PER_TOWER` spent — the cap, refused even when kills have
+ * banked more — or an empty pending balance, or a `fireRate` spend whose
+ * result would drive the interval to 0 or below (a 0ms interval would hang the
+ * engine's firing loop in `tick.ts`). A refused fire-rate spend leaves the
+ * upgrade pending, so the player can still spend it on `damage` or `health`.
  *
  * The three spends:
  * - `damage`: +1, flat and stackable.
@@ -79,6 +84,7 @@ export function upgradeTower(state: GameState, towerId: string, stat: UpgradeSta
   const tower = state.towers.find((candidate) => candidate.id === towerId)
   if (!tower) return state
   if (tower.type === 'wall') return state
+  if (tower.upgradesSpent >= MAX_UPGRADES_PER_TOWER) return state
   if (pendingUpgrades(tower.kills, tower.upgradesSpent) < 1) return state
   if (stat === 'fireRate' && tower.fireIntervalMs - 0.1 * tower.fireIntervalBaseMs <= 0) return state
 

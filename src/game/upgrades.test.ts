@@ -45,6 +45,17 @@ describe('pendingUpgrades', () => {
     expect(pendingUpgrades(0, 3)).toBe(0)
     expect(pendingUpgrades(10, 5)).toBe(0)
   })
+
+  it('clamps to the remaining room under the cap', () => {
+    // 9 spent leaves room for one more; 2 are banked (kills 122 clear 11
+    // thresholds, 11 - 9 = 2), so the reported balance is 1, not 2.
+    expect(pendingUpgrades(122, 9)).toBe(1)
+  })
+
+  it('clamps to zero at the cap, even with kills past more thresholds', () => {
+    expect(pendingUpgrades(2000, 10)).toBe(0)
+    expect(pendingUpgrades(254, 10)).toBe(0)
+  })
 })
 
 describe('upgradeTower', () => {
@@ -187,5 +198,42 @@ describe('upgradeTower', () => {
 
     expect(firstTower(after).damage).toBe(vertical.damage + 1)
     expect(firstTower(after).fireIntervalMs).toBe(firstTower(state).fireIntervalMs)
+  })
+
+  it('allows the tenth spend and refuses the eleventh', () => {
+    const base = towerWithKills(withTower('vertical', { file: 3, rank: 3 }), 500)
+    let state = base
+    for (let i = 0; i < 9; i += 1) {
+      state = step(state, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'damage' })
+    }
+    expect(firstTower(state).upgradesSpent).toBe(9)
+
+    const tenth = step(state, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'damage' })
+    expect(firstTower(tenth).upgradesSpent).toBe(10)
+    expect(firstTower(tenth).damage).toBe(firstTower(state).damage + 1)
+
+    const refused = step(tenth, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'damage' })
+    expect(refused).toBe(tenth)
+  })
+
+  it('refuses every stat once the cap of 10 is spent', () => {
+    // 500 kills clear far more than 10 thresholds, so pending is large; only
+    // the cap stops these spends.
+    const base = towerWithKills(withTower('vertical', { file: 3, rank: 3 }), 500)
+    let state = base
+    for (let i = 0; i < 10; i += 1) {
+      state = step(state, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'damage' })
+    }
+    expect(firstTower(state).upgradesSpent).toBe(10)
+    const capped = firstTower(state)
+
+    const refused = step(state, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'health' })
+    const alsoRefused = step(state, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'fireRate' })
+
+    expect(refused).toBe(state)
+    expect(alsoRefused).toBe(state)
+    expect(firstTower(refused).upgradesSpent).toBe(10)
+    expect(firstTower(refused).damage).toBe(capped.damage)
+    expect(firstTower(alsoRefused).fireIntervalMs).toBe(capped.fireIntervalMs)
   })
 })

@@ -1,5 +1,5 @@
 import { pendingUpgrades } from '../game'
-import { towerType } from '../data/towerTypes'
+import { MAX_UPGRADES_PER_TOWER, towerType } from '../data/towerTypes'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { formatStat } from './formatStat'
@@ -105,6 +105,12 @@ export function TowerPanel() {
               +10% health
             </button>
           </div>
+        </div>
+      )}
+
+      {tower.upgradesSpent >= MAX_UPGRADES_PER_TOWER && (
+        <div className="towerPanel__upgrades">
+          <p className="hud__muted">Upgrades maxed — this Tower has spent all of its upgrades.</p>
         </div>
       )}
 
