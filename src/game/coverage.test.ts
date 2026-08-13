@@ -506,7 +506,7 @@ describe('reachableSquares', () => {
  */
 describe('reachableSquares agrees with what a Tower shoots', () => {
   // Under a Pawn's 900ms move interval, so the Piece never moves or promotes
-  // during the window, and over the vertical Tower's 500ms fire interval, so
+  // during the window, and over the vertical Tower's 700ms fire interval, so
   // the Tower definitely gets a shot off.
   const WINDOW_MS = 704
   const DT_MS = 16

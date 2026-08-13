@@ -34,6 +34,10 @@ describe('the tower type table', () => {
     }
   })
 
+  it('gives the vertical a 700ms fire interval (issue #71 nerf)', () => {
+    expect(towerType('vertical').fireIntervalMs).toBe(700)
+  })
+
   it('rises in health across the firing types, and the Wall out-tanks all of them', () => {
     const healths = FIRING_TYPES.map((id) => towerType(id).maxHealth)
     healths.reduce((previous, current) => {

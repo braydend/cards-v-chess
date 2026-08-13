@@ -461,8 +461,8 @@ describe("the Staging rank is safe from damage, except a Joker's Clear", () => {
     }
 
     // Long enough that a vulnerable Pawn (maxHealth 3, pieceTypes.ts) would
-    // have died to vertical fire (2 damage every 500ms fire interval) several
-    // times over — 8 seconds is 16 shots, eight kills' worth — while short of
+    // have died to vertical fire (2 damage every 700ms fire interval) several
+    // times over — 8 seconds is 11 shots, five kills' worth — while short of
     // the roughly 12.6 seconds the Pawn's own blocked-attack grind (half of 2
     // damage every 900ms move interval) needs to fell the Tower's 14 health.
     // That margin matters: it keeps the Tower standing and the Pawn still

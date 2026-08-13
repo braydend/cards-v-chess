@@ -167,7 +167,7 @@ describe('upgradeTower', () => {
   it('refuses a fire-rate spend that would drive the interval to zero, leaving it pending', () => {
     // The guard refuses any spend whose result would be <= 0, so the spend that
     // would hit 0 is itself refused: the interval floors at 10% of base (9
-    // spends on a 500ms interval), never 0. A 0ms interval hangs the engine's
+    // spends on a 700ms interval), never 0. A 0ms interval hangs the engine's
     // firing loop, so the spend must be refused and the upgrade kept.
     const vertical = towerType('vertical')
     const base = towerWithKills(withTower('vertical', { file: 3, rank: 3 }), 500)
