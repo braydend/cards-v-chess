@@ -36,4 +36,10 @@ describe('isUpgradeReady', () => {
   it('is false once the pending balance is spent', () => {
     expect(isUpgradeReady(tower({ kills: 10, upgradesSpent: 1 }))).toBe(false)
   })
+
+  it('is false at the cap even with kills far past more thresholds', () => {
+    // The cap clamps the derived pending balance to 0, so a capped Tower
+    // stops glowing even while kills keep crossing thresholds.
+    expect(isUpgradeReady(tower({ kills: 500, upgradesSpent: 10 }))).toBe(false)
+  })
 })
