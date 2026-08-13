@@ -1596,6 +1596,136 @@ git commit -m "test(balance): CI gate runs the bot x seed matrix against the rat
 
 ---
 
+### Task 7.5: Fix the yellow slider oscillation engine bug
+
+**Files:**
+- Modify: `src/game/movement.ts` — `huntByField`
+- Test: `src/game/movement.test.ts` — new cases in the `yellow coverage avoidance` describe block
+
+**Context — the bug the gate found:** While executing Task 7, the balance gate hung forever on `value/bravo` round 51. Root cause (independently reproduced with a temporary test): `huntByField` lets a yellow slider oscillate forever between two equal-distance squares when repelled by fire.
+
+**The mechanism, precisely:**
+- From `(5,4)` (field distance 2), dir `+file` passes a distance-1 square at `closerRange=2`, but `maxSteps=1` (no King aura) caps the slide to 1 step → lands `(6,4)`, still distance 2. Not covered → move there.
+- From `(6,4)`, dir `+file` reaches `(7,4)` (distance 1) in 1 step — the phase target — but `(7,4)` is covered, so yellow skips it (fallback) and takes the next direction `-file`, whose capped slide lands `(5,4)` — again equal distance.
+- Cycle `(5,4) ↔ (6,4)` forever. Same setup with green (ignores avoid): `5,4 → 6,4 → 7,4 → … → reachCore`.
+
+**The fix:** once a covered full-slide (distance-decreasing) landing has been skipped (`fallback` set), a later capped-slide landing on an **equal-distance** square must NOT be accepted — it reverses the piece. Only a full-slide (distance-decreasing) landing may be returned after a skip; if none exists, the fallback (the covered distance-decreasing landing) is returned. Capped-slide landings are still fine BEFORE any skip (a piece advancing toward a closer square mid-phase must land short of it — that's the ordinary convergence path, and green relies on it).
+
+**The change in `huntByField` (movement.ts:372-439):** the current loop returns `{ kind: 'move', to: square, ...stamp }` for ANY resolved landing that isn't covered. It must instead distinguish a **full-slide landing** (the slide's `steps === closerRange`, i.e. the piece reached a distance-`ownDistance-1` square) from a **capped-slide landing** (`steps < closerRange`, i.e. landed short on an equal-distance square). Only the former may be returned after a skip. Concretely, the `if (avoid.has(squareKey(square)))` block currently sets `fallback` and `continue`s; after it, the return must be gated: return the landing only when `steps === closerRange`. When `steps < closerRange`:
+- if `fallback` is already set → `continue` (keep scanning for a distance-decreasing landing),
+- if `fallback` is not yet set → return it (the ordinary mid-phase advance toward a closer square, which the no-skip path also relies on).
+
+This preserves: green's path unchanged (green passes `EMPTY_AVOID`, never skips, so `steps < closerRange` returns immediately as before), and every pinned yellow test (they all exercise full-slide landings, where behavior is unchanged). It only changes the skip-then-capped path, which was the cycle.
+
+**Why this is in scope:** the plan's spec forbids *balance* changes to `src/game/`, but this is a **correctness** bug — a round that never terminates violates the engine's own "nothing strands" invariant (CLAUDE.md: "Every Piece type has a designed way off stuck" / "a round ends when nothing can still act"). The gate found a game-hanging bug, not a tuning number. The human approved fixing it.
+
+- [ ] **Step 1: Write the failing tests** — in `src/game/movement.test.ts`, inside the `yellow coverage avoidance` describe block (after the existing `never dodges the Core` / `colour-locked Bishop` / slider tests):
+
+```ts
+it('a yellow slider does not reverse into a capped equal-distance landing after a skip', () => {
+  // From (6,4) the Queen's first direction reaches (7,4) — its distance-1
+  // phase target — in one step, but (7,4) is covered. The next direction's
+  // slide is capped (maxSteps 1, closerRange 3) and would land on (5,4), an
+  // equal-distance square: accepting it reverses the piece and, from (5,4),
+  // the first direction pulls it back to (6,4) forever. The hunt must instead
+  // keep scanning for a distance-decreasing landing, not take the capped one.
+  const outcome = move('queen', { file: 6, rank: 4 }, NO_TOWERS, { tier: 'yellow', hunting: true }, new Set(['7,4']))
+
+  // (6,3) is the next distance-decreasing landing (distance 1) the scan finds
+  // after (7,4) is skipped; taking it instead of (5,4) is what breaks the loop.
+  expect(outcome).toEqual({ kind: 'move', to: { file: 6, rank: 3 }, hunting: true })
+})
+```
+
+Then a termination test that walks the piece from `(5,4)` and asserts it reaches the Core rather than cycling:
+
+```ts
+it('a repelled yellow slider reaches the Core instead of oscillating', () => {
+  // From (5,4) the Queen's +file slide is capped to (6,4) (equal distance);
+  // from (6,4) its only uncovered distance-decreasing landing is (6,3). Each
+  // hop must make progress: (5,4) -> (6,4) -> (6,3) -> ... -> reachCore, never
+  // (5,4) <-> (6,4). `move` is stateless, so drive nextMove directly.
+  const field = queenDistanceField(BOARD, CORE_SQUARE)
+  let square = { file: 5, rank: 4 }
+  const seen = new Set<string>([squareKey(square)])
+
+  for (let i = 0; i < 32; i += 1) {
+    const outcome = move('queen', square, NO_TOWERS, { tier: 'yellow', hunting: true }, new Set(['7,4']))
+    if (outcome.kind === 'reachCore') return
+    if (outcome.kind !== 'move') break
+    square = outcome.to
+    const key = squareKey(square)
+    if (seen.has(key)) throw new Error(`oscillation: revisit ${key}`)
+    seen.add(key)
+  }
+
+  throw new Error('did not reach the Core')
+})
+```
+
+Both tests must import `queenDistanceField` from `./distanceFields` and `squareKey` (already imported) at the top of `movement.test.ts`. Existing top imports: `BOARD, CORE_SQUARE` from `../data/board`, `allSquares, isInBounds, squareKey, squaresEqual` from `./board`, `kingDistanceField, knightDistanceField, rookDistanceField, KNIGHT_OFFSETS` from `./distanceFields` — add `queenDistanceField` to that line. The `move()` helper (line 14) already accepts an `avoid` set as its 5th argument.
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `pnpm test:run src/game/movement.test.ts`
+Expected: FAIL — the first test gets `to: {file: 5, rank: 4}` (the capped landing) instead of `{file: 6, rank: 3}`; the second throws `oscillation: revisit`.
+
+- [ ] **Step 3: Implement the fix** in `huntByField` (movement.ts:372-439)
+
+In the direction loop, replace the tail of the loop body — currently:
+
+```ts
+    if (avoid.has(squareKey(square))) {
+      if (fallback === undefined) fallback = square
+      continue
+    }
+
+    return { kind: 'move', to: square, ...stamp }
+```
+
+with:
+
+```ts
+    if (avoid.has(squareKey(square))) {
+      if (fallback === undefined) fallback = square
+      continue
+    }
+
+    // A full slide reaches a distance-`ownDistance - 1` square — real progress
+    // toward the Core. A capped slide (steps < closerRange, maxSteps cut it
+    // short) lands on an EQUAL-distance square: mid-phase, that is the
+    // ordinary advance and is taken; but once a covered full-slide landing has
+    // been skipped above, accepting a capped landing would pull the piece back
+    // to a square it came from — an oscillation (a yellow slider repelled from
+    // its phase target bouncing forever between two equal-distance squares).
+    // After a skip, only a full-slide landing may be returned; the fallback
+    // covers the case where every remaining full-slide landing is also covered.
+    if (steps < closerRange && fallback !== undefined) continue
+
+    return { kind: 'move', to: square, ...stamp }
+```
+
+`closerRange` is in scope (computed at the top of the loop body, movement.ts:400). `steps` is also in scope (movement.ts:403).
+
+- [ ] **Step 4: Run the tests to verify they pass**
+
+Run: `pnpm test:run src/game/movement.test.ts`
+Expected: all green, including the two new tests.
+
+- [ ] **Step 5: Run the whole suite**
+
+Run: `pnpm test:run && pnpm lint && pnpm typecheck`
+Expected: all green — the fix must not change green's path or any pinned yellow test.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/game/movement.ts src/game/movement.test.ts
+git commit -m "fix(engine): yellow slider no longer oscillates when repelled from its phase target"
+```
+
+---
+
 ### Task 8: Bootstrap the thresholds
 
 **Files:**
