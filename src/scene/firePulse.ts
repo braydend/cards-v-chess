@@ -109,8 +109,8 @@ export function detectShots(
  * reads them and neither is a balance value.
  *
  * Both are PLACEHOLDERS, but chosen so the cadence reads at both extremes:
- * a fast Tower (`vertical`, fires every 500ms) gives one 205ms blip then
- * 295ms of dark, and a range-boosted Tower keeps several rings in flight at
+ * a fast Tower (`vertical`, fires every 700ms) gives one 205ms blip then
+ * 495ms of dark, and a range-boosted Tower keeps several rings in flight at
  * once.
  */
 export const PULSE_SQUARES_PER_SECOND = 22
