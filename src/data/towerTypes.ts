@@ -77,3 +77,13 @@ export const TOWER_TYPE_IDS: readonly TowerTypeId[] = [
 export const UPGRADE_FIRST_THRESHOLD = 10
 export const UPGRADE_SECOND_THRESHOLD = 22
 export const UPGRADE_THRESHOLD_ESCALATION = 1.2
+
+/**
+ * Hard cap on total upgrades a single Tower can spend (issue #59).
+ *
+ * Uniform across types. A capped Tower keeps earning kills and keeps crossing
+ * thresholds, but the derived pending balance is clamped to 0, so it stops
+ * glowing and the panel reports "Upgrades maxed". PLACEHOLDER tuning number;
+ * the cap is the design.
+ */
+export const MAX_UPGRADES_PER_TOWER = 10
