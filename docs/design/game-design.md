@@ -341,7 +341,7 @@ Every spawn is assigned a tier — **green**, **yellow**, **red**, or **black** 
 
 ## Towers
 
-**Towers are destructible.** They have health, take damage from Pieces, and can be shielded by a Jack. A shield absorbs before health and never regenerates. Nothing repairs a Tower — a hand-built Tower's health only ever goes down, which is what makes every grind a countdown.
+**Towers are destructible.** They have health, take damage from Pieces, and can be shielded by a Jack. A shield absorbs before health and never regenerates. Nothing repairs a Tower except a **health upgrade** the player spends from a Tower's experience upgrades (see below) — and even that heal is a finite, kill-gated, player-controlled act, so a hand-built Tower's health otherwise only ever goes down, which is what makes every grind a countdown.
 
 **Towers are permanent once placed** — they are never removed by the player, only destroyed.
 
@@ -359,7 +359,7 @@ Every Piece therefore contributes anti-Tower pressure, which is what makes a Tow
 
 **A Tower's own geometry decides whether it can defend itself.** A vertical, cross, adjacent, or star Tower covers the square a Piece attacks it from, so it shoots back. A **diagonal** Tower does not — a Piece attacking from directly along its file sits in a blind spot. That asymmetry is emergent from real geometry, not assigned: a Piece that reaches a diagonal Tower's square grinds it in its blind spot, unanswered.
 
-**A Piece grinding a Tower from the Staging rank is never the exception to that asymmetry — it is the general case.** Damage cannot reach the Staging rank at all, regardless of a Tower's geometry, so a Tower whose coverage would otherwise reach back into the Staging rank still cannot kill the Piece grinding it from there. Three things end that standoff: the Tower falling — a Tower's health only ever decreases, so the grind is always a countdown — a **Joker's Clear**, which reaches the Staging rank because it is a board wipe rather than damage (see above), and an **Ace**, which admits the waiting Piece to the board and so ends its immunity outright.
+**A Piece grinding a Tower from the Staging rank is never the exception to that asymmetry — it is the general case.** Damage cannot reach the Staging rank at all, regardless of a Tower's geometry, so a Tower whose coverage would otherwise reach back into the Staging rank still cannot kill the Piece grinding it from there. Three things end that standoff: the Tower falling — a Tower's health decreases except when the player spends a health upgrade, and that banked heal is finite and kill-gated, so the grind is still a countdown — a **Joker's Clear**, which reaches the Staging rank because it is a board wipe rather than damage (see above), and an **Ace**, which admits the waiting Piece to the board and so ends its immunity outright.
 
 **A Tower and a Piece never share a square, and both routes onto that state are closed.** A Tower cannot be built on a square a Piece occupies: blocking only means something if the two never overlap, and a build is one route the movement rule does not already guard. The other route was spawning, and it is closed differently — Pieces spawn onto the **Staging rank**, off the board, where no Tower can stand, and enter by moving. Neither route needs a special case at the point of collision, because after both fixes there is no collision to arbitrate.
 
@@ -376,6 +376,29 @@ Every Piece therefore contributes anti-Tower pressure, which is what makes a Tow
 **The Wall lights nothing**, correctly — it covers nothing, and the panel says "Never fires — it blocks and soaks" rather than quoting it a targets figure.
 
 **The highlight is coverage, not targeting.** It shows every square the Tower *can* hit, not the Pieces a shot *will* hit — a shot is capped at the type's targets per shot and picks the Pieces nearest the Core. The panel carries that figure beside range and damage, which is what stops a wide disc at the top of the ladder from over-promising: it can light dozens of squares and reach only a handful of the Pieces on them. The moment of a shot is already shown separately, as a pulse over the same footprint.
+
+### Experience upgrades
+
+**Towers earn upgrades from kills.** A Tower's lifetime kills are its experience:
+every `UPGRADE_FIRST_THRESHOLD` kills (10), and each further threshold escalated by
+20% (ceiled — 10, 12, 15, 18, 22, ...), it banks one **pending upgrade**. Pending
+is derived from kills, never stored; the only bookkeeping is how many have been
+spent.
+
+**The player spends pending upgrades any time** — mid-round and in the gap alike,
+because kills happen mid-round and the heal must be spendable when it matters.
+Three choices, each a deliberate axis: **+1 damage**, **−10% fire interval off the
+type's base** (additive, so every pick is a true 10% of the original interval),
+and **+10% max health**, which raises the ceiling and heals by exactly the
+increase — never to full, never more than the ceiling rises. Upgrades stack
+uncapped for now.
+
+**A ready Tower glows.** A small golden ring floats above any Tower with a
+banked, unspent upgrade — the only in-scene signal; the choice itself lives in
+the Tower's inspect panel.
+
+**The Wall is excluded by construction.** It never fires, so it never kills, so
+it can never earn an upgrade. The mechanic does not apply to it.
 
 ### No walls, no mazing
 
