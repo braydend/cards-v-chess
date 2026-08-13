@@ -23,6 +23,19 @@ export function StartScreen() {
   const panelRef = useRef<HTMLDivElement>(null)
   const [seed, setSeed] = useState('')
 
+  // A fresh open is always clean. This component stays mounted and only hides
+  // behind `!open`, so without this the field would keep whatever was typed
+  // last time and a bare Start on "New run" would replay that stale seed
+  // instead of starting a fresh random run. Adjusted during render, not in an
+  // effect, for the reason `react-hooks/set-state-in-effect` exists and the
+  // PackShop makes the same choice — the compare-during-render pattern from
+  // the React docs, so React bails out before paint and no stale value shows.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) setSeed('')
+  }
+
   // No-op close: the screen cannot be dismissed, only started past. Escape
   // must not close it.
   useDialogFocus(panelRef, () => {}, open)

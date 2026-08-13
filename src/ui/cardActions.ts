@@ -1,6 +1,6 @@
 import { reset, newSeed } from '../state/simulation'
 import { useUiStore } from '../state/uiStore'
-import { normalizeSeed } from './seedUrl'
+import { normalizeSeed, urlForSeed } from './seedUrl'
 
 /**
  * Toggle a Card into or out of the hand being assembled. Shared by the desktop
@@ -24,7 +24,9 @@ export function toggleCardForHand(cardId: string): void {
  * seed is normalised here, so whatever shape the caller had (typed text,
  * a URL param) becomes the canonical one, and the same seed is pushed into
  * the URL so the current run is always the link. `replaceState`, not
- * `pushState`, so Back does not step through runs.
+ * `pushState`, so Back does not step through runs. The seed is written
+ * percent-encoded (`urlForSeed`), so a seed that carries `&` or `#` still
+ * reads back the same run on reload.
  *
  * View state is cleared here, the same list `resetRun` used to own:
  * `simulation.reset` only owns GameState, and it must stay that way — it lives
@@ -35,7 +37,7 @@ export function toggleCardForHand(cardId: string): void {
 export function startRun(seed: string | null): void {
   const runSeed = seed !== null ? normalizeSeed(seed) : newSeed()
   reset(runSeed)
-  history.replaceState(null, '', `?seed=${runSeed}`)
+  history.replaceState(null, '', urlForSeed(runSeed))
   const ui = useUiStore.getState()
   ui.clearSelection()
   ui.setSelectedTowerId(null)

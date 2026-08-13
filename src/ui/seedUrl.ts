@@ -27,3 +27,18 @@ export function seedFromUrl(search: string): string | null {
   const normalized = normalizeSeed(raw)
   return normalized === '' ? null : normalized
 }
+
+/**
+ * Builds the `?seed=` search string for a run seed.
+ *
+ * The write-side counterpart of `seedFromUrl`. A seed is free text, so it may
+ * carry characters the URL reserves — `&` would split into a sibling param and
+ * `#` would truncate the search. Percent-encoding writes exactly what
+ * `URLSearchParams` decodes on read, so the URL and the run it names cannot
+ * disagree the way an unencoded write could. The `startRun` caller supplies
+ * the seed already normalised, so this stays pure string surgery: no engine,
+ * no `window.history`.
+ */
+export function urlForSeed(seed: string): string {
+  return `?seed=${encodeURIComponent(seed)}`
+}
