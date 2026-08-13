@@ -15,6 +15,7 @@ export { canBuildOn } from './placement'
 export { createInitialState, DEV_SEED } from './state'
 export { step } from './step'
 export { tick } from './tick'
+export { pendingUpgrades } from './upgrades'
 export type { Rng } from './rng'
 export type { TowerTypeDef, TowerTypeId } from '../data/towerTypes'
 export type {
