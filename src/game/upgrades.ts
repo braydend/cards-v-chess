@@ -53,7 +53,11 @@ export function pendingUpgrades(kills: number, upgradesSpent: number): number {
  *
  * Refuses (returns the state unchanged) on a terminal phase, a missing Tower,
  * the Wall — which can never earn an upgrade, checked explicitly so a
- * hand-built test state cannot slip one through — or an empty pending balance.
+ * hand-built test state cannot slip one through — an empty pending balance, or
+ * a `fireRate` spend whose result would drive the interval to 0 or below (a
+ * 0ms interval would hang the engine's firing loop in `tick.ts`). A refused
+ * fire-rate spend leaves the upgrade pending, so the player can still spend it
+ * on `damage` or `health`.
  *
  * The three spends:
  * - `damage`: +1, flat and stackable.
@@ -73,6 +77,7 @@ export function upgradeTower(state: GameState, towerId: string, stat: UpgradeSta
   if (!tower) return state
   if (tower.type === 'wall') return state
   if (pendingUpgrades(tower.kills, tower.upgradesSpent) < 1) return state
+  if (stat === 'fireRate' && tower.fireIntervalMs - 0.1 * tower.fireIntervalBaseMs <= 0) return state
 
   return {
     ...state,

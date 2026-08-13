@@ -147,4 +147,40 @@ describe('upgradeTower', () => {
 
     expect(after).toBe(defeated)
   })
+
+  it('refuses a fire-rate spend that would drive the interval to zero, leaving it pending', () => {
+    // The guard refuses any spend whose result would be <= 0, so the spend that
+    // would hit 0 is itself refused: the interval floors at 10% of base (9
+    // spends on a 500ms interval), never 0. A 0ms interval hangs the engine's
+    // firing loop, so the spend must be refused and the upgrade kept.
+    const vertical = towerType('vertical')
+    const base = towerWithKills(withTower('vertical', { file: 3, rank: 3 }), 500)
+
+    let state = base
+    for (let i = 0; i < 10; i += 1) {
+      state = step(state, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'fireRate' })
+    }
+    const tenth = firstTower(state)
+    expect(tenth.fireIntervalMs).toBeCloseTo(0.1 * vertical.fireIntervalMs, 10)
+
+    const refused = step(state, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'fireRate' })
+
+    expect(refused).toBe(state)
+    expect(firstTower(refused).fireIntervalMs).toBe(tenth.fireIntervalMs)
+  })
+
+  it('still allows damage after fire-rate is maxed, because the upgrade stays pending', () => {
+    const vertical = towerType('vertical')
+    const base = towerWithKills(withTower('vertical', { file: 3, rank: 3 }), 500)
+
+    let state = base
+    for (let i = 0; i < 10; i += 1) {
+      state = step(state, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'fireRate' })
+    }
+
+    const after = step(state, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'damage' })
+
+    expect(firstTower(after).damage).toBe(vertical.damage + 1)
+    expect(firstTower(after).fireIntervalMs).toBe(firstTower(state).fireIntervalMs)
+  })
 })
