@@ -5,6 +5,7 @@ import { DevPanel } from './DevPanel'
 import { GuardRoundBanner } from './GuardRoundBanner'
 import { MobileHud } from './MobileHud'
 import { PackShop } from './PackShop'
+import { StartScreen } from './StartScreen'
 import { TowerPanel } from './TowerPanel'
 import { VictoryScreen } from './VictoryScreen'
 
@@ -28,6 +29,7 @@ export function Hud() {
       <PackShop />
       <VictoryScreen />
       <About />
+      <StartScreen />
       <GuardRoundBanner />
     </div>
   )

@@ -67,6 +67,17 @@ interface UiStore {
   setAboutOpen: (open: boolean) => void
 
   /**
+   * Whether the start screen is showing.
+   *
+   * Defaults to `true` so every load lands on the start screen; `main.tsx`
+   * closes it before first paint when the URL carries a seed. Purely view
+   * state — "no run has been chosen yet" is a UI concern, not an engine one,
+   * and the simulation always boots a throwaway random run behind it.
+   */
+  startScreenOpen: boolean
+  setStartScreenOpen: (open: boolean) => void
+
+  /**
    * Whether the developer panel is open.
    *
    * Purely view state. The panel itself is compiled out of production builds
@@ -109,6 +120,8 @@ export const useUiStore = create<UiStore>((set) => ({
   setPackShopOpen: (packShopOpen) => set({ packShopOpen }),
   aboutOpen: false,
   setAboutOpen: (aboutOpen) => set({ aboutOpen }),
+  startScreenOpen: true,
+  setStartScreenOpen: (startScreenOpen) => set({ startScreenOpen }),
   devPanelOpen: false,
   setDevPanelOpen: (devPanelOpen) => set({ devPanelOpen }),
   markedForCullIds: [],

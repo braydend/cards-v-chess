@@ -730,6 +730,26 @@ canvas {
   letter-spacing: 0.03em;
 }
 
+/* The start screen: the same modal frame as the shop, with a seed field in
+   place of a form. The scrim is inert — there is no close, only Start. */
+.start-screen__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.start-screen__field input {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid rgb(255 255 255 / 15%);
+  border-radius: 0.4rem;
+  background: rgb(255 255 255 / 6%);
+  color: #e8edf4;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.95rem;
+  letter-spacing: 0.03em;
+}
+
 /* The credits attribution. Teal links match the teal used for selection
    elsewhere; the text inherits the modal panel's colour. */
 .credits__line {

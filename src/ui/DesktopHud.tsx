@@ -72,6 +72,14 @@ export function DesktopHud() {
           About
         </button>
 
+        <button
+          type="button"
+          className="hud__button"
+          onClick={() => useUiStore.getState().setStartScreenOpen(true)}
+        >
+          New run
+        </button>
+
         <label className="hud__toggle">
           <input
             type="checkbox"
