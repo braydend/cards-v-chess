@@ -13,6 +13,7 @@ import { PieceExits } from './PieceExits'
 import { Pieces } from './Pieces'
 import { easeOutCubic, panOffsetForStrip } from './stripOffset'
 import { Towers } from './Towers'
+import { UpgradeReady } from './UpgradeReady'
 
 // The drei OrbitControls ref type: the three-stdlib OrbitControlsImpl, whose
 // `.target` (a Vector3) and `.update()` the pan clamp and the strip shift
@@ -149,6 +150,7 @@ export function GameScene() {
         flash={coreFlash}
       />
       <Towers board={board} />
+      <UpgradeReady board={board} />
       <Suspense fallback={null}>
         <Pieces board={board} />
         <PieceExits board={board} flash={coreFlash} />
