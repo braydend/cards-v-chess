@@ -548,6 +548,18 @@ canvas {
   color: #c3cdda;
 }
 
+.towerPanel__upgrades {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.towerPanel__upgradeButtons {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
 /* The pack shop.
 
    A modal because pick → cull → reveal is one commitment, and because nothing

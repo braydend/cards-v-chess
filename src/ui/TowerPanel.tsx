@@ -1,5 +1,6 @@
+import { pendingUpgrades } from '../game'
 import { towerType } from '../data/towerTypes'
-import { useGameStore } from '../state/store'
+import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { formatStat } from './formatStat'
 import { GEOMETRY_LABELS } from './geometryLabels'
@@ -32,6 +33,7 @@ export function TowerPanel() {
 
   const def = towerType(tower.type)
   const targets = targetsLabel(def.targetsPerShot)
+  const pending = pendingUpgrades(tower.kills, tower.upgradesSpent)
 
   return (
     <div className="towerPanel">
@@ -76,6 +78,35 @@ export function TowerPanel() {
           </div>
         )}
       </dl>
+
+      {pending > 0 && (
+        <div className="towerPanel__upgrades">
+          <p className="hud__muted">Upgrades ready: {pending}</p>
+          <div className="towerPanel__upgradeButtons">
+            <button
+              type="button"
+              className="hud__button"
+              onClick={() => dispatch({ kind: 'upgradeTower', towerId: tower.id, stat: 'damage' })}
+            >
+              +1 damage
+            </button>
+            <button
+              type="button"
+              className="hud__button"
+              onClick={() => dispatch({ kind: 'upgradeTower', towerId: tower.id, stat: 'fireRate' })}
+            >
+              Faster firing
+            </button>
+            <button
+              type="button"
+              className="hud__button"
+              onClick={() => dispatch({ kind: 'upgradeTower', towerId: tower.id, stat: 'health' })}
+            >
+              +10% health
+            </button>
+          </div>
+        </div>
+      )}
 
       <p className="towerPanel__geometry">{GEOMETRY_LABELS[def.geometry]}</p>
 

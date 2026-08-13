@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createInitialState, step } from '../game'
 import type { GameState } from '../game'
-import { standardCard, withDeck, withTower } from '../game/fixtures'
+import { firstTower, standardCard, withDeck, withTower } from '../game/fixtures'
 import { DECK_CAP } from '../data/deck'
 import { structuralKey } from './structuralKey'
 
@@ -19,6 +19,27 @@ describe('structuralKey', () => {
     }
 
     expect(structuralKey(raisedCeiling)).not.toBe(structuralKey(base))
+  })
+
+  it('changes when an upgrade is spent, since the spend mutates keyed stats', () => {
+    // A spend writes `damage`, `fireIntervalMs`, `maxHealth` or `health`, all
+    // keyed — so the panel republishes on the spend itself, and the pending
+    // balance (derived from `kills` and `upgradesSpent`, neither keyed) is
+    // recomputed on the same publish.
+    const base = withTower('vertical', { file: 2, rank: 2 })
+    const withKills = {
+      ...base,
+      towers: base.towers.map((tower) => ({ ...tower, kills: 10 })),
+    }
+
+    const upgraded = step(withKills, {
+      kind: 'upgradeTower',
+      towerId: firstTower(withKills).id,
+      stat: 'damage',
+    })
+
+    expect(upgraded).not.toBe(withKills)
+    expect(structuralKey(upgraded)).not.toBe(structuralKey(withKills))
   })
 
   it("changes when pendingTower changes, even though nothing else in the key does", () => {

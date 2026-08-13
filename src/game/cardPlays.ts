@@ -38,6 +38,8 @@ function newTower(id: string, square: Square, type: TowerTypeId): Tower {
     damageTaken: 0,
     shotsFired: 0,
     kills: 0,
+    upgradesSpent: 0,
+    fireIntervalBaseMs: def.fireIntervalMs,
   }
 }
 
