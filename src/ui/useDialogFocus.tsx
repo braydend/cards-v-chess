@@ -14,10 +14,12 @@ import type { RefObject } from 'react'
  * snapshot publish. The latest `close` lives in a ref instead, and the listener
  * reads through it.
  *
- * The focusable selector is buttons plus links, matching `About`, whose panel
- * holds the attribution links and the seed Copy button, so both clauses apply
- * there. `PackShop` and the deck overlay have no links, so for them the
- * `a[href]` clause matches nothing and the trap is effectively buttons-only.
+ * The focusable selector is inputs, buttons, and links, matching `About`,
+ * whose panel holds the attribution links and the seed Copy button, so both
+ * clauses apply there. `StartScreen` adds an input — the run-seed field — which
+ * is the reason `input:not([disabled])` leads the set. `PackShop` and the deck
+ * overlay have no links, so for them the `a[href]` clause matches nothing and
+ * the trap is effectively buttons-only.
  */
 export function useDialogFocus(
   panelRef: RefObject<HTMLElement | null>,
@@ -65,7 +67,7 @@ export function useDialogFocus(
       const panel = panelRef.current
       if (!panel) return
 
-      const focusable = panel.querySelectorAll<HTMLElement>('button:not([disabled]), a[href]')
+      const focusable = panel.querySelectorAll<HTMLElement>('input:not([disabled]), button:not([disabled]), a[href]')
       const first = focusable[0]
       const last = focusable[focusable.length - 1]
       if (!first || !last) return
