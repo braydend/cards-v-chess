@@ -61,6 +61,7 @@ export default defineConfig(({ command, isPreview }) => ({
         // untested it is. Adding a new top-level src/ directory that should
         // be held to a standard means adding its own entry below.
         'src/game/**': { statements: 85, branches: 85, functions: 85, lines: 90 },
+        'src/balance/**': { statements: 85, branches: 85, functions: 85, lines: 90 },
         'src/state/**': { statements: 90, branches: 95, functions: 85, lines: 90 },
       },
     },

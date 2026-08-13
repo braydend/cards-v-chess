@@ -39,7 +39,7 @@ export default tseslint.config(
     files: ['src/**/*.tsx'],
   },
   {
-    files: ['src/game/**/*.{ts,tsx}', 'src/data/**/*.{ts,tsx}'],
+    files: ['src/game/**/*.{ts,tsx}', 'src/data/**/*.{ts,tsx}', 'src/balance/**/*.{ts,tsx}'],
     rules: {
       // CLAUDE.md's determinism invariant: runs are seeded and the simulation
       // must stay reproducible, so randomness comes from a seeded PRNG carried
