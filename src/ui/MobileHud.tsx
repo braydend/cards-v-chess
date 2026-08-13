@@ -93,6 +93,14 @@ export function MobileHud() {
         >
           About
         </button>
+
+        <button
+          type="button"
+          className="hud__button hud__button--quiet"
+          onClick={() => useUiStore.getState().setStartScreenOpen(true)}
+        >
+          New run
+        </button>
       </div>
 
       {phase === 'defeated' ? (
