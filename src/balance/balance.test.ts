@@ -4,6 +4,7 @@ import { runSimulation } from './driver'
 import { aggregateMetrics, formatReport } from './metrics'
 import { SEEDS } from './seeds'
 import { BALANCE_THRESHOLDS, checkThresholds } from './thresholds'
+import type { RunResult } from './types'
 
 /**
  * The power balance gate (issue #72).
@@ -14,7 +15,7 @@ import { BALANCE_THRESHOLDS, checkThresholds } from './thresholds'
  */
 describe('power balance gate', () => {
   it('keeps the game inside the ratchet thresholds', () => {
-    const results = []
+    const results: RunResult[] = []
     for (const bot of BOTS) {
       for (const seed of SEEDS) {
         results.push(runSimulation(seed, bot))

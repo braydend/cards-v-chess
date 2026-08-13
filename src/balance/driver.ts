@@ -15,6 +15,17 @@ export const FIXED_DT_MS = 1000 / 60
 const MAX_GAP_COMMANDS = 10_000
 
 /**
+ * How many ticks one round may take before the driver declares it hung.
+ *
+ * The gate's test timeout cannot interrupt a synchronous busy loop, so a
+ * non-terminating round would hang CI opaquely instead of failing. A generous
+ * budget converts that hang into a fast, targeted error naming the round.
+ * Generous on purpose: a legitimate round must never come close. Real rounds
+ * use tens of thousands of ticks; this is ten times that.
+ */
+const MAX_ROUND_TICKS = 500_000
+
+/**
  * Whether a player in this gap is permanently stuck: no cards left to commit
  * and no pack they can afford. The "running out of cards" open question.
  */
@@ -99,6 +110,7 @@ function resolveGap(state: GameState, bot: Bot): GameState {
 function runRound(state: GameState, bot: Bot): { state: GameState; clearTimeMs: number } {
   let current = state
   let clearTimeMs = 0
+  let ticks = 0
   while (current.phase === 'inProgress') {
     const command = bot.decide(current)
     if (command) {
@@ -110,6 +122,12 @@ function runRound(state: GameState, bot: Bot): { state: GameState; clearTimeMs: 
     }
     clearTimeMs = current.roundElapsedMs
     current = tick(current, FIXED_DT_MS)
+    ticks += 1
+    if (ticks > MAX_ROUND_TICKS) {
+      throw new Error(
+        `round ${current.roundNumber} exceeded ${MAX_ROUND_TICKS} ticks — possible non-termination`,
+      )
+    }
   }
   return { state: current, clearTimeMs }
 }

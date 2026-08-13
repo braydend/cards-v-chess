@@ -62,11 +62,15 @@ export function checkThresholds(
   ]
 
   if (thresholds.minMedianFailureRound !== null) {
+    const medianFailureRound = metrics.medianFailureRound ?? 0
     results.push({
       label: 'median failure round',
-      actual: metrics.medianFailureRound ?? 0,
+      actual: medianFailureRound,
       limit: thresholds.minMedianFailureRound,
-      pass: (metrics.medianFailureRound ?? 0) >= thresholds.minMedianFailureRound,
+      // No defeats means no difficulty cliff to guard — a tuning pass that
+      // makes every run win must not trip the failure-round floor.
+      pass:
+        (metrics.medianFailureRound ?? Number.POSITIVE_INFINITY) >= thresholds.minMedianFailureRound,
     })
   }
 
