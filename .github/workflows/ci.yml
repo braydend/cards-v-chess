@@ -21,7 +21,11 @@ jobs:
   checks:
     name: checks
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # The balance gate runs the full bot × seed matrix under coverage, which
+    # takes ~8 minutes locally and longer on a fresh runner — the old 10-minute
+    # budget killed it mid-run. 20 keeps headroom for runner variance and a
+    # growing matrix.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
