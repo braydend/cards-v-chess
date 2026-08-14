@@ -631,4 +631,58 @@ describe('hittableSquares', () => {
 
     expect(hittableSquares(BOARD, state.towers).size).toBe(0)
   })
+
+  it('returns the same set object for the same layout', () => {
+    // `movePieces` recomputes the footprint every tick even though the Tower
+    // layout rarely changes; the memo must serve repeated lookups of an
+    // unchanged layout from one object.
+    const state = withTower('splash', { file: 2, rank: 2 })
+
+    expect(hittableSquares(BOARD, state.towers)).toBe(hittableSquares(BOARD, state.towers))
+  })
+
+  it('invalidates when a Tower is added', () => {
+    const first = withTower('splash', { file: 2, rank: 2 })
+    const state = withTower('splash', { file: 5, rank: 5 }, first)
+
+    const alone = hittableSquares(BOARD, first.towers)
+    const doubled = hittableSquares(BOARD, state.towers)
+
+    expect(alone.size).toBe(8)
+    expect(doubled.size).toBe(16)
+    expect(doubled).not.toBe(alone)
+  })
+
+  it('invalidates when a Tower range changes', () => {
+    // A splash Tower's range-1 footprint is the eight neighbours; at range 2 it
+    // grows to the whole 2-square disc, so the raised Tower must produce a
+    // strictly larger footprint than the base one did.
+    const state = withTower('splash', { file: 2, rank: 2 })
+    const boosted = {
+      ...state,
+      towers: state.towers.map((tower) => ({ ...tower, range: tower.range + 1 })),
+    }
+
+    const base = hittableSquares(BOARD, state.towers)
+    const raised = hittableSquares(BOARD, boosted.towers)
+
+    expect(raised.size).toBeGreaterThan(base.size)
+  })
+
+  it('treats the same layout in a different order as identical', () => {
+    // The caller passes `[...towerBySquare.values()]`, whose order follows the
+    // towers array; a cache keyed on array order would miss when two layouts
+    // contain the same Towers in different orders.
+    const first = withTower('splash', { file: 2, rank: 2 })
+    const state = withTower('splash', { file: 5, rank: 5 }, first)
+
+    const a = state.towers[0]
+    const b = state.towers[1]
+    if (a === undefined || b === undefined) throw new Error('expected two towers')
+
+    const forward = hittableSquares(BOARD, state.towers)
+    const reversed = hittableSquares(BOARD, [b, a])
+
+    expect(reversed).toBe(forward)
+  })
 })
