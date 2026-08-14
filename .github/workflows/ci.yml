@@ -21,10 +21,12 @@ jobs:
   checks:
     name: checks
     runs-on: ubuntu-latest
-    # The balance gate runs the full bot × seed matrix under coverage, which
-    # takes ~8 minutes locally and longer on a fresh runner — the old 10-minute
-    # budget killed it mid-run. 20 keeps headroom for runner variance and a
-    # growing matrix.
+    # The balance gate is advisory (issue #72) and runs in its own job below.
+    # The coverage run here excludes it so a gate failure never blocks the
+    # merge gate; src/balance coverage is measured against the unit tests
+    # alone, which is what the thresholds in vite.config.ts track. The gate
+    # itself takes ~70s under coverage, so excluding it also keeps this job
+    # well inside its budget.
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -50,7 +52,7 @@ jobs:
         run: pnpm typecheck
 
       - name: Test
-        run: pnpm test:coverage
+        run: pnpm test:coverage --exclude src/balance/balance.test.ts
 
       - name: Build
         run: pnpm build
@@ -61,6 +63,31 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+
+  # The power-balance gate (issue #72). Advisory, not a merge gate: it exists
+  # to measure the game's balance and surface drift, and its thresholds are a
+  # ratchet still being tuned — so a failure must never block. continue-on-error
+  # keeps the job visible (its report prints) without failing the workflow.
+  balance:
+    name: balance (advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Balance gate
+        run: pnpm test:run src/balance/balance.test.ts --reporter=verbose
 
   deploy:
     name: deploy
