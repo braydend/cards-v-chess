@@ -46,6 +46,9 @@ export default defineConfig(({ command, isPreview }) => ({
         // data/ is data, not code — a percentage over constant tables measures
         // nothing.
         'src/data/**',
+        // seeds.ts is the same: a constant table, only read by the advisory
+        // balance gate, which this coverage run deliberately excludes.
+        'src/balance/seeds.ts',
       ],
       thresholds: {
         // A ratchet against regression, not a statement of the right level.
@@ -61,6 +64,12 @@ export default defineConfig(({ command, isPreview }) => ({
         // untested it is. Adding a new top-level src/ directory that should
         // be held to a standard means adding its own entry below.
         'src/game/**': { statements: 85, branches: 85, functions: 85, lines: 90 },
+        // Measured against the unit tests alone (strategy/driver/bots/metrics/
+        // thresholds). The balance GATE (balance.test.ts) is excluded from this
+        // run — CI runs it separately, advisory — so the gate's long sims do
+        // not inflate (or gate) this number. Re-measure before adjusting: the
+        // last read was 94.1/84.4/98.5/95.9.
+        'src/balance/**': { statements: 90, branches: 82, functions: 95, lines: 92 },
         'src/state/**': { statements: 90, branches: 95, functions: 85, lines: 90 },
       },
     },

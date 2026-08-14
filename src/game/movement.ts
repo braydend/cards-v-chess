@@ -427,6 +427,17 @@ function huntByField(
       continue
     }
 
+    // A full slide reaches a distance-`ownDistance - 1` square — real progress
+    // toward the Core. A capped slide (steps < closerRange, maxSteps cut it
+    // short) lands on an equal-or-greater-distance square: mid-phase, that is the
+    // ordinary advance and is taken; but once a covered full-slide landing has
+    // been skipped above, accepting a capped landing would pull the piece back
+    // to a square it came from — an oscillation (a yellow slider repelled from
+    // its phase target bouncing forever between two equal-distance squares).
+    // After a skip, only a full-slide landing may be returned; the fallback
+    // covers the case where every remaining full-slide landing is also covered.
+    if (steps < closerRange && fallback !== undefined) continue
+
     return { kind: 'move', to: square, ...stamp }
   }
 

@@ -15,7 +15,7 @@ const RENDERER_PACKAGES = [
 ]
 
 const BOUNDARY_MESSAGE =
-  'src/game and src/data must stay renderer-agnostic — no React, no three.js, no view state. See CLAUDE.md.'
+  'src/game, src/data, and src/balance must stay renderer-agnostic — no React, no three.js, no view state. See CLAUDE.md.'
 
 const BARREL_MESSAGE =
   'Import engine code through the src/game barrel (../game), not a module inside it — see src/game/index.ts. A deep import reaches past the public surface and can see something the barrel deliberately does not export.'
@@ -39,7 +39,7 @@ export default tseslint.config(
     files: ['src/**/*.tsx'],
   },
   {
-    files: ['src/game/**/*.{ts,tsx}', 'src/data/**/*.{ts,tsx}'],
+    files: ['src/game/**/*.{ts,tsx}', 'src/data/**/*.{ts,tsx}', 'src/balance/**/*.{ts,tsx}'],
     rules: {
       // CLAUDE.md's determinism invariant: runs are seeded and the simulation
       // must stay reproducible, so randomness comes from a seeded PRNG carried
@@ -50,7 +50,7 @@ export default tseslint.config(
           object: 'Math',
           property: 'random',
           message:
-            'Runs are seeded — src/game and src/data must draw randomness from the PRNG in GameState, never Math.random. See CLAUDE.md.',
+            'Runs are seeded — src/game, src/data, and src/balance must draw randomness from the PRNG in GameState, never Math.random. See CLAUDE.md.',
         },
       ],
       'no-restricted-imports': [

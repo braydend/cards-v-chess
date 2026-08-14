@@ -218,10 +218,41 @@ export function reachableSquares(
  * `geometry: 'none'` contributes nothing.
  *
  * A pure function of the board and the Tower list, so the avoidance it feeds
- * stays deterministic within a seeded run. Allocates: `movePieces` in tick.ts
- * calls it once per tick, never from a frame loop.
+ * stays deterministic within a seeded run.
+ *
+ * **Memoised.** `movePieces` in tick.ts recomputes this once per tick even
+ * though the Tower layout rarely changes mid-round — and a late round can hold
+ * forty Towers, so the recompute is the engine's hottest per-tick cost. The
+ * cache is keyed on the exact inputs that determine the footprint — board
+ * extent, and each Tower's square, type and range — so it is a memoisation of
+ * a pure function, exactly like `fieldCache` in distanceFields.ts, and can
+ * never change an answer: a different layout produces a different key, and the
+ * same layout always produces the same set. It returns the SAME Set object for
+ * an unchanged layout, which callers must treat as read-only (they all do —
+ * `movePieces` only reads `.has`).
+ *
+ * Bounded: the key space here is tower layouts, which a long free-play session
+ * accumulates without end, unlike `fieldCache`'s board-shape keys. Clearing a
+ * pure-function memo never changes an answer — the next call recomputes — so
+ * a cap is pure memory insurance.
  */
+const MAX_HITTABLE_CACHE = 2048
+const hittableCache = new Map<string, ReadonlySet<string>>()
+
+/** The memo key: every input `hittableSquares` reads, canonicalised by order. */
+function hittableKey(board: BoardSpec, towers: readonly Tower[]): string {
+  const layout = towers
+    .map((tower) => `${tower.square.file},${tower.square.rank}:${tower.type}:${tower.range}`)
+    .sort()
+    .join('|')
+  return `${board.files}x${board.ranks}:${layout}`
+}
+
 export function hittableSquares(board: BoardSpec, towers: readonly Tower[]): ReadonlySet<string> {
+  const key = hittableKey(board, towers)
+  const cached = hittableCache.get(key)
+  if (cached) return cached
+
   const blockers = towers.map((tower) => tower.square)
   const covered = new Set<string>()
 
@@ -232,5 +263,13 @@ export function hittableSquares(board: BoardSpec, towers: readonly Tower[]): Rea
     }
   }
 
+  // A layout's footprint is also its own invalidation: nothing can change what
+  // `hittableSquares` returns for a given key, so dropping the oldest entry is
+  // only memory recovery, never staleness.
+  if (hittableCache.size >= MAX_HITTABLE_CACHE) {
+    const oldest = hittableCache.keys().next().value
+    if (oldest !== undefined) hittableCache.delete(oldest)
+  }
+  hittableCache.set(key, covered)
   return covered
 }

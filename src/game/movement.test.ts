@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BOARD, CORE_SQUARE } from '../data/board'
 import { allSquares, isInBounds, squareKey, squaresEqual } from './board'
-import { kingDistanceField, knightDistanceField, rookDistanceField, KNIGHT_OFFSETS } from './distanceFields'
+import { kingDistanceField, knightDistanceField, queenDistanceField, rookDistanceField, KNIGHT_OFFSETS } from './distanceFields'
 import { towersAt } from './fixtures'
 import { nextMove } from './movement'
 import type { MoveRequest } from './movement'
@@ -814,5 +814,45 @@ describe('yellow coverage avoidance', () => {
     const outcome = move('king', { file: 3, rank: 2 }, NO_TOWERS, { tier: 'yellow', hunting: true }, new Set(['2,2', '3,1', '4,1', '2,1']))
 
     expect(outcome).toEqual({ kind: 'move', to: { file: 3, rank: 1 }, hunting: true })
+  })
+
+  it('a yellow slider does not reverse into a capped equal-distance landing after a skip', () => {
+    // From (6,4) the Queen's first direction reaches (7,4) — its distance-1
+    // phase target — in one step, but (7,4) is covered. The next direction's
+    // slide is capped (maxSteps 1, closerRange 3) and would land on (5,4), an
+    // equal-distance square: accepting it reverses the piece and, from (5,4),
+    // the first direction pulls it back to (6,4) forever. The hunt must instead
+    // keep scanning for a distance-decreasing landing, not take the capped one.
+    const outcome = move('queen', { file: 6, rank: 4 }, NO_TOWERS, { tier: 'yellow', hunting: true }, new Set(['7,4']))
+
+    // (6,3) is the next distance-decreasing landing (distance 1) the scan finds
+    // after (7,4) is skipped; taking it instead of (5,4) is what breaks the loop.
+    expect(outcome).toEqual({ kind: 'move', to: { file: 6, rank: 3 }, hunting: true })
+  })
+
+  it('a repelled yellow slider reaches the Core instead of oscillating', () => {
+    // From (5,4) the Queen's +file slide is capped to (6,4) (equal distance);
+    // from (6,4) its only uncovered distance-decreasing landing is (6,3). Each
+    // hop must make progress: (5,4) -> (6,4) -> (6,3) -> ... -> reachCore, never
+    // (5,4) <-> (6,4). `move` is stateless, so drive nextMove directly.
+    const field = queenDistanceField(BOARD, CORE_SQUARE)
+    const own = field.get(squareKey({ file: 5, rank: 4 }))
+    if (own === undefined) throw new Error('expected a queen field entry for (5,4)')
+    expect(field.get(squareKey({ file: 6, rank: 4 }))).toBe(own)
+    expect(field.get(squareKey({ file: 7, rank: 4 }))).toBe(own - 1)
+    let square = { file: 5, rank: 4 }
+    const seen = new Set<string>([squareKey(square)])
+
+    for (let i = 0; i < 32; i += 1) {
+      const outcome = move('queen', square, NO_TOWERS, { tier: 'yellow', hunting: true }, new Set(['7,4']))
+      if (outcome.kind === 'reachCore') return
+      if (outcome.kind !== 'move') break
+      square = outcome.to
+      const key = squareKey(square)
+      if (seen.has(key)) throw new Error(`oscillation: revisit ${key}`)
+      seen.add(key)
+    }
+
+    throw new Error('did not reach the Core')
   })
 })
