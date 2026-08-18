@@ -55,7 +55,7 @@ Preserve the rest of the property. King, Ace and the Jokers are all playable fro
 | --- | --- | --- | --- |
 | High card | 1 | **Vertical** | A single file |
 | Pair | 2 | **Wall** | No gun — blocks and soaks |
-| Two pair | 4 | **Sniper** | Long range, single target, high damage |
+| Two pair | 4 | **Sniper** | Filled disc — radius 6 every direction, one target, sees through Towers |
 | Three of a kind | 3 | **Diagonal** | Four diagonals |
 | Straight | 5 | **Cross** | Four cardinal lines |
 | Flush | 5 | **Star** | Eight rays, shorter reach |
@@ -69,7 +69,7 @@ Preserve the rest of the property. King, Ace and the Jokers are all playable fro
 **The tower roster is the hand ladder.** Towers are keyed by tower type, not by a Card's rank — the old rank-keyed table (2–10) is retired, and a Tower's `type` is its whole identity. The shapes carry over from the rank ladder where they existed — vertical, diagonal, cross and star are the old 3, 5, 4 and 6 — and the roster fills out the rarity span with new identities:
 
 - The **Wall** has no gun at all — it blocks and soaks, and never shoots. The pair is cheap, and a Wall is the game's bluntest commitment: it buys seconds and nothing else.
-- The **Sniper** is a long single file with high single-target damage and no splash — the rare-hand answer to one strong Piece.
+- The **Sniper** is a filled disc of radius 6 in every direction, one high-damage target per shot, slow — the rare-hand answer to one strong Piece anywhere in reach, and the one Tower whose shot passes through friendly Towers (see occlusion below). Its reach is its value, not its coverage count: it lights the whole disc and hits one Piece standing in it.
 - The **Splash** bursts over the squares around it, the answer to a Pawn swarm.
 - The **Ring** hits *everything* its ring covers each shot. It replaces the Amplifier, now dealing damage directly — the amplify aura is gone.
 - The **Toll gate** fires a full-board-width band with unlimited targets: one toll on every Piece, and nothing can go around it. Files never grow — only ranks do — so a band spans the full width for an entire run, while an Ace dilutes its share.
@@ -363,7 +363,7 @@ Every Piece therefore contributes anti-Tower pressure, which is what makes a Tow
 
 **A Tower and a Piece never share a square, and both routes onto that state are closed.** A Tower cannot be built on a square a Piece occupies: blocking only means something if the two never overlap, and a build is one route the movement rule does not already guard. The other route was spawning, and it is closed differently — Pieces spawn onto the **Staging rank**, off the board, where no Tower can stand, and enter by moving. Neither route needs a special case at the point of collision, because after both fixes there is no collision to arbitrate.
 
-**Towers occlude each other's fire.** A shot whose line to its target passes through another Tower on a compass ray is blocked — the Tower behind cannot hit what the Tower in front hides, so `selectTargets` retargets to the next-nearest reachable Piece or holds fire. The coverage overlay follows the same reading — a Tower draws `reachableSquares` (a square the Tower can see but cannot hit is not lit). The toll gate is the one exception to the compass-ray reading: it fires a horizontal beam along every covered rank, so a Piece on any band rank is hidden by a Tower on that same rank standing between the gate and it — wall the gate's full height and nothing behind it is shot.
+**Towers occlude each other's fire.** A shot whose line to its target passes through another Tower on a compass ray is blocked — the Tower behind cannot hit what the Tower in front hides, so `selectTargets` retargets to the next-nearest reachable Piece or holds fire. The coverage overlay follows the same reading — a Tower draws `reachableSquares` (a square the Tower can see but cannot hit is not lit). The toll gate is the one exception to the compass-ray reading: it fires a horizontal beam along every covered rank, so a Piece on any band rank is hidden by a Tower on that same rank standing between the gate and it — wall the gate's full height and nothing behind it is shot. The **Sniper** is the one exception of the other kind: its shot passes through friendly Towers entirely, so a wall of its own Towers never shields what sits behind it — its reach is the full disc it covers, occlusion or not. The Staging rank stays immune to it exactly as to every other Tower — the occlusion exemption is not a bounds exemption.
 
 ### Reading a Tower's coverage
 

@@ -472,8 +472,10 @@ function selectTargets(
     if (!coversSquare(def.geometry, tower.range, tower.square, piece.square)) continue
     // A Tower can see a square and still not hit it: another Tower strictly
     // between blocks the shot. The Staging-rank bounds check above this is
-    // untouched — damage still cannot reach a Piece assembling off-board.
-    if (isOccluded(tower.square, piece.square, blockers, def.geometry)) continue
+    // untouched — damage still cannot reach a Piece assembling off-board. The
+    // Sniper is the one exemption: `def.ignoresOcclusion` skips the check for
+    // it, so its shot passes through friendly Towers.
+    if (isOccluded(tower.square, piece.square, blockers, def.geometry, def.ignoresOcclusion)) continue
 
     candidates.push({
       piece,

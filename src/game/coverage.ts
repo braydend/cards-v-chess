@@ -115,6 +115,12 @@ export function coveredSquares(
  * target's own rank, file strictly between `from` and `target` — the toll gate
  * fires a beam along each covered rank.
  *
+ * `ignoresOcclusion` is the Sniper's exemption: when true, nothing occludes —
+ * a shot passes through friendly Towers. Keyed on the type, never on the
+ * geometry, because `adjacent` is shared with the splash Tower. The Staging
+ * rank's damage immunity is a separate, bounds-level rule in `selectTargets`
+ * and is NOT exempted here.
+ *
  * Reads only the positions of the blocker set, so the answer cannot depend on
  * which Tower a caller happened to process first.
  */
@@ -123,7 +129,10 @@ export function isOccluded(
   target: Square,
   blockers: readonly Square[],
   geometry?: TowerGeometry,
+  ignoresOcclusion = false,
 ): boolean {
+  if (ignoresOcclusion) return false
+
   const between = (a: number, b: number, c: number): boolean =>
     (a < b && b < c) || (c < b && b < a)
 
@@ -192,7 +201,9 @@ export function isOccluded(
  * footprint rather than one square — the two coverage overlays in `src/scene`.
  * An empty blocker list is exactly `coveredSquares`: a Tower alone never
  * occludes itself, because a Tower is never strictly between itself and a
- * target.
+ * target. `ignoresOcclusion` passes straight through to `isOccluded` — the
+ * Sniper's footprint is its full geometric disc, because its shots pass
+ * through friendly Towers.
  */
 export function reachableSquares(
   board: BoardSpec,
@@ -200,9 +211,10 @@ export function reachableSquares(
   range: number,
   from: Square,
   blockers: readonly Square[],
+  ignoresOcclusion = false,
 ): Square[] {
   return coveredSquares(board, geometry, range, from).filter(
-    (square) => !isOccluded(from, square, blockers, geometry),
+    (square) => !isOccluded(from, square, blockers, geometry, ignoresOcclusion),
   )
 }
 
@@ -227,7 +239,14 @@ export function hittableSquares(board: BoardSpec, towers: readonly Tower[]): Rea
 
   for (const tower of towers) {
     const def = towerType(tower.type)
-    for (const square of reachableSquares(board, def.geometry, tower.range, tower.square, blockers)) {
+    for (const square of reachableSquares(
+      board,
+      def.geometry,
+      tower.range,
+      tower.square,
+      blockers,
+      def.ignoresOcclusion,
+    )) {
       covered.add(squareKey(square))
     }
   }
