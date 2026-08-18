@@ -185,7 +185,7 @@ under the victory screen. `VICTORY_ROUND` lives in `src/data/rounds.ts`. See
 
 ### Round composition
 
-> **King's Guard rounds.** Every 8th round starting at round 15 (15, 23, 31, …) replaces the normal composition with one or more **squads**: a King flanked by sliders (Bishop, Rook, Queen only) on adjacent files, spawning together so the King's aura fires as the squad enters. Both the squad count and each squad's size grow with the round number. The King and its sliders all draw tiers from the normal tier pool, so a late Guard round's King can be yellow, red, or black. Composition lives in `src/data/guardRounds.ts`; the squad and size formulas are placeholder tuning. See [`docs/superpowers/specs/2026-08-08-kings-guard-rounds-design.md`](../superpowers/specs/2026-08-08-kings-guard-rounds-design.md) for the full reasoning.
+> **King's Guard rounds.** Every 8th round starting at round 15 (15, 23, 31, …) replaces the normal composition with one or more **squads**: a King flanked by sliders (Bishop, Rook, Queen only) on adjacent files, spawning together so the King's aura fires as the squad enters and the latched buff stays with the squad for the whole march. Both the squad count and each squad's size grow with the round number. The King and its sliders all draw tiers from the normal tier pool, so a late Guard round's King can be yellow, red, or black. Composition lives in `src/data/guardRounds.ts`; the squad and size formulas are placeholder tuning. See [`docs/superpowers/specs/2026-08-08-kings-guard-rounds-design.md`](../superpowers/specs/2026-08-08-kings-guard-rounds-design.md) for the full reasoning.
 
 ## Ink and packs
 
@@ -283,7 +283,7 @@ Slides, alternating the Rook's line and the Bishop's line hop by hop — the onl
 
 One square straight forward, always. It never slides and never gains a slide bonus of its own — see Auras, under The Chess roster below, for what it grants everyone else instead.
 
-Bishop, Rook, and Queen — the sliders — move **one square per hop**, exactly like the Pawn, **+1 while adjacent to a King**. A slide of N resolves as **N single-square steps along one committed line**: it stops early on a Tower (which it attacks) or the Core (which it leaks into), and if it reaches the back rank mid-slide it stops there rather than bending onto a new line for the remaining steps — the hunt begins on the next hop.
+Bishop, Rook, and Queen — the sliders — move **one square per hop**, exactly like the Pawn, **+1 per King-aura stack**. A slide of N resolves as **N single-square steps along one committed line**: it stops early on a Tower (which it attacks) or the Core (which it leaks into), and if it reaches the back rank mid-slide it stops there rather than bending onto a new line for the remaining steps — the hunt begins on the next hop.
 
 ### Promotion
 
@@ -318,7 +318,7 @@ See [`docs/superpowers/specs/2026-08-07-hunting-for-all-design.md`](../superpowe
 | **Bishop** | Diagonals; thematically a cleric | **Healer** — sustains its Round's Pieces until killed. Nothing else | Retargeting; kill it first |
 | **Rook** | Straight lines, long | **Armoured tank** — slow, high health | Piercing or sustained damage |
 | **Queen** | Everything, long | **Elite** — flexible, rare, dangerous | Burst and focused fire |
-| **King** | One square, but *the* target | **Commander** — slow, tough, buffs adjacent Pieces | Priority targeting |
+| **King** | One square, but *the* target | **Commander** — slow, tough, latches permanent buffs onto adjacent Pieces | Priority targeting |
 
 Pawn promotion turns a chaff swarm into a timer: ignore the weak pieces and they become the elite threat.
 
@@ -326,9 +326,9 @@ Pawn promotion turns a chaff swarm into a timer: ignore the weak pieces and they
 
 Two Pieces project a passive effect onto others nearby, rather than fighting only for themselves.
 
-**The King** buffs every *other* Piece at Chebyshev distance 1 (the eight surrounding squares) with a shorter move interval, and additionally grants sliders — Bishop, Rook, Queen — **+1 slide**. It never buffs itself, and the buff does not stack: standing beside two Kings is exactly as good as standing beside one.
+**The King** grants every *other* Piece at Chebyshev distance 1 (the eight surrounding squares) a permanent, stacking aura. A King-touch **latches**: a Piece earns one stack per adjacency *episode* — a contiguous period in range of one King — and never loses it; leaving and re-entering, or touching a different King, earns another, and two Kings at once grant two. Each stack re-applies the full aura, compounding: move interval ×0.7 per stack (0.7^N), **+1 slide** per stack to sliders (Bishop, Rook, Queen), and **+1 max health** per stack, healing current health by exactly the increase the moment the stack lands (a Bishop's heal caps against the raised ceiling). It never buffs itself, but King-to-King adjacency stacks on each King exactly as it does on any other Piece. A promoted Queen inherits her Pawn's stacks. Because the buff latches, standing beside a King once is a decision the player answers for the rest of the march — the Commander's presence outlives its square.
 
-**The Bishop** heals every *other* Piece within Chebyshev distance 2, on a fixed cadence, capped at each target's own maximum health. It never heals itself — the designed counter is "kill it first", and a self-healing Bishop would blunt that outright. Unlike the King's aura, Bishops **do** stack: two Bishops in range of the same Piece heal it independently, as two separate sources rather than one effect applied twice.
+**The Bishop** heals every *other* Piece within Chebyshev distance 2, on a fixed cadence, capped at each target's own maximum health. It never heals itself — the designed counter is "kill it first", and a self-healing Bishop would blunt that outright. Bishops **do** stack too: two Bishops in range of the same Piece heal it independently, as two separate sources rather than one effect applied twice.
 
 ### Tiers
 
