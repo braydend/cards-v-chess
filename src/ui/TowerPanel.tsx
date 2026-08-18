@@ -1,4 +1,4 @@
-import { pendingUpgrades } from '../game'
+import { pendingUpgrades, totalUpgrades } from '../game'
 import { MAX_UPGRADES_PER_TOWER, towerType } from '../data/towerTypes'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
@@ -15,11 +15,6 @@ import { targetsLabel } from './targetsLabel'
  *
  * It updates in step with damage for free: a hit changes `health`, `health` is
  * in `structuralKey`, and a change there is what publishes a snapshot.
- *
- * `damageTaken` is a lifetime total, not `maxHealth - health`. A Jack's shield
- * absorbs hits before they reach health, so a Tower at full health can still
- * report heavy damage taken — weathering a hit counts even when it did not
- * land on health.
  */
 export function TowerPanel() {
   const selectedTowerId = useUiStore((store) => store.selectedTowerId)
@@ -33,7 +28,8 @@ export function TowerPanel() {
 
   const def = towerType(tower.type)
   const targets = targetsLabel(def.targetsPerShot)
-  const pending = pendingUpgrades(tower.kills, tower.upgradesSpent)
+  const total = totalUpgrades(tower.upgradeCounts)
+  const pending = pendingUpgrades(tower.kills, total)
 
   return (
     <div className="towerPanel">
@@ -64,10 +60,6 @@ export function TowerPanel() {
           </div>
         )}
         <div>
-          <dt>Damage taken</dt>
-          <dd>{formatStat(tower.damageTaken)}</dd>
-        </div>
-        <div>
           <dt>Pieces defeated</dt>
           <dd>{formatStat(tower.kills)}</dd>
         </div>
@@ -78,6 +70,16 @@ export function TowerPanel() {
           </div>
         )}
       </dl>
+
+      <div className="towerPanel__upgrades">
+        <p className="hud__muted">
+          Upgrades: {total} / {MAX_UPGRADES_PER_TOWER} spent
+        </p>
+        <p className="hud__muted">
+          {tower.upgradeCounts.damage} damage · {tower.upgradeCounts.fireRate} faster firing ·{' '}
+          {tower.upgradeCounts.health} health
+        </p>
+      </div>
 
       {pending > 0 && (
         <div className="towerPanel__upgrades">
@@ -108,7 +110,7 @@ export function TowerPanel() {
         </div>
       )}
 
-      {tower.upgradesSpent >= MAX_UPGRADES_PER_TOWER && (
+      {total >= MAX_UPGRADES_PER_TOWER && (
         <div className="towerPanel__upgrades">
           <p className="hud__muted">Upgrades maxed — this Tower has spent all of its upgrades.</p>
         </div>

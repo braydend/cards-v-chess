@@ -1,4 +1,4 @@
-import { pendingUpgrades, type Tower } from '../game'
+import { pendingUpgrades, totalUpgrades, type Tower } from '../game'
 
 /**
  * Whether a Tower has banked, unspent upgrades — the "ready to upgrade"
@@ -8,5 +8,5 @@ import { pendingUpgrades, type Tower } from '../game'
  * with this predicate and is pure plumbing.
  */
 export function isUpgradeReady(tower: Tower): boolean {
-  return pendingUpgrades(tower.kills, tower.upgradesSpent) > 0
+  return pendingUpgrades(tower.kills, totalUpgrades(tower.upgradeCounts)) > 0
 }

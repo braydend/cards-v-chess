@@ -43,16 +43,29 @@ export function thresholdsCleared(kills: number): number {
 /**
  * Upgrades banked but unspent.
  *
- * Derived, never stored: kills are the XP source, `upgradesSpent` the only
- * bookkeeping, and the count is `thresholdsCleared(kills) - upgradesSpent`,
- * clamped below by 0 (an over-spent Tower, impossible through the engine but
- * possible through a hand-built test state) and above by the remaining room
- * under `MAX_UPGRADES_PER_TOWER` — a capped Tower reports 0, so the glow and
- * the panel go quiet even while kills keep crossing thresholds.
+ * Derived, never stored: kills are the XP source, the total spent (the sum of
+ * the per-category `upgradeCounts` counters) the only bookkeeping, and the
+ * count is `thresholdsCleared(kills) - totalSpent`, clamped below by 0 (an
+ * over-spent Tower, impossible through the engine but possible through a
+ * hand-built test state) and above by the remaining room under
+ * `MAX_UPGRADES_PER_TOWER` — a capped Tower reports 0, so the glow and the
+ * panel go quiet even while kills keep crossing thresholds.
  */
-export function pendingUpgrades(kills: number, upgradesSpent: number): number {
-  const banked = Math.max(0, thresholdsCleared(kills) - upgradesSpent)
-  return Math.min(Math.max(0, MAX_UPGRADES_PER_TOWER - upgradesSpent), banked)
+export function pendingUpgrades(kills: number, totalSpent: number): number {
+  const banked = Math.max(0, thresholdsCleared(kills) - totalSpent)
+  return Math.min(Math.max(0, MAX_UPGRADES_PER_TOWER - totalSpent), banked)
+}
+
+/**
+ * Total upgrades spent on a Tower, derived as the sum of the per-category
+ * counters (issue #79).
+ *
+ * Derived, never stored: the category counts are the bookkeeping, and the
+ * total — the figure the cap, the pending balance, and the panel's "X / 10
+ * spent" line all read — is their sum, so every consumer sees the same number.
+ */
+export function totalUpgrades(counts: Record<UpgradeStat, number>): number {
+  return counts.damage + counts.fireRate + counts.health
 }
 
 /**
@@ -75,8 +88,8 @@ export function pendingUpgrades(kills: number, upgradesSpent: number): number {
  *   health, so the heal is exactly the ceiling's rise (10/14 -> 15.4/11.4),
  *   never more and never less.
  *
- * Every spend increments `upgradesSpent`, so the next `pendingUpgrades` call
- * sees one fewer upgrade banked.
+ * Every spend increments the spent stat's counter, so the next
+ * `pendingUpgrades` call sees one fewer upgrade banked.
  */
 export function upgradeTower(state: GameState, towerId: string, stat: UpgradeStat): GameState {
   if (isTerminal(state.phase)) return state
@@ -84,8 +97,8 @@ export function upgradeTower(state: GameState, towerId: string, stat: UpgradeSta
   const tower = state.towers.find((candidate) => candidate.id === towerId)
   if (!tower) return state
   if (tower.type === 'wall') return state
-  if (tower.upgradesSpent >= MAX_UPGRADES_PER_TOWER) return state
-  if (pendingUpgrades(tower.kills, tower.upgradesSpent) < 1) return state
+  if (totalUpgrades(tower.upgradeCounts) >= MAX_UPGRADES_PER_TOWER) return state
+  if (pendingUpgrades(tower.kills, totalUpgrades(tower.upgradeCounts)) < 1) return state
   if (stat === 'fireRate' && tower.fireIntervalMs - 0.1 * tower.fireIntervalBaseMs <= 0) return state
 
   return {
@@ -98,7 +111,10 @@ export function upgradeTower(state: GameState, towerId: string, stat: UpgradeSta
 
 /** The stat change for one spend, on the old Tower's values. */
 function applyUpgrade(tower: Tower, stat: UpgradeStat): Tower {
-  const spent = { ...tower, upgradesSpent: tower.upgradesSpent + 1 }
+  const spent = {
+    ...tower,
+    upgradeCounts: { ...tower.upgradeCounts, [stat]: tower.upgradeCounts[stat] + 1 },
+  }
   switch (stat) {
     case 'damage':
       return { ...spent, damage: tower.damage + 1 }
