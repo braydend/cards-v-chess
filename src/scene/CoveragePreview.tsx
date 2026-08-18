@@ -56,7 +56,7 @@ export function CoveragePreview({ board }: { board: BoardSpec }) {
   // this selector avoids: reading only the pending type rather than the whole
   // snapshot means a Piece hop, which changes the snapshot on every hop, does
   // not touch this value and so cannot force a recompute of the footprint.
-  const pendingType = useGameStore((store) => store.snapshot.pendingTower)
+  const pendingType = useGameStore((store) => store.snapshot.pendingTower?.type ?? null)
   // Identity-stable blocker squares, for the same reason as TowerCoverage:
   // this reference changes only on build/destroy, so a Piece hop or a hit
   // cannot recompute the footprint below.

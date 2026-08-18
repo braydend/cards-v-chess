@@ -82,7 +82,7 @@ Preserve the rest of the property. King, Ace and the Jokers are all playable fro
 
 - **When.** The gap between rounds only — committing a hand is the build phase. Face-card actions and a Joker's Clear remain playable mid-round.
 - **How.** The player selects Cards from the Deck. The game shows the strongest hand the selection forms (five same-suit cards show *flush*; a five-card selection with no five-card pattern is refused). A committed set must be **exactly one valid hand of its size** — no kickers, no downgrades. Exact sizes: high card 1, pair 2, three of a kind 3, two pair 4, four of a kind 4, straight 5, flush 5, full house 5, straight flush 5, royal flush 5.
-- **Placement.** Two-step: the player first commits the hand — the Cards are consumed and a Tower of the hand's type appears, awaiting placement — then clicks a square to place it, checked by the existing legal-square rules. Clicking an illegal square does not place (and does not refund the Cards); the pending Tower stays until a legal square is chosen or the play is cancelled. A royal flush's *Choice* is the one hand where the Tower itself is chosen at commit time.
+- **Placement.** Two-step: the player first commits the hand — the Cards are consumed and a Tower of the hand's type appears, awaiting placement — then clicks a square to place it, checked by the existing legal-square rules. Clicking an illegal square does not place (the pending Tower stays until a legal square is chosen or the play is cancelled); cancelling the play **refunds the Cards to the Deck**, so an explicit cancel is a full undo. A royal flush's *Choice* is the one hand where the Tower itself is chosen at commit time.
 - **Cost.** The hand itself — the committed Cards are consumed and no Ink is spent. Playing a hand is never legal mid-round.
 
 ### Face cards, the Ace, and the Jokers
@@ -127,7 +127,7 @@ rank added.
 
 ### Cards are consumed, and there is no drawing
 
-**Playing a card consumes it.** It has been committed to a hand and converted into a Tower, or spent on an action. There is no discard pile and nothing returns.
+**Playing a card consumes it.** It has been committed to a hand and converted into a Tower, or spent on an action. There is no discard pile and nothing returns — the one deliberate exception is an explicit cancel of a hand's placement, which refunds the committed Cards: a full undo of a play that never completed, never a net gain, since no Tower was built.
 
 **Playing a card costs nothing else.** No mana, no Ink cost. The Deck *is* the resource — the player's total supply of plays for the run, replenished only by packs.
 

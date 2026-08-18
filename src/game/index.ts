@@ -29,6 +29,7 @@ export type {
   FaceRank,
   GameState,
   Handedness,
+  PendingTower,
   Piece,
   PieceTier,
   PieceTypeDef,

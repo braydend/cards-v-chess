@@ -115,7 +115,7 @@ describe('resolveBoardAction: no Card picked', () => {
 
 describe('resolveBoardAction: a pending Tower wins every square click', () => {
   it('places on an empty square', () => {
-    expect(resolveBoardAction(click({ pendingTower: 'vertical' }))).toEqual({
+    expect(resolveBoardAction(click({ pendingTower: { type: 'vertical', cards: [] } }))).toEqual({
       kind: 'play',
       command: { kind: 'placeTower', square: EMPTY },
     })
@@ -125,21 +125,21 @@ describe('resolveBoardAction: a pending Tower wins every square click', () => {
     // The pending Tower outranks the panel: the hand is committed, so a click
     // on a Tower is a placement attempt, never a select. `placeTower` in
     // cardPlays.ts refuses the occupied square and the click is just wasted.
-    expect(resolveBoardAction(click({ square: A.square, pendingTower: 'vertical' }))).toEqual({
+    expect(resolveBoardAction(click({ square: A.square, pendingTower: { type: 'vertical', cards: [] } }))).toEqual({
       kind: 'play',
       command: { kind: 'placeTower', square: A.square },
     })
   })
 
   it('places even with a Card picked — the committed hand outranks a fresh pick', () => {
-    expect(resolveBoardAction(click({ card: card('J'), pendingTower: 'ring' }))).toEqual({
+    expect(resolveBoardAction(click({ card: card('J'), pendingTower: { type: 'ring', cards: [] } }))).toEqual({
       kind: 'play',
       command: { kind: 'placeTower', square: EMPTY },
     })
   })
 
   it('places while a Tower is selected, leaving the panel open', () => {
-    expect(resolveBoardAction(click({ selectedTowerId: A.id, pendingTower: 'vertical' }))).toEqual({
+    expect(resolveBoardAction(click({ selectedTowerId: A.id, pendingTower: { type: 'vertical', cards: [] } }))).toEqual({
       kind: 'play',
       command: { kind: 'placeTower', square: EMPTY },
     })
@@ -221,7 +221,7 @@ describe('resolveBoardAction: coarse-pointer tap-to-preview', () => {
   const coarse = { pointer: 'coarse' as const }
 
   it('previews the first tap on a square instead of placing the pending Tower', () => {
-    expect(resolveBoardAction(click({ ...coarse, pendingTower: 'vertical' }))).toEqual({
+    expect(resolveBoardAction(click({ ...coarse, pendingTower: { type: 'vertical', cards: [] } }))).toEqual({
       kind: 'preview',
       square: EMPTY,
     })
@@ -230,7 +230,7 @@ describe('resolveBoardAction: coarse-pointer tap-to-preview', () => {
   it('places the pending Tower on the second tap on the same square', () => {
     expect(
       resolveBoardAction(
-        click({ ...coarse, pendingTower: 'vertical', previewedSquare: EMPTY }),
+        click({ ...coarse, pendingTower: { type: 'vertical', cards: [] }, previewedSquare: EMPTY }),
       ),
     ).toEqual({
       kind: 'play',
@@ -242,14 +242,14 @@ describe('resolveBoardAction: coarse-pointer tap-to-preview', () => {
     const other = { file: 4, rank: 4 }
     expect(
       resolveBoardAction(
-        click({ ...coarse, pendingTower: 'vertical', previewedSquare: EMPTY, square: other }),
+        click({ ...coarse, pendingTower: { type: 'vertical', cards: [] }, previewedSquare: EMPTY, square: other }),
       ),
     ).toEqual({ kind: 'preview', square: other })
   })
 
   it('previews on an occupied square — the red marker is how touch shows illegality', () => {
     expect(
-      resolveBoardAction(click({ ...coarse, pendingTower: 'vertical', square: A.square })),
+      resolveBoardAction(click({ ...coarse, pendingTower: { type: 'vertical', cards: [] }, square: A.square })),
     ).toEqual({
       kind: 'preview',
       square: A.square,
@@ -261,7 +261,7 @@ describe('resolveBoardAction: coarse-pointer tap-to-preview', () => {
       resolveBoardAction(
         click({
           ...coarse,
-          pendingTower: 'vertical',
+          pendingTower: { type: 'vertical', cards: [] },
           square: A.square,
           previewedSquare: A.square,
         }),
@@ -273,7 +273,7 @@ describe('resolveBoardAction: coarse-pointer tap-to-preview', () => {
   })
 
   it('never previews on a fine pointer', () => {
-    expect(resolveBoardAction(click({ pendingTower: 'vertical' }))).toEqual({
+    expect(resolveBoardAction(click({ pendingTower: { type: 'vertical', cards: [] } }))).toEqual({
       kind: 'play',
       command: { kind: 'placeTower', square: EMPTY },
     })

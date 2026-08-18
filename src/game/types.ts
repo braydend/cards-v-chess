@@ -370,6 +370,19 @@ export interface Tower {
 }
 
 /**
+ * A Tower purchase awaiting placement: the hand's type and the Cards that
+ * bought it.
+ *
+ * The Cards are held here — removed from the Deck but not yet converted into a
+ * Tower — so that `cancelPlacement` can return them. They are consumed for good
+ * the moment `placeTower` fires; only an explicit cancel refunds.
+ */
+export interface PendingTower {
+  readonly type: TowerTypeId
+  readonly cards: readonly Card[]
+}
+
+/**
  * `gap` is the untimed window between rounds — the player plans and builds.
  * `inProgress` is live combat. `defeated` and `victory` are terminal.
  */
@@ -413,9 +426,10 @@ export interface GameState {
    * A Tower purchased but not yet placed — the second half of a hand play.
    * Non-null only in the gap; `placeTower` consumes it and `startRound` is
    * refused while it stands. Kept on the state rather than in the UI so the
-   * placement rule lives in the engine.
+   * placement rule lives in the engine. Carries the committed Cards so
+   * `cancelPlacement` can refund them.
    */
-  readonly pendingTower: TowerTypeId | null
+  readonly pendingTower: PendingTower | null
   /** Count of pieces that have reached the Core. */
   readonly leaks: number
   /**

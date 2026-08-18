@@ -47,7 +47,8 @@ function newTower(id: string, square: Square, type: TowerTypeId): Tower {
  * Plays a set of Cards as a poker hand, purchasing the hand's Tower.
  *
  * The first step of Tower building: consumes the committed Cards and sets
- * `pendingTower`; the second step, `placeTower`, puts it on a chosen square.
+ * `pendingTower` (which carries the Cards, so `cancelPlacement` can refund
+ * them); the second step, `placeTower`, puts it on a chosen square.
  * Legal only in the gap — a hand purchase is a build-phase action, and a round
  * must not be interrupted to shop. The hand must be EXACTLY one valid hand of
  * its size, decided by `evaluateHand`; the ranks inside it never modulate the
@@ -86,7 +87,7 @@ export function playHand(
 
   return {
     ...state,
-    pendingTower: type,
+    pendingTower: { type, cards },
     deck: cardIds.reduce((deck, id) => removeCard(deck, id), state.deck),
   }
 }
@@ -107,26 +108,32 @@ export function placeTower(state: GameState, square: Square): GameState {
 
   return {
     ...state,
-    towers: [...state.towers, newTower(`tower-${state.nextEntityId}`, square, state.pendingTower)],
+    towers: [...state.towers, newTower(`tower-${state.nextEntityId}`, square, state.pendingTower.type)],
     nextEntityId: state.nextEntityId + 1,
     pendingTower: null,
   }
 }
 
 /**
- * Cancels an unplaced hand play, dropping the pending Tower.
+ * Cancels an unplaced hand play, refunding the committed Cards.
  *
- * The player may change their mind about where — or whether — to build, but the
- * Cards committed to the hand are NOT refunded: the play is cancelled, not the
- * hand undone. Refuses in every phase but the gap, and with no pending Tower to
- * drop.
+ * The player may change their mind about where — or whether — to build. The
+ * play is cancelled and the hand is undone: the Cards return to the Deck, so
+ * cancelling costs nothing. An illegal placement is the one path that is NOT a
+ * refund — the pending Tower stays until a legal square is chosen or the play
+ * is cancelled. Refuses in every phase but the gap, and with no pending Tower
+ * to drop.
  */
 export function cancelPlacement(state: GameState): GameState {
   if (isTerminal(state.phase)) return state
   if (state.phase !== 'gap') return state
   if (state.pendingTower === null) return state
 
-  return { ...state, pendingTower: null }
+  return {
+    ...state,
+    pendingTower: null,
+    deck: [...state.deck, ...state.pendingTower.cards],
+  }
 }
 
 /**

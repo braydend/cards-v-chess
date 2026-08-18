@@ -66,8 +66,9 @@ export function Deck() {
       {/*
        * A pending Tower stands between commit and placement: the hand is
        * consumed and no more hand may be played, so the hand panel gives way
-       * to a placement hint and a Cancel. The play is cancelled, not undone —
-       * the Cards are spent either way.
+       * to a placement hint and a Cancel. Cancelling is a full undo — the
+       * committed Cards return to the Deck — so the play costs nothing until
+       * a square is actually chosen.
        */}
       {pendingTower !== null ? (
         <div className="deck__detail">
