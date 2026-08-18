@@ -1,10 +1,10 @@
 import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
 import { AdditiveBlending, MeshBasicMaterial, SphereGeometry, type Mesh } from 'three'
-import { TOWER_TYPE_IDS } from '../data/towerTypes'
-import type { BoardSpec, TowerTypeId } from '../game'
+import type { BoardSpec } from '../game'
 import { useGameStore } from '../state/store'
 import { fileToWorldX, rankToWorldZ } from './coords'
+import { towerHeight } from './towerGeometry'
 import { isUpgradeReady } from './upgradeReady'
 
 /** Presentation constants, tunable by feel. */
@@ -27,11 +27,6 @@ const HALO_MATERIAL = new MeshBasicMaterial({
   blending: AdditiveBlending,
   depthWrite: false,
 })
-
-/** The tower's body height, matching the height used in `Towers.tsx`. */
-function towerHeight(type: TowerTypeId): number {
-  return 0.55 + TOWER_TYPE_IDS.indexOf(type) * 0.08
-}
 
 /**
  * A soft pulsing golden halo around every Tower with banked, unspent upgrades.

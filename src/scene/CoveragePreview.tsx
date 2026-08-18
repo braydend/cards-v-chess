@@ -2,14 +2,12 @@ import { Instance, Instances } from '@react-three/drei'
 import { useMemo } from 'react'
 import { towerType } from '../data/towerTypes'
 import { canBuildOn, isInBounds, squareKey, type BoardSpec } from '../game'
-import { blockerSquares, overlaySquares, squaresListsEqual } from './towerFootprint'
 import { useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { COARSE_POINTER_QUERY, useMediaQuery } from '../ui/useMediaQuery'
 import { SQUARE_SIZE, fileToWorldX, rankToWorldZ } from './coords'
-
-const COVERED = '#4fd1c5'
-const ILLEGAL = '#f56565'
+import { COVERED, ILLEGAL } from './previewColours'
+import { blockerSquares, overlaySquares, squaresListsEqual } from './towerFootprint'
 
 /**
  * Position in the flat-overlay stack, lowest first: the King's radius ring
