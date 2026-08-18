@@ -56,6 +56,18 @@ export function pendingUpgrades(kills: number, upgradesSpent: number): number {
 }
 
 /**
+ * Total upgrades spent on a Tower, derived as the sum of the per-category
+ * counters (issue #79).
+ *
+ * Derived, never stored: the category counts are the bookkeeping, and the
+ * total — the figure the cap, the pending balance, and the panel's "X / 10
+ * spent" line all read — is their sum, so every consumer sees the same number.
+ */
+export function totalUpgrades(counts: Record<UpgradeStat, number>): number {
+  return counts.damage + counts.fireRate + counts.health
+}
+
+/**
  * Spends one pending upgrade on a Tower stat.
  *
  * Refuses (returns the state unchanged) on a terminal phase, a missing Tower,

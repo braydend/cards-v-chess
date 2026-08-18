@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { towerType } from '../data/towerTypes'
 import { firstTower, withTower } from './fixtures'
 import { step } from './step'
-import { pendingUpgrades, thresholdsCleared, upgradeThreshold } from './upgrades'
+import { pendingUpgrades, thresholdsCleared, totalUpgrades, upgradeThreshold } from './upgrades'
 import type { GameState } from './types'
 
 describe('upgradeThreshold', () => {
@@ -29,6 +29,15 @@ describe('thresholdsCleared', () => {
     expect(thresholdsCleared(40)).toBe(5)
     expect(thresholdsCleared(47)).toBe(5)
     expect(thresholdsCleared(48)).toBe(6)
+  })
+})
+
+describe('totalUpgrades', () => {
+  it('sums the per-category counters', () => {
+    expect(totalUpgrades({ damage: 0, fireRate: 0, health: 0 })).toBe(0)
+    expect(totalUpgrades({ damage: 2, fireRate: 0, health: 0 })).toBe(2)
+    expect(totalUpgrades({ damage: 0, fireRate: 3, health: 0 })).toBe(3)
+    expect(totalUpgrades({ damage: 1, fireRate: 2, health: 3 })).toBe(6)
   })
 })
 
