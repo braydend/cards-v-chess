@@ -15,11 +15,6 @@ import { targetsLabel } from './targetsLabel'
  *
  * It updates in step with damage for free: a hit changes `health`, `health` is
  * in `structuralKey`, and a change there is what publishes a snapshot.
- *
- * `damageTaken` is a lifetime total, not `maxHealth - health`. A Jack's shield
- * absorbs hits before they reach health, so a Tower at full health can still
- * report heavy damage taken — weathering a hit counts even when it did not
- * land on health.
  */
 export function TowerPanel() {
   const selectedTowerId = useUiStore((store) => store.selectedTowerId)
@@ -64,10 +59,6 @@ export function TowerPanel() {
             <dd>{formatStat(tower.shield)}</dd>
           </div>
         )}
-        <div>
-          <dt>Damage taken</dt>
-          <dd>{formatStat(tower.damageTaken)}</dd>
-        </div>
         <div>
           <dt>Pieces defeated</dt>
           <dd>{formatStat(tower.kills)}</dd>
