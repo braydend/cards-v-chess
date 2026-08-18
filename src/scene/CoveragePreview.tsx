@@ -12,9 +12,9 @@ const COVERED = '#4fd1c5'
 const ILLEGAL = '#f56565'
 
 /**
- * Position in the flat-overlay stack, lowest first: `TowerCoverage`'s amber
- * footprint (1), this teal box (2), this illegal marker (3),
- * `SelectionMarker`'s ring (4), `FirePulses` (5).
+ * Position in the flat-overlay stack, lowest first: the King's radius ring
+ * (0), `TowerCoverage`'s amber footprint (1), this teal box (2), this illegal
+ * marker (3), `SelectionMarker`'s ring (4), `FirePulses` (5).
  *
  * Explicit because heights cannot order these. three.js sorts transparent
  * objects on the projected z of each object's **world origin**, and drei's

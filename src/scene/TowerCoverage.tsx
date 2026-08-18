@@ -39,8 +39,9 @@ const PLACED_COVERAGE_OPACITY = 0.46
  * 0.009 to 0.019 and is coplanar with nothing else drawn flat on the board.
  *
  * Its neighbours: the board squares end at 0.00, `PlacementSurface` sits at
- * 0.02, `CoveragePreview`'s teal box spans 0.03 to 0.05, `SelectionMarker`'s
- * ring is at 0.06 and `FirePulses` spans 0.065 to 0.075.
+ * 0.02, the King's radius ring at 0.026, `CoveragePreview`'s teal box spans
+ * 0.03 to 0.05, `SelectionMarker`'s ring is at 0.06 and `FirePulses` spans
+ * 0.065 to 0.075.
  *
  * **Height keeps these overlays from being coplanar. It does not order them.**
  * That distinction was got wrong here first time round and is worth stating
@@ -60,9 +61,9 @@ const FOOTPRINT_HEIGHT = 0.01
 const FOOTPRINT_Y = 0.014
 
 /**
- * Where this overlay sits in the flat-overlay stack, lowest first: this
- * footprint (1), `CoveragePreview`'s teal box (2) and its illegal marker (3),
- * `SelectionMarker`'s ring (4), `FirePulses` (5).
+ * Where this overlay sits in the flat-overlay stack, lowest first: the King's
+ * radius ring (0), this footprint (1), `CoveragePreview`'s teal box (2) and
+ * its illegal marker (3), `SelectionMarker`'s ring (4), `FirePulses` (5).
  *
  * Amber below teal is the design decision — the Card being considered draws over
  * the Tower already standing, because the active decision belongs on top — and

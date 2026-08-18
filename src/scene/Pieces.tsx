@@ -1,17 +1,17 @@
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import {
+  MeshBasicMaterial,
   MeshStandardMaterial,
   RingGeometry,
   type BufferGeometry,
   type Material,
   type Mesh,
 } from 'three'
-import { pieceType } from '../data/pieceTypes'
 import type { BoardSpec, PieceTier } from '../game'
 import { getState } from '../state/simulation'
 import { useGameStore } from '../state/store'
-import { fileToWorldX, rankToWorldZ } from './coords'
+import { SQUARE_SIZE, fileToWorldX, rankToWorldZ } from './coords'
 import { BUFF_RING_COLOUR } from './pieceColours'
 import { REST_Y, usePieceModels } from './pieceModels'
 import { PROMOTION_POP_MS, promotionPopLift, promotionPopScale } from './promotionPop'
@@ -25,6 +25,18 @@ import { createCloakTracker, cloakAgeMs, cloakOpacity } from './cloakFlicker'
  */
 const HOP_ANIMATION_MS = 220
 const HOP_ARC = 0.4
+
+/**
+ * The King's radius ring sits at the BOTTOM of the flat-overlay ladder —
+ * lowest renderOrder, so every interactive overlay paints over it — and is
+ * the one overlay that is always present while its King lives. Ladder,
+ * lowest first: this ring (0), TowerCoverage's amber footprint (1),
+ * CoveragePreview's teal box (2) and illegal marker (3), SelectionMarker (4),
+ * FirePulses (5). TowerCoverage.tsx carries the reasoning.
+ */
+const KING_RADIUS_RENDER_ORDER = 0
+/** Height band of the King's radius ring, clear of the buff ring (0.02) and CoveragePreview's box (0.03+). */
+const KING_RADIUS_Y = 0.026
 
 export function Pieces({ board }: { board: BoardSpec }) {
   // Subscribes to the structural snapshot: re-renders when a piece spawns or
@@ -42,13 +54,23 @@ export function Pieces({ board }: { board: BoardSpec }) {
   const resources = useMemo(() => {
     const ring = new RingGeometry(0.34, 0.42, 16)
     const ringMaterial = new MeshStandardMaterial({ color: BUFF_RING_COLOUR, emissive: BUFF_RING_COLOUR })
+    // The King's radius: a faint ring wider than the buff ring, at its own
+    // height band so it is coplanar with nothing, and the lowest renderOrder
+    // rung so it never covers an interactive overlay.
+    const radiusRing = new RingGeometry(SQUARE_SIZE * 0.44, SQUARE_SIZE * 0.52, 32)
+    const radiusMaterial = new MeshBasicMaterial({
+      color: BUFF_RING_COLOUR,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+    })
     const byTier = new Map<PieceTier, Material>()
 
     for (const [tier, colour] of Object.entries(TIER_COLOURS)) {
       byTier.set(tier as PieceTier, new MeshStandardMaterial({ color: colour, flatShading: true }))
     }
 
-    return { byTier, ring, ringMaterial }
+    return { byTier, ring, ringMaterial, radiusRing, radiusMaterial }
   }, [])
 
   useEffect(
@@ -58,6 +80,8 @@ export function Pieces({ board }: { board: BoardSpec }) {
       for (const material of resources.byTier.values()) material.dispose()
       resources.ring.dispose()
       resources.ringMaterial.dispose()
+      resources.radiusRing.dispose()
+      resources.radiusMaterial.dispose()
     },
     [resources],
   )
@@ -80,6 +104,8 @@ export function Pieces({ board }: { board: BoardSpec }) {
             material={material}
             ringGeometry={resources.ring}
             ringMaterial={resources.ringMaterial}
+            radiusGeometry={resources.radiusRing}
+            radiusMaterial={resources.radiusMaterial}
           />
         )
       })}
@@ -96,6 +122,8 @@ function PieceMesh({
   material,
   ringGeometry,
   ringMaterial,
+  radiusGeometry,
+  radiusMaterial,
 }: {
   pieceId: string
   promoted: boolean
@@ -105,9 +133,12 @@ function PieceMesh({
   material: Material
   ringGeometry: BufferGeometry
   ringMaterial: Material
+  radiusGeometry: BufferGeometry
+  radiusMaterial: Material
 }) {
   const ref = useRef<Mesh>(null)
   const ringRef = useRef<Mesh>(null)
+  const radiusRef = useRef<Mesh>(null)
   const firstSeenAt = useRef(-1)
   const cloakTracker = useRef(createCloakTracker())
 
@@ -177,7 +208,7 @@ function PieceMesh({
     // Piece dies. The promotion pop MULTIPLIES this rather than replacing it, so
     // a Queen shot during her pop still shrinks. Mutation only — no state, no
     // allocation.
-    const healthFraction = piece.health / pieceType(piece.typeId).maxHealth
+    const healthFraction = piece.health / piece.maxHealth
     const scale = (0.55 + healthFraction * 0.45) * pop
     const flashAgeMs = cloakAgeMs(
       cloakTracker.current,
@@ -194,15 +225,30 @@ function PieceMesh({
     // Toggling `visible` rather than mounting conditionally — mounting would
     // recompile the material. No state is set here.
     //
-    // STOPSHOT, pending the renderer task: the engine has replaced the per-tick
-    // `buffed` flag with a permanent `kingAuraStacks`, so this reads the new
-    // field and keeps the old `inProgress` gate. The renderer task reworks the
-    // ring (scale by stacks, no gap gate) and adds the King's radius ring.
+    // The buff is PERMANENT once latched, so the ring shows whenever the Piece
+    // carries a stack — including the gap between rounds, and after the King
+    // that granted it is long gone. (The old per-tick positional aura had to
+    // gate on `inProgress` because a stranded flag would otherwise linger over
+    // a dead King; a latched stack is the feature, not a stale read.) Scale
+    // grows with the stack count so intensity reads as strength.
     const ring = ringRef.current
     if (ring) {
-      ring.visible = state.phase === 'inProgress' && piece.kingAuraStacks > 0
+      ring.visible = piece.kingAuraStacks > 0
       if (ring.visible) {
+        const ringScale = 1 + 0.1 * (piece.kingAuraStacks - 1)
+        ring.scale.set(ringScale, ringScale, ringScale)
         ring.position.set(mesh.position.x, 0.02, mesh.position.z)
+      }
+    }
+
+    // The King's radius ring: faint, always on while the King lives, toggled
+    // like the buff ring. Its own height band and renderOrder rung keep it
+    // ordered against the other flat overlays.
+    const radius = radiusRef.current
+    if (radius) {
+      radius.visible = piece.typeId === 'king'
+      if (radius.visible) {
+        radius.position.set(mesh.position.x, KING_RADIUS_Y, mesh.position.z)
       }
     }
   })
@@ -214,6 +260,14 @@ function PieceMesh({
         ref={ringRef}
         geometry={ringGeometry}
         material={ringMaterial}
+        rotation={[-Math.PI / 2, 0, 0]}
+        visible={false}
+      />
+      <mesh
+        ref={radiusRef}
+        geometry={radiusGeometry}
+        material={radiusMaterial}
+        renderOrder={KING_RADIUS_RENDER_ORDER}
         rotation={[-Math.PI / 2, 0, 0]}
         visible={false}
       />
