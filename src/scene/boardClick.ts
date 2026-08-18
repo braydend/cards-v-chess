@@ -1,4 +1,4 @@
-import { squaresEqual, type Card, type Command, type Square, type Tower, type TowerTypeId } from '../game'
+import { squaresEqual, type Card, type Command, type PendingTower, type Square, type Tower } from '../game'
 
 export type BoardClick =
   | { readonly kind: 'select'; readonly towerId: string }
@@ -43,8 +43,8 @@ export interface BoardClickContext {
   readonly selectedTowerId: string | null
   /** The Card picked from the Deck, or null when none is. */
   readonly card: Card | null
-  /** The Tower type awaiting placement after a hand was committed, or null. */
-  readonly pendingTower: TowerTypeId | null
+  /** The Tower purchase awaiting placement after a hand was committed, or null. */
+  readonly pendingTower: PendingTower | null
   /** How the pointer engages: `fine` is click-to-play, `coarse` is tap-to-preview. */
   readonly pointer: 'fine' | 'coarse'
   /** The square already previewed by a previous tap, or null. */

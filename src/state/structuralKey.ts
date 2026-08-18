@@ -73,7 +73,11 @@ export function structuralKey(state: GameState): string {
     state.deck.map((card) => card.id).join(','),
     // A hand being committed or placed moves this, and the build preview lives
     // on it — keyed so the preview follows the commit and clears on placement.
-    state.pendingTower,
+    // The type alone is keyed, not the whole `PendingTower` record: the record
+    // also carries the committed Cards, whose identities already move the key
+    // through the Deck's id list above (they leave it on commit and return on
+    // cancel), and keying them again would only bloat the string.
+    state.pendingTower?.type ?? null,
     pieces,
     towers,
   ].join('#')

@@ -156,8 +156,8 @@ export function MobileHud() {
        * consumed and the selection strip is gone (commit cleared it), so this
        * hint and Cancel are the touch player's only way out — the start button
        * is disabled while the Tower awaits. Mirrors the desktop Deck's pending
-       * branch; the play is cancelled, not undone — the Cards are spent either
-       * way.
+       * branch; cancelling refunds the committed Cards to the Deck, so the
+       * play costs nothing until a square is chosen.
        */}
       {pendingTower !== null ? (
         <div className="mobileStrip">

@@ -60,6 +60,9 @@ describe('step: playHand and placeTower', () => {
     expect(placed.towers).toHaveLength(1)
     expect(placed.towers[0]?.square).toEqual({ file: 2, rank: 2 })
     expect(placed.pendingTower).toBeNull()
+    // Placement is the point of no return: the Cards are spent for good here,
+    // and only an explicit cancel (see the cancelPlacement block) refunds them.
+    expect(placed.deck).toHaveLength(0)
   })
 
   it('records the Tower type the hand purchased', () => {
@@ -164,7 +167,7 @@ describe('step: playHand and placeTower', () => {
     const initial = withDeck([standardCard('a', 5, 'clubs'), standardCard('b', 5, 'hearts')])
     const pending = step(initial, { kind: 'playHand', cardIds: ['a'] })
 
-    expect(pending.pendingTower).toBe('vertical')
+    expect(pending.pendingTower?.type).toBe('vertical')
     expect(step(pending, { kind: 'playHand', cardIds: ['b'] })).toBe(pending)
   })
 
@@ -202,7 +205,7 @@ describe('step: playHand and placeTower', () => {
       chosenType: 'ring',
     })
 
-    expect(pending.pendingTower).toBe('ring')
+    expect(pending.pendingTower?.type).toBe('ring')
 
     const placed = step(pending, { kind: 'placeTower', square: { file: 4, rank: 4 } })
 
@@ -219,7 +222,7 @@ describe('step: playHand and placeTower', () => {
 describe('step: cancelPlacement', () => {
   const FIVE = standardCard('five', 5, 'clubs')
 
-  it('clears a pending Tower without restoring the deck', () => {
+  it('restores the committed Cards when the pending Tower is cancelled', () => {
     const pending = step(withDeck([FIVE]), { kind: 'playHand', cardIds: ['five'] })
     expect(pending.pendingTower).not.toBeNull()
     expect(pending.deck).toHaveLength(0)
@@ -227,8 +230,24 @@ describe('step: cancelPlacement', () => {
     const cancelled = step(pending, { kind: 'cancelPlacement' })
 
     expect(cancelled.pendingTower).toBeNull()
-    expect(cancelled.deck).toHaveLength(0)
+    expect(cancelled.deck).toEqual([FIVE])
     expect(cancelled.towers).toHaveLength(0)
+  })
+
+  it('restores every committed Card, leaving untouched Cards alone', () => {
+    const deck = [
+      standardCard('a', 5, 'clubs'),
+      standardCard('b', 5, 'hearts'),
+      standardCard('c', 7, 'spades'),
+    ]
+    const pending = step(withDeck(deck), { kind: 'playHand', cardIds: ['a', 'b'] })
+    expect(pending.deck.map((card) => card.id)).toEqual(['c'])
+
+    const cancelled = step(pending, { kind: 'cancelPlacement' })
+
+    expect(cancelled.pendingTower).toBeNull()
+    expect(cancelled.towers).toHaveLength(0)
+    expect(cancelled.deck.map((card) => card.id).sort()).toEqual(['a', 'b', 'c'])
   })
 
   it('refuses with no pending Tower', () => {
