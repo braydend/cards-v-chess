@@ -45,7 +45,7 @@ export function PlacementGhost({ board }: { board: BoardSpec }) {
   // Mirror `CoveragePreview`'s bounds guard: a square outside the board draws
   // nothing there, so the ghost must not float in the void beside it.
   const inBoundsSquare = activeSquare === null || isInBounds(board, activeSquare) ? activeSquare : null
-  const pendingType = useGameStore((store) => store.snapshot.pendingTower)
+  const pendingType = useGameStore((store) => store.snapshot.pendingTower?.type ?? null)
   // The engine's own predicate, selected as a bare boolean so zustand's
   // `Object.is` — not the snapshot object — decides re-render. A Piece hop that
   // does not flip legality on the hovered square costs nothing here.
