@@ -399,6 +399,12 @@ crossing thresholds, but the derived pending balance is clamped out of the
 UI. The fire-rate 0-interval safety still floors a `vertical`'s interval at
 10% of base (9 picks) before the cap could.
 
+The inspect panel reports the investment: a total line — `Upgrades: 3 / 10
+spent` — and a per-category breakdown — `2 damage · 1 faster firing · 1
+health` — so a Tower's damage, rate, and health picks are legible at a glance.
+The engine's bookkeeping is per-category counters on the Tower instance; the
+total and the pending balance are derived from their sum, never stored.
+
 **A ready Tower glows.** A soft golden halo hugs any Tower with a
 banked, unspent upgrade — the only in-scene signal; the choice itself lives in
 the Tower's inspect panel.
