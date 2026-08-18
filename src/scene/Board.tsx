@@ -8,6 +8,7 @@ import { COARSE_POINTER_QUERY, useMediaQuery } from '../ui/useMediaQuery'
 import { resolveBoardAction } from './boardClick'
 import { SQUARE_SIZE, fileToWorldX, rankToWorldZ, worldXToFile, worldZToRank } from './coords'
 import { CoveragePreview } from './CoveragePreview'
+import { PlacementGhost } from './PlacementGhost'
 import { FirePulses } from './FirePulses'
 import { SelectionMarker } from './SelectionMarker'
 import { StagingRank } from './StagingRank'
@@ -72,6 +73,7 @@ export function Board({ board }: { board: BoardSpec }) {
       <CoveragePreview board={board} />
       <SelectionMarker board={board} />
       <FirePulses board={board} />
+      <PlacementGhost board={board} />
       <PlacementSurface board={board} />
     </>
   )

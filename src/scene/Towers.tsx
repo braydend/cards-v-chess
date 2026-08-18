@@ -2,16 +2,13 @@ import { Instance, Instances, type PositionMesh } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { useEffect, useRef, useState } from 'react'
 import { TOWER_TYPE_IDS } from '../data/towerTypes'
-import type { BoardSpec, TowerTypeId } from '../game'
+import type { BoardSpec } from '../game'
 import { useGameStore } from '../state/store'
 import { fileToWorldX, rankToWorldZ } from './coords'
 import { TOWER_COLOURS } from './rankColours'
 import { CRITICAL_PULSE_HZ, DEATH_FLARE_MS, HIT_FLASH_MS, towerColour } from './towerColour'
 import { diffTowers, type Ghost, type TowerAnimation } from './towerDiff'
-
-function towerHeight(type: TowerTypeId): number {
-  return 0.55 + TOWER_TYPE_IDS.indexOf(type) * 0.08
-}
+import { TOWER_RADIUS_BOTTOM, TOWER_RADIUS_TOP, TOWER_SEGMENTS, towerHeight } from './towerGeometry'
 
 /**
  * Towers, and everything a player can read off them without opening a panel.
@@ -189,7 +186,7 @@ export function Towers({ board }: { board: BoardSpec }) {
         // ghosts riding in the same group so a death costs no extra call.
         return (
           <Instances key={type} limit={128} castShadow>
-            <cylinderGeometry args={[0.24, 0.32, height, 6]} />
+            <cylinderGeometry args={[TOWER_RADIUS_TOP, TOWER_RADIUS_BOTTOM, height, TOWER_SEGMENTS]} />
             <meshStandardMaterial flatShading />
 
             {live.map((tower) => (
