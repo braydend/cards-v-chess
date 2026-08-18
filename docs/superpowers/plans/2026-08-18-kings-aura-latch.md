@@ -346,15 +346,22 @@ In `promotion.test.ts`: replace `buffed: false,` (line 22) in `pawnOn` with the 
     const pawn = state.pieces[0]
     if (!pawn) throw new Error('expected a Pawn')
 
+    // A single stack, not several: stacks speed a Piece up (move interval
+    // × 0.7^N) as well as raising its ceiling. On the back rank a promoted
+    // Queen hunts the Core along rank 0 — CORE_SQUARE is (3,0) — so a
+    // heavily stacked Queen's first hop lands on the Core and she leaks,
+    // `after.pieces` is empty, and there is nothing left to assert. One stack
+    // keeps her first hop (1000 × 0.7 ms) outside the run window while still
+    // proving the inheritance and the grant.
     const stackedPawn: GameState = {
       ...state,
       pieces: [
         {
           ...pawn,
-          kingAuraStacks: 3,
+          kingAuraStacks: 1,
           kingAuraKings: ['king-1'],
-          maxHealth: pawn.maxHealth + 3,
-          health: pawn.maxHealth + 3,
+          maxHealth: pawn.maxHealth + 1,
+          health: pawn.maxHealth + 1,
         },
       ],
     }
@@ -363,12 +370,12 @@ In `promotion.test.ts`: replace `buffed: false,` (line 22) in `pawnOn` with the 
     const queen = after.pieces[0]
 
     expect(queen?.typeId).toBe('queen')
-    expect(queen?.kingAuraStacks).toBe(3)
+    expect(queen?.kingAuraStacks).toBe(1)
     // Each inherited stack raises the Queen's ceiling above the authored stat,
     // and she spawns at full health against it — "spawns at full Queen health"
     // plus the stacks' defense grant.
-    expect(queen?.maxHealth).toBe(PIECE_TYPES.queen.maxHealth + 3)
-    expect(queen?.health).toBe(PIECE_TYPES.queen.maxHealth + 3)
+    expect(queen?.maxHealth).toBe(PIECE_TYPES.queen.maxHealth + 1)
+    expect(queen?.health).toBe(PIECE_TYPES.queen.maxHealth + 1)
   })
 ```
 
