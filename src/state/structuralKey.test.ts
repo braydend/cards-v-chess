@@ -24,7 +24,7 @@ describe('structuralKey', () => {
   it('changes when an upgrade is spent, since the spend mutates keyed stats', () => {
     // A spend writes `damage`, `fireIntervalMs`, `maxHealth` or `health`, all
     // keyed — so the panel republishes on the spend itself, and the pending
-    // balance (derived from `kills` and `upgradesSpent`, neither keyed) is
+    // balance (derived from `kills` and the sum of `upgradeCounts`, neither keyed) is
     // recomputed on the same publish.
     const base = withTower('vertical', { file: 2, rank: 2 })
     const withKills = {

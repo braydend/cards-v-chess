@@ -87,7 +87,8 @@ describe('upgradeTower', () => {
     const after = step(base, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'damage' })
 
     expect(damageOf(after)).toBe(vertical.damage + 1)
-    expect(firstTower(after).upgradesSpent).toBe(1)
+    expect(firstTower(after).upgradeCounts).toEqual({ damage: 1, fireRate: 0, health: 0 })
+    expect(totalUpgrades(firstTower(after).upgradeCounts)).toBe(1)
   })
 
   it('spends one upgrade on 10% faster firing, additive off the base interval', () => {
@@ -120,7 +121,41 @@ describe('upgradeTower', () => {
     // Old max was vertical.maxHealth; both fields gain 10% of the OLD max.
     expect(tower.maxHealth).toBe(vertical.maxHealth + 0.1 * vertical.maxHealth)
     expect(tower.health).toBe(10 + 0.1 * vertical.maxHealth)
-    expect(tower.upgradesSpent).toBe(1)
+    expect(tower.upgradeCounts).toEqual({ damage: 0, fireRate: 0, health: 1 })
+    expect(totalUpgrades(tower.upgradeCounts)).toBe(1)
+  })
+
+  it('increments exactly the counter for the stat spent, leaving the others untouched', () => {
+    // 40 kills clear thresholds at 10, 22, 27, 33 — four banked, three spends
+    // is comfortably within the balance.
+    const base = towerWithKills(withTower('vertical', { file: 3, rank: 3 }), 40)
+
+    const fire = step(base, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'fireRate' })
+    expect(firstTower(fire).upgradeCounts).toEqual({ damage: 0, fireRate: 1, health: 0 })
+
+    const health = step(fire, { kind: 'upgradeTower', towerId: firstTower(fire).id, stat: 'health' })
+    expect(firstTower(health).upgradeCounts).toEqual({ damage: 0, fireRate: 1, health: 1 })
+
+    const damage = step(health, { kind: 'upgradeTower', towerId: firstTower(health).id, stat: 'damage' })
+    expect(firstTower(damage).upgradeCounts).toEqual({ damage: 1, fireRate: 1, health: 1 })
+    expect(totalUpgrades(firstTower(damage).upgradeCounts)).toBe(3)
+  })
+
+  it('records the fire-rate floor: 9 picks on a 700ms interval, all in the fireRate counter', () => {
+    // The 10th fire-rate spend would drive the interval to 0 and is refused;
+    // the 9 that landed all sit in the fireRate counter, with damage and
+    // health untouched.
+    const vertical = towerType('vertical')
+    const base = towerWithKills(withTower('vertical', { file: 3, rank: 3 }), 500)
+
+    let state = base
+    for (let i = 0; i < 10; i += 1) {
+      state = step(state, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'fireRate' })
+    }
+
+    expect(firstTower(state).fireIntervalMs).toBeCloseTo(0.1 * vertical.fireIntervalMs, 10)
+    expect(firstTower(state).upgradeCounts).toEqual({ damage: 0, fireRate: 9, health: 0 })
+    expect(totalUpgrades(firstTower(state).upgradeCounts)).toBe(9)
   })
 
   it('refuses when no upgrade is pending', () => {
@@ -215,10 +250,10 @@ describe('upgradeTower', () => {
     for (let i = 0; i < 9; i += 1) {
       state = step(state, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'damage' })
     }
-    expect(firstTower(state).upgradesSpent).toBe(9)
+    expect(totalUpgrades(firstTower(state).upgradeCounts)).toBe(9)
 
     const tenth = step(state, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'damage' })
-    expect(firstTower(tenth).upgradesSpent).toBe(10)
+    expect(totalUpgrades(firstTower(tenth).upgradeCounts)).toBe(10)
     expect(firstTower(tenth).damage).toBe(firstTower(state).damage + 1)
 
     const refused = step(tenth, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'damage' })
@@ -233,7 +268,7 @@ describe('upgradeTower', () => {
     for (let i = 0; i < 10; i += 1) {
       state = step(state, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'damage' })
     }
-    expect(firstTower(state).upgradesSpent).toBe(10)
+    expect(totalUpgrades(firstTower(state).upgradeCounts)).toBe(10)
     const capped = firstTower(state)
 
     const refused = step(state, { kind: 'upgradeTower', towerId: firstTower(base).id, stat: 'health' })
@@ -241,7 +276,7 @@ describe('upgradeTower', () => {
 
     expect(refused).toBe(state)
     expect(alsoRefused).toBe(state)
-    expect(firstTower(refused).upgradesSpent).toBe(10)
+    expect(totalUpgrades(firstTower(refused).upgradeCounts)).toBe(10)
     expect(firstTower(refused).damage).toBe(capped.damage)
     expect(firstTower(alsoRefused).fireIntervalMs).toBe(capped.fireIntervalMs)
   })

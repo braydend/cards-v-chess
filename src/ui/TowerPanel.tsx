@@ -1,4 +1,4 @@
-import { pendingUpgrades } from '../game'
+import { pendingUpgrades, totalUpgrades } from '../game'
 import { MAX_UPGRADES_PER_TOWER, towerType } from '../data/towerTypes'
 import { dispatch, useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
@@ -33,7 +33,8 @@ export function TowerPanel() {
 
   const def = towerType(tower.type)
   const targets = targetsLabel(def.targetsPerShot)
-  const pending = pendingUpgrades(tower.kills, tower.upgradesSpent)
+  const total = totalUpgrades(tower.upgradeCounts)
+  const pending = pendingUpgrades(tower.kills, total)
 
   return (
     <div className="towerPanel">
@@ -108,7 +109,7 @@ export function TowerPanel() {
         </div>
       )}
 
-      {tower.upgradesSpent >= MAX_UPGRADES_PER_TOWER && (
+      {total >= MAX_UPGRADES_PER_TOWER && (
         <div className="towerPanel__upgrades">
           <p className="hud__muted">Upgrades maxed — this Tower has spent all of its upgrades.</p>
         </div>

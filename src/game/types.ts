@@ -344,18 +344,20 @@ export interface Tower {
    */
   readonly kills: number
   /**
-   * Lifetime count of upgrades the player has spent on this Tower.
+   * Lifetime count of upgrades spent on this Tower, per category.
    *
-   * Monotonic and never reset. The XP source is `kills`; pending upgrades are
-   * derived as `pendingUpgrades(kills, upgradesSpent)` (see
-   * `src/game/upgrades.ts`), never stored.
+   * Monotonic and never reset. Each `upgradeTower` spend increments exactly the
+   * counter for the stat spent; the total is derived as the sum (see
+   * `totalUpgrades` in `src/game/upgrades.ts`), never stored. Pending upgrades
+   * are derived as `pendingUpgrades(kills, totalUpgrades(upgradeCounts))`, never
+   * stored.
    *
    * Kept out of `structuralKey` on purpose: a spend mutates `damage`,
-   * `fireIntervalMs`, `maxHealth`, and/or `health`, which are already keyed,
-   * so the panel republishes on the spend itself. Keying the counter would
-   * add no publishes and just bloat the key.
+   * `fireIntervalMs`, `maxHealth`, and/or `health`, which are already keyed, so
+   * the panel republishes on the spend itself. Keying the counters would add no
+   * publishes and just bloat the key.
    */
-  readonly upgradesSpent: number
+  readonly upgradeCounts: Record<UpgradeStat, number>
   /**
    * The fire interval seeded from the type's table at build. Never changed.
    *
@@ -581,8 +583,8 @@ export type Command =
        * Valid any time except terminal phases — mid-round and in the gap
        * alike, because a Tower earns kills mid-round and the heal must be
        * spendable when it matters. Requires `pendingUpgrades(tower.kills,
-       * tower.upgradesSpent) > 0`, so the Wall (which never kills) is refused
-       * by construction.
+       * totalUpgrades(tower.upgradeCounts)) > 0`, so the Wall (which never kills)
+       * is refused by construction.
        */
       readonly kind: 'upgradeTower'
       readonly towerId: string
