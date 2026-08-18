@@ -71,9 +71,9 @@ export function Board({ board }: { board: BoardSpec }) {
           `TowerCoverage.tsx` for why heights cannot do this job. */}
       <TowerCoverage board={board} />
       <CoveragePreview board={board} />
-      <PlacementGhost board={board} />
       <SelectionMarker board={board} />
       <FirePulses board={board} />
+      <PlacementGhost board={board} />
       <PlacementSurface board={board} />
     </>
   )

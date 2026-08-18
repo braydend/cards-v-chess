@@ -1,7 +1,7 @@
 import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
 import type { Mesh } from 'three'
-import { canBuildOn, type BoardSpec } from '../game'
+import { canBuildOn, isInBounds, type BoardSpec } from '../game'
 import { useGameStore } from '../state/store'
 import { useUiStore } from '../state/uiStore'
 import { COARSE_POINTER_QUERY, useMediaQuery } from '../ui/useMediaQuery'
@@ -42,17 +42,20 @@ export function PlacementGhost({ board }: { board: BoardSpec }) {
   // Touch has no hover: the first tap commits a square to `previewedSquare`,
   // and the ghost rides that, exactly as `CoveragePreview`'s `activeSquare` does.
   const activeSquare = coarse ? previewedSquare : hoveredSquare
+  // Mirror `CoveragePreview`'s bounds guard: a square outside the board draws
+  // nothing there, so the ghost must not float in the void beside it.
+  const inBoundsSquare = activeSquare === null || isInBounds(board, activeSquare) ? activeSquare : null
   const pendingType = useGameStore((store) => store.snapshot.pendingTower)
   // The engine's own predicate, selected as a bare boolean so zustand's
   // `Object.is` — not the snapshot object — decides re-render. A Piece hop that
   // does not flip legality on the hovered square costs nothing here.
-  const legal = useGameStore((store) => !activeSquare || canBuildOn(store.snapshot, activeSquare))
+  const legal = useGameStore((store) => !inBoundsSquare || canBuildOn(store.snapshot, inBoundsSquare))
   const ghostRef = useRef<Mesh>(null)
   const lastMeshRef = useRef<Mesh | null>(null)
 
   const ghost = useMemo(
-    () => ghostFor(pendingType, activeSquare, legal),
-    [pendingType, activeSquare, legal],
+    () => ghostFor(pendingType, inBoundsSquare, legal),
+    [pendingType, inBoundsSquare, legal],
   )
 
   // Keyed on the height (a number derived from the type), not on `ghost` (a
@@ -72,10 +75,10 @@ export function PlacementGhost({ board }: { board: BoardSpec }) {
 
   useFrame((_, delta) => {
     const mesh = ghostRef.current
-    if (!ghost || !activeSquare || !mesh) return
+    if (!ghost || !inBoundsSquare || !mesh) return
 
-    const targetX = fileToWorldX(board, activeSquare.file)
-    const targetZ = rankToWorldZ(board, activeSquare.rank)
+    const targetX = fileToWorldX(board, inBoundsSquare.file)
+    const targetZ = rankToWorldZ(board, inBoundsSquare.rank)
     const targetY = HOVER_CLEARANCE + towerHeight(ghost.type) / 2
 
     // The mesh mounts fresh at the active square (each mount is a new mesh
