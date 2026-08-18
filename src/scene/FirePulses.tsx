@@ -21,8 +21,9 @@ import { accumulatePulses, detectShots, isPulseLive, type FirePulse } from './fi
  *
  * This file had the only correct instinct in the stack, and the rest of the stack
  * has since been brought up to it: every flat overlay now states its position
- * explicitly — `TowerCoverage`'s amber footprint (1), `CoveragePreview`'s teal
- * box (2) and illegal marker (3), `SelectionMarker`'s ring (4), this (5). The
+ * explicitly — the King's radius ring (0), `TowerCoverage`'s amber footprint
+ * (1), `CoveragePreview`'s teal box (2) and illegal marker (3),
+ * `SelectionMarker`'s ring (4), this (5). The
  * value here moved from 1 to 5 to stay topmost as the others were numbered; it
  * has to remain the highest, and every value distinct, because a tie drops back
  * to the camera-dependent sort. `TowerCoverage.tsx` carries the reasoning, and

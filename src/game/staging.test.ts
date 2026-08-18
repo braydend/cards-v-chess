@@ -521,9 +521,9 @@ describe("the Staging rank is safe from damage, except a Joker's Clear", () => {
   // immunity rule above never grows a second carve-out to exclude auras too.
   it("a King's aura reaches a Piece on the Staging rank", () => {
     const base = createInitialState()
-    // `buffedPieceIds` (auras.ts) reads Chebyshev distance 1 as adjacent; this
-    // King sits diagonally one square from the Pawn's Staging square, which is
-    // exactly that distance.
+    // `kingAdjacentKings` (auras.ts) reads Chebyshev distance 1 as adjacent;
+    // this King sits diagonally one square from the Pawn's Staging square,
+    // which is exactly that distance.
     const king = pieceAt('king', 'king-1', { file: 4, rank: base.board.ranks - 1 })
     const waiting = pawnAt('waiting', { file: 3, rank: stagingRank(base.board) })
     const state = liveRound(base, [king, waiting])
@@ -531,6 +531,6 @@ describe("the Staging rank is safe from damage, except a Joker's Clear", () => {
     const after = tick(state, DT)
     const pawn = after.pieces.find((piece) => piece.id === 'waiting')
 
-    expect(pawn?.buffed).toBe(true)
+    expect(pawn?.kingAuraStacks).toBe(1)
   })
 })

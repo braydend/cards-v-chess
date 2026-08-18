@@ -6,9 +6,10 @@ import { SQUARE_SIZE, fileToWorldX, rankToWorldZ } from './coords'
 const SELECTED = '#f4f7fb'
 
 /**
- * Position in the flat-overlay stack, lowest first: `TowerCoverage`'s amber
- * footprint (1), `CoveragePreview`'s teal box (2) and illegal marker (3), this
- * ring (4), `FirePulses` (5). `TowerCoverage.tsx` carries the reasoning.
+ * Position in the flat-overlay stack, lowest first: the King's radius ring
+ * (0), `TowerCoverage`'s amber footprint (1), `CoveragePreview`'s teal box (2)
+ * and illegal marker (3), this ring (4), `FirePulses` (5).
+ * `TowerCoverage.tsx` carries the reasoning.
  *
  * The height below is not enough on its own. This mesh does sit at a real board
  * position, so unlike the instanced overlays its sort z is meaningful — but z

@@ -48,7 +48,8 @@ function rookOnBackRank(file: number, handedness: Handedness): GameState {
         moveCount: 0,
         handedness,
         auraCooldownMs: 0,
-        buffed: false,
+        kingAuraStacks: 0,
+        kingAuraKings: [],
         hunting: false,
         promoted: false,
       },
@@ -79,7 +80,8 @@ function pieceAt(
     moveCount: 0,
     handedness: 1,
     auraCooldownMs: 0,
-    buffed: false,
+    kingAuraStacks: 0,
+    kingAuraKings: [],
     hunting: false,
     promoted: false,
     ...overrides,
@@ -342,7 +344,8 @@ describe('tick: motion state', () => {
           moveCount: 0,
           handedness: 1,
           auraCooldownMs: 0,
-          buffed: false,
+          kingAuraStacks: 0,
+          kingAuraKings: [],
           hunting: false,
           promoted: false,
         },
@@ -382,22 +385,20 @@ describe('tick: the King aura', () => {
       pieces: [pieceAt('king', 'king', { file: 0, rank: 7 }), pieceAt('pawn', 'pawn', { file: 1, rank: 7 })],
     }
 
-    // Buffed, the Pawn's 900ms interval becomes 900 * KING_SPEED_MULTIPLIER =
-    // 630ms (exact in IEEE754). Unbuffed it would need the full 900ms and
-    // would still be standing on rank 7 at this mark.
+    // The first tick latches a stack, so the Pawn's 900ms interval becomes
+    // 900 * KING_SPEED_MULTIPLIER = 630ms (exact in IEEE754). Unstacked it
+    // would need the full 900ms and would still be standing on rank 7 here.
     const buffedIntervalMs = PIECE_TYPES.pawn.moveIntervalMs * KING_SPEED_MULTIPLIER
     const after = runFor(state, buffedIntervalMs + DT)
 
     expect(after.pieces.find((piece) => piece.id === 'pawn')?.square.rank).toBe(6)
   })
 
-  it('grants extra slide distance to a buffed slider but not a buffed non-slider, and records both', () => {
+  it('grants extra slide distance to a stacked slider but not a stacked non-slider, and records both', () => {
     // A single tick, not runFor: the buffed threshold is crossed on this one
     // tick for both the Rook and the Pawn, and both slide away from the King
-    // in that same hop. Running longer would let the Rook's own movement carry
-    // it out of adjacency before the assertion runs, making `buffed` correctly
-    // read false again on some later tick for an unrelated reason — a single
-    // tick pins the flag to the moment the buffed hop actually happens.
+    // in that same hop. A single tick pins the stack count to the moment the
+    // buffed hop actually happens.
     const rookBuffedMs = PIECE_TYPES.rook.moveIntervalMs * KING_SPEED_MULTIPLIER
     const pawnBuffedMs = PIECE_TYPES.pawn.moveIntervalMs * KING_SPEED_MULTIPLIER
 
@@ -417,28 +418,30 @@ describe('tick: the King aura', () => {
     const rook = after.pieces.find((piece) => piece.id === 'rook')
     const pawn = after.pieces.find((piece) => piece.id === 'pawn')
 
-    // The Rook's hop covers 1 + KING_SLIDE_BONUS squares. The Pawn is buffed
+    // The Rook's hop covers 1 + KING_SLIDE_BONUS squares. The Pawn is stacked
     // too — equally adjacent to the King — but is not a slider, so
-    // slideBonusFor returns 0 for it regardless: it covers only one square.
-    // That contrast is what pins "sliders only".
+    // kingSlideBonus returns 0 for it regardless: it covers only one square.
+    // That contrast is what pins "sliders only". The defense grant lands on
+    // the same tick as the stack.
     expect(rook?.square).toEqual({ file: 1, rank: 5 })
     expect(pawn?.square).toEqual({ file: 1, rank: 5 })
-    expect(rook?.buffed).toBe(true)
-    expect(king?.buffed).toBe(false)
+    expect(rook?.kingAuraStacks).toBe(1)
+    expect(rook?.health).toBe(PIECE_TYPES.rook.maxHealth + 1)
+    expect(pawn?.kingAuraStacks).toBe(1)
+    expect(king?.kingAuraStacks).toBe(0)
   })
 
-  it('computes the aura once per tick, from tick-start positions, not per Piece mid-loop', () => {
+  it('decides the first stack from tick-start positions, not per Piece mid-loop', () => {
     // The King is listed first, so it is processed first. Its moveCooldownMs
     // starts at exactly its own 1800ms interval, so it hops this very tick —
     // from (4,6) to (4,5). At tick start King and Pawn are Chebyshev distance
-    // 1 apart (buffed, 630ms threshold); after the King's hop they would be
-    // distance 2 apart (unbuffed, 900ms threshold). The Pawn's moveCooldownMs
-    // starts at 630, so +DT clears 630 but not 900 (630 + DT ≈ 646.67).
-    // The Pawn hops this tick if and only if its buff was decided from
-    // tick-start positions rather than recomputed after the King had already
-    // moved — which is the property under test. Recomputing it per Piece
-    // mid-loop would see the King's post-move square and leave the Pawn
-    // unbuffed, so it would not hop at all this tick.
+    // 1 apart; after the King's hop they would be distance 2 apart. The
+    // Pawn's moveCooldownMs starts at 630, so +DT clears 630 but not 900
+    // (630 + DT ≈ 646.67). The Pawn earns its FIRST stack — and hops — if
+    // and only if adjacency was decided from tick-start positions rather than
+    // recomputed after the King had already moved. Recomputing per Piece
+    // mid-loop would see the King's post-move square, leave the Pawn
+    // stackless (900ms interval), and it would not hop at all this tick.
     const state: GameState = {
       ...createInitialState(),
       phase: 'inProgress',
@@ -453,21 +456,20 @@ describe('tick: the King aura', () => {
     expect(after.pieces.find((piece) => piece.id === 'pawn')?.square.rank).toBe(6)
   })
 
-  it('does not stack — a Pawn beside two Kings moves at exactly the cadence of one', () => {
-    // Comparing "did it move" alone couldn't tell stacking apart from not: a
-    // stacked interval would still complete this hop, just with a different
-    // leftover cooldown. Starting cooldown at exactly the buffed threshold and
-    // comparing the post-tick remainder pins the actual interval used, not
-    // just whether *a* hop happened — this is what would fail if the King
-    // aura were ever reworked into something additive.
-    const buffedIntervalMs = PIECE_TYPES.pawn.moveIntervalMs * KING_SPEED_MULTIPLIER
+  it('stacks — a Pawn beside two Kings moves at 0.7² the cadence of one', () => {
+    // Start cooldown at exactly the TWO-King interval (900 * 0.7² ≈ 441ms).
+    // Beside one King the interval is only 0.7× (630ms), so at 441 + DT the
+    // Pawn has not crossed it and stays put; beside two Kings it hops. Same
+    // cooldown, different outcome — pins the compounding interval directly,
+    // and the stack counts and defense grants differ to confirm why.
+    const twoKingIntervalMs = PIECE_TYPES.pawn.moveIntervalMs * KING_SPEED_MULTIPLIER ** 2
 
     const oneKing: GameState = {
       ...createInitialState(),
       phase: 'inProgress',
       pieces: [
         pieceAt('king1', 'king', { file: 0, rank: 7 }),
-        pieceAt('pawn', 'pawn', { file: 1, rank: 7 }, { moveCooldownMs: buffedIntervalMs }),
+        pieceAt('pawn', 'pawn', { file: 1, rank: 7 }, { moveCooldownMs: twoKingIntervalMs }),
       ],
     }
 
@@ -477,16 +479,35 @@ describe('tick: the King aura', () => {
       pieces: [
         pieceAt('king1', 'king', { file: 0, rank: 7 }),
         pieceAt('king2', 'king', { file: 2, rank: 7 }),
-        pieceAt('pawn', 'pawn', { file: 1, rank: 7 }, { moveCooldownMs: buffedIntervalMs }),
+        pieceAt('pawn', 'pawn', { file: 1, rank: 7 }, { moveCooldownMs: twoKingIntervalMs }),
       ],
     }
 
     const afterOne = tick(oneKing, DT).pieces.find((piece) => piece.id === 'pawn')
     const afterTwo = tick(twoKings, DT).pieces.find((piece) => piece.id === 'pawn')
 
-    expect(afterOne?.square.rank).toBe(6)
+    expect(afterOne?.square.rank).toBe(7)
     expect(afterTwo?.square.rank).toBe(6)
-    expect(afterTwo?.moveCooldownMs).toBe(afterOne?.moveCooldownMs)
+    expect(afterOne?.kingAuraStacks).toBe(1)
+    expect(afterTwo?.kingAuraStacks).toBe(2)
+    expect(afterOne?.health).toBe(PIECE_TYPES.pawn.maxHealth + 1)
+    expect(afterTwo?.health).toBe(PIECE_TYPES.pawn.maxHealth + 2)
+  })
+
+  it('keeps the latched buff with no King in range — the stack, not the position, is what matters', () => {
+    // The Pawn carries a stack with no King on the board at all. The buffed
+    // cadence (630ms) still applies: the aura is permanent once latched, not
+    // re-derived from position.
+    const buffedIntervalMs = PIECE_TYPES.pawn.moveIntervalMs * KING_SPEED_MULTIPLIER
+    const state: GameState = {
+      ...createInitialState(),
+      phase: 'inProgress',
+      pieces: [pieceAt('pawn', 'pawn', { file: 1, rank: 7 }, { kingAuraStacks: 1, kingAuraKings: [] })],
+    }
+
+    const after = runFor(state, buffedIntervalMs + DT)
+
+    expect(after.pieces.find((piece) => piece.id === 'pawn')?.square.rank).toBe(6)
   })
 })
 

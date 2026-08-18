@@ -36,7 +36,8 @@ function pawnOnBackRank(): Piece {
     moveCount: 0,
     handedness: 1,
     auraCooldownMs: 0,
-    buffed: false,
+    kingAuraStacks: 0,
+    kingAuraKings: [],
     hunting: false,
     promoted: false,
   }
