@@ -1,26 +1,25 @@
 import { pieceType } from '../data/pieceTypes'
-import type { Piece, Square } from './types'
+import type { Piece, PieceTypeId, Square } from './types'
 
 /**
- * Aura effects, derived from Piece positions.
+ * Aura effects. The Bishop's healing is still derived per pulse from
+ * positions; the King's is **latched** — a King-touch permanently grants a
+ * stack, and the stack is what movement reads, never the current position.
  *
- * `chebyshev` and `slideBonusFor` are plain geometry helpers with no opinion
- * about when they are called. `buffedPieceIds` and `applyHealing` read a
- * Piece list too, but the property that matters is not *when in the tick*
- * that list was taken — the two are fed at different points (`tick.ts` calls
- * `buffedPieceIds` before movement, `applyHealing` after Tower fire) — it is
- * that each reads its input as a frozen array and never the result it is
- * building. Neither one mutates or re-reads its own output mid-pass, so the
- * outcome for any one Piece cannot depend on which other Piece the caller
- * happened to process first — the same discipline `tick.ts` applies to its
- * Tower map.
+ * The episode bookkeeping lives on the Piece (`kingAuraStacks`,
+ * `kingAuraKings`) rather than in a separate module map, so it survives in the
+ * engine state and the renderer can read the permanent stacks without
+ * re-deriving anything.
  */
 
-/** Move interval multiplier for a Piece standing beside a King. Lower is faster. */
+/** Move interval multiplier per King-aura stack. Lower is faster. Compounding: 0.7^stacks. */
 export const KING_SPEED_MULTIPLIER = 0.7
 
-/** Extra squares per hop a King grants an adjacent slider. */
+/** Extra squares per hop per King-aura stack, granted to sliders. */
 export const KING_SLIDE_BONUS = 1
+
+/** Max and current health gained per King-aura stack, the moment the stack lands. */
+export const KING_HEALTH_BONUS = 1
 
 /** Milliseconds between a Bishop's healing pulses. */
 export const BISHOP_HEAL_INTERVAL_MS = 1500
@@ -31,7 +30,7 @@ export const BISHOP_HEAL_AMOUNT = 2
 /** Chebyshev distance a Bishop's healing reaches, in squares. */
 export const BISHOP_HEAL_RADIUS = 2
 
-const NONE: ReadonlySet<string> = new Set()
+const EMPTY_ADJACENCY: ReadonlyMap<string, readonly string[]> = new Map()
 
 /** Squares of king-move distance between two squares. */
 export function chebyshev(a: Square, b: Square): number {
@@ -39,35 +38,83 @@ export function chebyshev(a: Square, b: Square): number {
 }
 
 /**
- * Every Piece currently standing beside a King.
+ * The King ids adjacent to each Piece, read from the positions in `pieces`.
  *
- * Membership, not a count: the aura deliberately does **not** stack, so two
- * Kings buff exactly as much as one. Exclusion is per-Piece, not per-type —
- * a King never buffs itself, but a King standing beside a *different* King
- * is buffed like any other adjacent Piece. Mirrors `applyHealing`'s
- * `other.id === piece.id` self-check below, so the two auras in this file
- * agree on what "other" means.
+ * Exclusion is per-Piece, not per-type: a King never buffers itself, but a
+ * King standing beside a *different* King is a target like any other Piece.
  */
-export function buffedPieceIds(pieces: readonly Piece[]): ReadonlySet<string> {
+export function kingAdjacentKings(
+  pieces: readonly Piece[],
+): ReadonlyMap<string, readonly string[]> {
   const kings = pieces.filter((piece) => piece.typeId === 'king')
-  if (kings.length === 0) return NONE
+  if (kings.length === 0) return EMPTY_ADJACENCY
 
-  const buffed = new Set<string>()
-
+  const byPiece = new Map<string, string[]>()
   for (const king of kings) {
     for (const other of pieces) {
       if (other.id === king.id) continue
-      if (chebyshev(king.square, other.square) === 1) buffed.add(other.id)
+      if (chebyshev(king.square, other.square) === 1) {
+        const list = byPiece.get(other.id)
+        if (list) list.push(king.id)
+        else byPiece.set(other.id, [king.id])
+      }
     }
   }
-
-  return buffed
+  return byPiece
 }
 
-/** Whether a Piece type gains slide distance from a King. */
-export function slideBonusFor(piece: Piece, buffed: ReadonlySet<string>): number {
-  if (!buffed.has(piece.id)) return 0
-  return pieceType(piece.typeId).slides ? KING_SLIDE_BONUS : 0
+/**
+ * Latches new King-aura episodes and applies the defense grant.
+ *
+ * For each Piece: every King in today's adjacency that was NOT adjacent on
+ * the last computation is a new episode, worth one stack and one +1 to both
+ * max and current health. The stored adjacency (`kingAuraKings`) is refreshed
+ * to today's, so a King leaving clears it and re-entering counts fresh.
+ *
+ * Call once per tick, BEFORE movement, on tick-start positions (the freshly
+ * spawned Pieces included, so a guard squad earns its first stack on entry).
+ * Reads `pieces` as a frozen array and never its own output, so the result
+ * cannot depend on processing order. Returns the input array unchanged when
+ * no Piece gains or loses adjacency, so a steady state costs nothing.
+ */
+export function applyKingAura(
+  pieces: readonly Piece[],
+  adjacentKings: ReadonlyMap<string, readonly string[]>,
+): readonly Piece[] {
+  let changed = false
+
+  const updated = pieces.map((piece) => {
+    const kings = adjacentKings.get(piece.id)
+    if (kings === undefined) {
+      if (piece.kingAuraKings.length === 0) return piece
+      changed = true
+      return { ...piece, kingAuraKings: [] }
+    }
+
+    const fresh = kings.filter((kingId) => !piece.kingAuraKings.includes(kingId))
+    if (fresh.length === 0 && kings.length === piece.kingAuraKings.length) return piece
+
+    changed = true
+    return {
+      ...piece,
+      kingAuraStacks: piece.kingAuraStacks + fresh.length,
+      kingAuraKings: kings,
+      maxHealth: piece.maxHealth + fresh.length * KING_HEALTH_BONUS,
+      health: piece.health + fresh.length * KING_HEALTH_BONUS,
+    }
+  })
+
+  return changed ? updated : pieces
+}
+
+/** The move interval for a Piece with `stacks` King-aura stacks. 0.7^stacks compounding. */
+export function kingMoveInterval(baseIntervalMs: number, stacks: number): number {
+  return baseIntervalMs * KING_SPEED_MULTIPLIER ** stacks
+}
+
+/** Extra squares per hop from `stacks` King-aura stacks. Sliders only. */
+export function kingSlideBonus(typeId: PieceTypeId, stacks: number): number {
+  return pieceType(typeId).slides ? KING_SLIDE_BONUS * stacks : 0
 }
 
 /**

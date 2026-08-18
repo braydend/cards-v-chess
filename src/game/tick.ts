@@ -2,7 +2,7 @@ import { BLOCKED_ATTACK_MULTIPLIER, pieceType } from '../data/pieceTypes'
 import { VICTORY_ROUND } from '../data/rounds'
 import { tierDef } from '../data/tiers'
 import { towerType, type TowerTypeDef } from '../data/towerTypes'
-import { KING_SPEED_MULTIPLIER, applyHealing, buffedPieceIds, slideBonusFor } from './auras'
+import { KING_HEALTH_BONUS, applyHealing, applyKingAura, kingAdjacentKings, kingMoveInterval, kingSlideBonus } from './auras'
 import { isInBounds, squareKey, stagingRank } from './board'
 import { coversSquare, hittableSquares, isOccluded } from './coverage'
 import { roundIncome, totalKillReward } from './ink'
@@ -105,39 +105,48 @@ export function tick(state: GameState, dtMs: number): GameState {
   const towerBySquare = new Map(state.towers.map((tower) => [squareKey(tower.square), tower]))
 
   // Auras are derived once, from tick-start positions, for the same reason the
-  // Tower map is: so no Piece's outcome depends on processing order.
+  // Tower map is: so no Piece's outcome depends on processing order. The King
+  // aura latches new stacks onto this tick's adjacency BEFORE movement, so a
+  // Piece that earns a stack this tick pays the buffed cadence this very hop.
   const allPieces = [...state.pieces, ...spawned]
-  const buffed = buffedPieceIds(allPieces)
+  const adjacentKings = kingAdjacentKings(allPieces)
+  const auraApplied = applyKingAura(allPieces, adjacentKings)
 
   const moved = movePieces(
-    allPieces,
+    auraApplied,
     state.board,
     state.core.square,
     towerBySquare,
     dtMs,
-    buffed,
   )
 
   // Minted after movePieces has decided which Pawns reached the back rank, and
   // numbered starting after drainDueSpawns's own ids, so a Pawn and a spawn in
   // the same tick can never collide over the same id.
   const promotedQueens: Piece[] = moved.promotedFrom.map((entry, index) => {
-    const health = pieceType('queen').maxHealth
+    // The inherited stacks' defense grant applies to the Queen's own ceiling:
+    // each stack she carries raises maxHealth (and therefore full health)
+    // above the authored Queen stat, exactly as it would have on the Pawn.
+    const maxHealth = pieceType('queen').maxHealth + entry.kingAuraStacks * KING_HEALTH_BONUS
     return {
       id: `piece-${nextEntityId + index}`,
       typeId: 'queen',
       tier: entry.tier,
       square: entry.square,
       prevSquare: entry.square,
-      health,
-      maxHealth: health,
+      health: maxHealth,
+      maxHealth,
       moveCooldownMs: 0,
       moveCount: 0,
       // Entity-id parity, same rule as drainDueSpawns, so promoted Queens weave
       // opposite ways from one another too.
       handedness: (nextEntityId + index) % 2 === 0 ? 1 : -1,
       auraCooldownMs: 0,
-      buffed: false,
+      // A fresh Piece: the stacks carry over, the episode bookkeeping does
+      // not. If she spawns beside a King she earns her next stack on the
+      // first tick, like any new arrival.
+      kingAuraStacks: entry.kingAuraStacks,
+      kingAuraKings: [],
       // A promoted Queen hunts from spawn when her tier says so — a yellow Pawn
       // becomes a yellow Queen that hunts from the moment she appears. She spawns
       // on the board, so the staging-rank carve-out never applies to her.
@@ -527,7 +536,10 @@ function drainDueSpawns(
       // Entity-id parity, so consecutively spawned Pieces weave opposite ways.
       handedness: nextEntityId % 2 === 0 ? 1 : -1,
       auraCooldownMs: 0,
-      buffed: false,
+      kingAuraStacks: 0,
+      // A fresh Piece has no episode history; the first King it touches is a
+      // new episode.
+      kingAuraKings: [],
       // A yellow Piece is born hunting the Core — but never a Pawn, which
       // promotes instead. See `Piece.hunting` in types.ts.
       hunting: tierDef(spawn.tier).huntsFromSpawn && spawn.typeId !== 'pawn',
@@ -558,17 +570,16 @@ function movePieces(
   coreSquare: Square,
   towerBySquare: ReadonlyMap<string, Tower>,
   dtMs: number,
-  buffed: ReadonlySet<string>,
 ): {
   pieces: Piece[]
   leaked: number
   towerDamage: Map<string, number>
-  promotedFrom: { square: Square; tier: PieceTier }[]
+  promotedFrom: { square: Square; tier: PieceTier; kingAuraStacks: number }[]
   exits: ExitRecord[]
 } {
   const survivors: Piece[] = []
   const towerDamage = new Map<string, number>()
-  const promotedFrom: { square: Square; tier: PieceTier }[] = []
+  const promotedFrom: { square: Square; tier: PieceTier; kingAuraStacks: number }[] = []
   const exits: ExitRecord[] = []
   let leaked = 0
 
@@ -580,10 +591,8 @@ function movePieces(
 
   for (const piece of pieces) {
     const { moveIntervalMs: baseInterval, attackDamage } = pieceType(piece.typeId)
-    const isBuffed = buffed.has(piece.id)
-    const buffedInterval = isBuffed ? baseInterval * KING_SPEED_MULTIPLIER : baseInterval
-    const moveIntervalMs = buffedInterval
-    const slideBonus = slideBonusFor(piece, buffed)
+    const moveIntervalMs = kingMoveInterval(baseInterval, piece.kingAuraStacks)
+    const slideBonus = kingSlideBonus(piece.typeId, piece.kingAuraStacks)
 
     let cooldown = piece.moveCooldownMs + dtMs
     let square = piece.square
@@ -648,7 +657,7 @@ function movePieces(
       }
 
       if (outcome.kind === 'promote') {
-        promotedFrom.push({ square, tier: piece.tier })
+        promotedFrom.push({ square, tier: piece.tier, kingAuraStacks: piece.kingAuraStacks })
         isPromoted = true
         exits.push({
           pieceId: piece.id,
@@ -698,7 +707,6 @@ function movePieces(
       moveCount,
       handedness,
       hunting,
-      buffed: isBuffed,
     })
   }
 

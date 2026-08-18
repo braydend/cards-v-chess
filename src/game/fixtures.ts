@@ -152,7 +152,8 @@ export function pieceAt(typeId: PieceTypeId, id: string, square: Square): Piece 
     moveCount: 0,
     handedness: 1,
     auraCooldownMs: 0,
-    buffed: false,
+    kingAuraStacks: 0,
+    kingAuraKings: [],
     hunting: false,
     promoted: false,
   }

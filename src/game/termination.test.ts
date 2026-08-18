@@ -23,7 +23,8 @@ function pieceOn(id: string, typeId: PieceTypeId, file: number, rank: number): P
     moveCount: 0,
     handedness: 1,
     auraCooldownMs: 0,
-    buffed: false,
+    kingAuraStacks: 0,
+    kingAuraKings: [],
     hunting: false,
     promoted: false,
   }

@@ -86,7 +86,8 @@ export function devSpawnPiece(
     moveCount: 0,
     handedness: state.nextEntityId % 2 === 0 ? 1 : -1,
     auraCooldownMs: 0,
-    buffed: false,
+    kingAuraStacks: 0,
+    kingAuraKings: [],
     hunting: tierDef(tier).huntsFromSpawn && typeId !== 'pawn',
     promoted: false,
   }

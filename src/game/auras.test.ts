@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { PIECE_TYPES } from '../data/pieceTypes'
-import { BISHOP_HEAL_AMOUNT, BISHOP_HEAL_INTERVAL_MS, applyHealing, buffedPieceIds } from './auras'
+import {
+  BISHOP_HEAL_AMOUNT,
+  BISHOP_HEAL_INTERVAL_MS,
+  KING_HEALTH_BONUS,
+  KING_SLIDE_BONUS,
+  KING_SPEED_MULTIPLIER,
+  applyHealing,
+  applyKingAura,
+  kingAdjacentKings,
+  kingMoveInterval,
+  kingSlideBonus,
+} from './auras'
 import type { Handedness, Piece, PieceTypeId, Square } from './types'
 
 function piece(id: string, typeId: PieceTypeId, square: Square, handedness: Handedness = 1): Piece {
@@ -16,40 +27,103 @@ function piece(id: string, typeId: PieceTypeId, square: Square, handedness: Hand
     moveCount: 0,
     handedness,
     auraCooldownMs: 0,
-    buffed: false,
+    kingAuraStacks: 0,
+    kingAuraKings: [],
     hunting: false,
     promoted: false,
   }
 }
 
 describe('the King aura', () => {
-  it('buffs a Piece on an adjacent square', () => {
+  it('grants one stack, and the defense grant, to a Piece on an adjacent square', () => {
     const pieces = [piece('k', 'king', { file: 4, rank: 4 }), piece('r', 'rook', { file: 5, rank: 5 })]
 
-    expect(buffedPieceIds(pieces).has('r')).toBe(true)
+    const adjacent = kingAdjacentKings(pieces)
+    const applied = applyKingAura(pieces, adjacent)
+    const rook = applied.find((each) => each.id === 'r')
+
+    expect(adjacent.get('r')).toEqual(['k'])
+    expect(rook?.kingAuraStacks).toBe(1)
+    expect(rook?.maxHealth).toBe(5 + KING_HEALTH_BONUS)
+    expect(rook?.health).toBe(5 + KING_HEALTH_BONUS)
+    expect(applied.find((each) => each.id === 'k')?.kingAuraStacks).toBe(0)
   })
 
   it('does not reach two squares away', () => {
     const pieces = [piece('k', 'king', { file: 4, rank: 4 }), piece('r', 'rook', { file: 6, rank: 4 })]
 
-    expect(buffedPieceIds(pieces).has('r')).toBe(false)
+    const applied = applyKingAura(pieces, kingAdjacentKings(pieces))
+
+    expect(applied.find((each) => each.id === 'r')?.kingAuraStacks).toBe(0)
   })
 
   it('never buffs the King itself', () => {
     const pieces = [piece('k', 'king', { file: 4, rank: 4 })]
 
-    expect(buffedPieceIds(pieces).has('k')).toBe(false)
+    const applied = applyKingAura(pieces, kingAdjacentKings(pieces))
+
+    expect(applied.find((each) => each.id === 'k')?.kingAuraStacks).toBe(0)
   })
 
   it('buffs a King standing beside a different King — exclusion is per-Piece, not per-type', () => {
     const pieces = [piece('k1', 'king', { file: 4, rank: 4 }), piece('k2', 'king', { file: 5, rank: 5 })]
 
-    expect(buffedPieceIds(pieces).has('k1')).toBe(true)
-    expect(buffedPieceIds(pieces).has('k2')).toBe(true)
+    const applied = applyKingAura(pieces, kingAdjacentKings(pieces))
+
+    expect(applied.find((each) => each.id === 'k1')?.kingAuraStacks).toBe(1)
+    expect(applied.find((each) => each.id === 'k2')?.kingAuraStacks).toBe(1)
   })
 
-  it('is empty when no King is on the board', () => {
-    expect(buffedPieceIds([piece('r', 'rook', { file: 4, rank: 4 })]).size).toBe(0)
+  it('is inert when no King is on the board — and returns the input array unchanged', () => {
+    const pieces = [piece('r', 'rook', { file: 4, rank: 4 })]
+
+    const applied = applyKingAura(pieces, kingAdjacentKings(pieces))
+
+    expect(applied).toBe(pieces)
+  })
+
+  it('gives one stack per adjacency episode: sustained contact adds nothing, leaving and re-entering adds another', () => {
+    const king = piece('k', 'king', { file: 4, rank: 4 })
+    const rook = piece('r', 'rook', { file: 5, rank: 5 })
+
+    const first = applyKingAura([king, rook], kingAdjacentKings([king, rook]))
+    expect(first.find((each) => each.id === 'r')?.kingAuraStacks).toBe(1)
+
+    const sustained = applyKingAura(first, kingAdjacentKings(first))
+    expect(sustained.find((each) => each.id === 'r')?.kingAuraStacks).toBe(1)
+
+    const separated = sustained.filter((each) => each.id !== 'k')
+    const left = applyKingAura(separated, kingAdjacentKings(separated))
+    expect(left.find((each) => each.id === 'r')?.kingAuraStacks).toBe(1)
+
+    const together = [...left, king]
+    const reentered = applyKingAura(together, kingAdjacentKings(together))
+    expect(reentered.find((each) => each.id === 'r')?.kingAuraStacks).toBe(2)
+  })
+
+  it('stacks: two Kings at once grant two stacks', () => {
+    const pieces = [
+      piece('k1', 'king', { file: 4, rank: 4 }),
+      piece('k2', 'king', { file: 6, rank: 4 }),
+      piece('r', 'rook', { file: 5, rank: 4 }),
+    ]
+
+    const applied = applyKingAura(pieces, kingAdjacentKings(pieces))
+
+    expect(applied.find((each) => each.id === 'r')?.kingAuraStacks).toBe(2)
+    expect(applied.find((each) => each.id === 'r')?.maxHealth).toBe(5 + 2 * KING_HEALTH_BONUS)
+  })
+
+  it('compounds the move interval multiplier per stack', () => {
+    expect(kingMoveInterval(900, 0)).toBe(900)
+    expect(kingMoveInterval(900, 1)).toBe(900 * KING_SPEED_MULTIPLIER)
+    expect(kingMoveInterval(900, 2)).toBe(900 * KING_SPEED_MULTIPLIER ** 2)
+  })
+
+  it('adds one slide per stack, to sliders only', () => {
+    expect(kingSlideBonus('rook', 1)).toBe(KING_SLIDE_BONUS)
+    expect(kingSlideBonus('rook', 2)).toBe(2 * KING_SLIDE_BONUS)
+    expect(kingSlideBonus('pawn', 3)).toBe(0)
   })
 })
 

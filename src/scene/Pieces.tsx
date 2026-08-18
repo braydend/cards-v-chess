@@ -194,14 +194,13 @@ function PieceMesh({
     // Toggling `visible` rather than mounting conditionally — mounting would
     // recompile the material. No state is set here.
     //
-    // Also gated on `inProgress`: `tick` early-returns during the `gap`
-    // phase, so a stranded Piece's `buffed` flag freezes at whatever it was
-    // on the round's last tick. Without this, a Piece whose escorting King
-    // died on that final tick would keep showing a ring for a King that no
-    // longer exists, for the whole gap between rounds.
+    // STOPSHOT, pending the renderer task: the engine has replaced the per-tick
+    // `buffed` flag with a permanent `kingAuraStacks`, so this reads the new
+    // field and keeps the old `inProgress` gate. The renderer task reworks the
+    // ring (scale by stacks, no gap gate) and adds the King's radius ring.
     const ring = ringRef.current
     if (ring) {
-      ring.visible = state.phase === 'inProgress' && piece.buffed
+      ring.visible = state.phase === 'inProgress' && piece.kingAuraStacks > 0
       if (ring.visible) {
         ring.position.set(mesh.position.x, 0.02, mesh.position.z)
       }

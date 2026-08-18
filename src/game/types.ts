@@ -140,7 +140,8 @@ export interface Piece {
   /**
    * The health this Piece spawned with — the ceiling a Bishop's heal restores
    * to. Set at spawn to the authored `maxHealth` (see `pieceTypes`), so a heal
-   * restores to what the Piece actually had. Never changes after spawn.
+   * restores to what the Piece actually had. Raised permanently by each
+   * King-aura stack's defense grant, so it can exceed the authored stat.
    */
   readonly maxHealth: number
   /** Milliseconds accumulated toward this piece's next hop. */
@@ -155,8 +156,23 @@ export interface Piece {
   readonly handedness: Handedness
   /** Milliseconds toward this Piece's next aura pulse. Bishops only. */
   readonly auraCooldownMs: number
-  /** Whether a King aura reached this Piece on the last tick. Renderer-facing. */
-  readonly buffed: boolean
+  /**
+   * Permanent King-aura stacks. A Piece gains one per adjacency episode — a
+   * contiguous period at Chebyshev distance 1 from one King — and never loses
+   * them. Each stack re-applies the full aura: move interval ×0.7, +1 slide
+   * to sliders, and +1 max health (healing current health by exactly the
+   * increase) the moment the stack lands. `movePieces` reads this directly;
+   * the renderer scales the buff ring by it.
+   */
+  readonly kingAuraStacks: number
+  /**
+   * The ids of the Kings this Piece was adjacent to at the last aura
+   * computation, so a King newly present in this tick's adjacency is a new
+   * episode worth one stack. Refreshed every tick to that tick's adjacency —
+   * a King leaving clears it, so re-entering is a new episode. Engine-internal
+   * episode bookkeeping; the renderer never reads it.
+   */
+  readonly kingAuraKings: readonly string[]
   /**
    * Whether this Piece has started hunting the Core — direction from a
    * distance field over its own movement — instead of its forward march.
@@ -180,10 +196,9 @@ export interface Piece {
   /**
    * Whether this Piece is a Queen minted by Pawn promotion.
    *
-   * Renderer-facing and never read by the engine — the same category `buffed`
-   * occupies. `Pieces.tsx` pops a Queen's mesh once, on the first frame it sees
-   * one, which needs no diff: a promoted Queen gets a fresh entity id, so React
-   * mounts a fresh mesh for it.
+   * Renderer-facing and never read by the engine. `Pieces.tsx` pops a Queen's
+   * mesh once, on the first frame it sees one, which needs no diff: a promoted
+   * Queen gets a fresh entity id, so React mounts a fresh mesh for it.
    *
    * False for every spawned Piece and every type that is not a promoted Queen,
    * kept false rather than omitted so every Piece has the same shape, exactly
