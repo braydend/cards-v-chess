@@ -80,6 +80,16 @@ export function TowerPanel() {
         )}
       </dl>
 
+      <div className="towerPanel__upgrades">
+        <p className="hud__muted">
+          Upgrades: {total} / {MAX_UPGRADES_PER_TOWER} spent
+        </p>
+        <p className="hud__muted">
+          {tower.upgradeCounts.damage} damage · {tower.upgradeCounts.fireRate} faster firing ·{' '}
+          {tower.upgradeCounts.health} health
+        </p>
+      </div>
+
       {pending > 0 && (
         <div className="towerPanel__upgrades">
           <p className="hud__muted">Upgrades ready: {pending}</p>
