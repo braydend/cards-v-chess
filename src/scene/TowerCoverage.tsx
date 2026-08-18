@@ -113,7 +113,7 @@ const RENDER_ORDER = 1
  *
  * This shows coverage, not targeting. A shot is capped at `targetsPerShot` and
  * picks the Pieces nearest the Core, so a footprint of dozens of squares can
- * resolve to a single Piece — a sniper lights a long file and hits one of the
+ * resolve to a single Piece — a sniper lights a full disc and hits one of the
  * Pieces standing in it. The panel carries that
  * figure. Lighting only the squares a shot would hit would change every tick,
  * which is not what a reference overlay is for.

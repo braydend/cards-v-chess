@@ -115,7 +115,8 @@ export function overlaySquares(
   from: Square,
   blockers: readonly Square[],
 ): Square[] {
-  return reachableSquares(board, towerType(type).geometry, range, from, blockers)
+  const def = towerType(type)
+  return reachableSquares(board, def.geometry, range, from, blockers, def.ignoresOcclusion)
 }
 
 export interface TowerFootprint {

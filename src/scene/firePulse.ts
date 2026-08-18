@@ -235,7 +235,7 @@ export function accumulatePulses(
   for (const tower of towers) scratchBlockers.push(tower.square)
 
   for (const pulse of pulses) {
-    const { geometry } = towerType(pulse.type)
+    const { geometry, ignoresOcclusion } = towerType(pulse.type)
     const range = pulse.range
     const rgb = TOWER_RGB[pulse.type]
     const elapsed = now - pulse.startedAt
@@ -275,8 +275,9 @@ export function accumulatePulses(
         // Occlusion, the same answer the engine consults before a shot: a
         // square the Tower can see but not hit is not a square its shot can
         // light. `isOccluded` skips the origin, so the shooter never blocks
-        // its own pulse.
-        if (isOccluded(scratchOrigin, scratchTarget, scratchBlockers, geometry)) continue
+        // its own pulse. The Sniper's `ignoresOcclusion` is passed through so
+        // its pulse lights the full disc, exactly as its shot lands.
+        if (isOccluded(scratchOrigin, scratchTarget, scratchBlockers, geometry, ignoresOcclusion)) continue
 
         const intensity = 1 - age / FADE_SECONDS
         const base = (boardRank * board.files + file) * 3

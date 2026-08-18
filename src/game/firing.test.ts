@@ -442,6 +442,35 @@ describe('tower firing: Towers block each other', () => {
     expect(wasHit(state, after, 'target-0')).toBe(true)
   })
 
+  it('a Sniper shot passes through a friendly Tower that would hide it from a vertical', () => {
+    // The same Wall-and-Pawn arrangement as the vertical occlusion test above:
+    // geometrically covered, actually hidden for every other Tower — but the
+    // Sniper ignores occlusion, so the Pawn on the far side still dies on the
+    // shot (4 damage into its 3 health, inside its 900ms hop).
+    const withWall = withTower('wall', { file: 3, rank: 4 })
+    const state = liveRound(withTower('sniper', { file: 3, rank: 7 }, withWall), [
+      pawnAt('target-0', { file: 3, rank: 2 }),
+    ])
+
+    const after = runFor(state, towerType('sniper').fireIntervalMs + DT)
+
+    expect(wasHit(state, after, 'target-0')).toBe(true)
+  })
+
+  it('a Sniper still cannot touch a Piece on the Staging rank', () => {
+    // The Sniper's disc geometrically covers rank 8 from {3, 4}, but damage
+    // cannot reach the Staging rank for ANY Tower — occlusion immunity is not
+    // a bounds exemption. The Pawn steps onto the board at 900ms, so within
+    // the shot window it is still staged and must be unharmed.
+    const state = liveRound(withTower('sniper', { file: 3, rank: 4 }), [
+      pawnAt('staged', { file: 3, rank: 8 }),
+    ])
+
+    const after = runFor(state, towerType('sniper').fireIntervalMs + DT)
+
+    expect(after.pieces.find((piece) => piece.id === 'staged')?.health).toBe(PAWN_HEALTH)
+  })
+
   it('retargets to the next-nearest reachable Piece when the nearest is hidden', () => {
     // Core is at {3,0}, so distance to Core is the board rank. target-0 at
     // {3,2} is nearer the Core than target-1 at {3,5} — but the Wall at {3,4}

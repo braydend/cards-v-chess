@@ -759,8 +759,7 @@ describe('tick: exit records', () => {
   it('records nothing when a Tower kills a Piece, since a kill is the absence of a record', () => {
     // A sniper deals 4 to a Pawn's 3 health, so one shot at 800ms kills it well
     // inside the Pawn's 900ms hop — no movement, no leak, nothing recorded.
-    // A sniper is 'vertical' with range 7, and the victim sits on its file, so
-    // it is covered from the first tick.
+    // The sniper's radius-6 disc covers the victim from the first tick.
     const armed = withTower('sniper', { file: 0, rank: 4 })
     const state = liveRound(armed, [pawnAt('victim', { file: 0, rank: 5 })])
     const after = runFor(state, towerType('sniper').fireIntervalMs + DT)

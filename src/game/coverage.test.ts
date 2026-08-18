@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BOARD } from '../data/board'
 import { PIECE_TYPES } from '../data/pieceTypes'
 import { towerType } from '../data/towerTypes'
-import { allSquares, isInBounds, squareKey } from './board'
+import { allSquares, isInBounds, squareKey, squaresEqual } from './board'
 import { coveredSquares, coversSquare, hittableSquares, isOccluded, reachableSquares } from './coverage'
 import { liveRound, pawnAt, withTower } from './fixtures'
 import { tick } from './tick'
@@ -630,5 +630,45 @@ describe('hittableSquares', () => {
     const state = withTower('wall', { file: 4, rank: 4 })
 
     expect(hittableSquares(BOARD, state.towers).size).toBe(0)
+  })
+})
+
+describe('the Sniper: a filled disc that ignores occlusion', () => {
+  it('covers every square within a 6-step radius in any direction', () => {
+    const sniper = towerType('sniper')
+
+    // Chebyshev distance 6 from the centre of the 8x8 board reaches every
+    // square on it, so the footprint is the whole board minus its own square.
+    const covered = coveredSquares(BOARD, sniper.geometry, sniper.range, { file: 3, rank: 3 })
+
+    expect(covered).toHaveLength(BOARD.files * BOARD.ranks - 1)
+  })
+
+  it('stops short of the opposite corner, so the disc is bounded', () => {
+    expect(coversSquare('adjacent', 6, { file: 0, rank: 0 }, { file: 7, rank: 7 })).toBe(false)
+  })
+
+  it('reachableSquares keeps a square behind a friendly Tower only with the flag', () => {
+    const from = { file: 3, rank: 7 }
+    const target = { file: 3, rank: 2 }
+    const blocker = { file: 3, rank: 4 }
+
+    const withFlag = reachableSquares(BOARD, 'adjacent', 6, from, [blocker], true)
+    const withoutFlag = reachableSquares(BOARD, 'adjacent', 6, from, [blocker])
+
+    expect(withFlag.some((square) => squaresEqual(square, target))).toBe(true)
+    expect(withoutFlag.some((square) => squaresEqual(square, target))).toBe(false)
+  })
+
+  it('hittableSquares keeps the far square for a placed Sniper behind its own blocker', () => {
+    // A Wall stands between the Sniper and {3, 2}. Any other Tower would be
+    // occluded by it — this asserts the Sniper's exemption reaches the union
+    // that yellow's repulsion reads, not just the single-square predicate.
+    const withWall = withTower('wall', { file: 3, rank: 4 })
+    const state = withTower('sniper', { file: 3, rank: 7 }, withWall)
+
+    const reachable = hittableSquares(BOARD, state.towers)
+
+    expect(reachable.has(squareKey({ file: 3, rank: 2 }))).toBe(true)
   })
 })

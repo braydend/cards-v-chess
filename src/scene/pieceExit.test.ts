@@ -67,8 +67,8 @@ describe('diffPieceExits', () => {
     // A sniper deals 4 to a Pawn's 3 health, so its shot at 800ms kills it
     // inside the Pawn's 900ms hop — the Piece never moves, so "last published"
     // and "where the player last saw it" are the same square here. The sniper
-    // is 'vertical' geometry with range 7, and the victim sits on the same
-    // file as the Tower, so it is covered throughout.
+    // is a radius-6 disc, and the victim sits a square away, so it is covered
+    // throughout.
     const before = liveRound(withTower('sniper', { file: 0, rank: 4 }), [
       pawnAt('victim', { file: 0, rank: 5 }),
     ])
@@ -93,22 +93,26 @@ describe('diffPieceExits', () => {
     // told apart exactly, not guessed at by re-running movement. Drives both
     // in the same window so a single diff has to carry both reasons at once.
     //
-    // A sniper fires at 800ms for 4 damage, one-shotting a 3-health Pawn
-    // well inside the Pawn's 900ms hop — the victim never moves before it
-    // dies, so "last published" and "where it stood" agree (see the
-    // single-kill test above). The leaker sits one hop from the Core at
-    // {3, 1} and reaches it on its first hop, at 900ms.
+    // The sniper can no longer play this role: its radius-6 disc covers every
+    // square a Pawn can leak from, so no placement leaves the leaker out of
+    // reach. A splash Tower kills the victim in place instead, and a Wall
+    // keeps the victim from hopping while it is chipped down.
     //
-    // The sniper is 'vertical' geometry with range 7, so only its own file is
-    // covered. The Tower sits at {7, 4}: the victim at {7, 5} is on that file,
-    // but the leaker at {3, 1} is on a different one — well out of range, so
-    // the Tower can never touch the leaker and the leaker's exit is a genuine
-    // leak, not a kill.
-    const before = liveRound(withTower('sniper', { file: 7, rank: 4 }), [
+    // The victim Pawn at {3, 7} is blocked straight ahead by the Wall at
+    // {3, 6}, so it grinds in place — the splash at {2, 7} covers it (one
+    // square away) and fells it on its second shot at 1200ms, so "last
+    // published" and "where it stood" agree. The leaker at {3, 1} marches
+    // straight into the Core at 900ms, out of the splash's range-1 reach the
+    // whole time, so its exit is a genuine leak, not a kill.
+    const withWall = withTower('wall', { file: 3, rank: 6 })
+    const before = liveRound(withTower('splash', { file: 2, rank: 7 }, withWall), [
       pawnAt('leaker', { file: 3, rank: 1 }),
-      pawnAt('victim', { file: 7, rank: 5 }),
+      pawnAt('victim', { file: 3, rank: 7 }),
     ])
-    const after = runFor(before, PIECE_TYPES.pawn.moveIntervalMs + DT)
+    const after = runFor(
+      before,
+      PIECE_TYPES.pawn.moveIntervalMs + towerType('splash').fireIntervalMs * 2 + DT,
+    )
     const diff = diffPieceExits(seededOn(before), after)
 
     // Sanity check the arrangement actually emptied the board as intended,
@@ -132,8 +136,8 @@ describe('diffPieceExits', () => {
           typeId: 'pawn',
           tier: 'green',
           reason: 'kill',
-          file: 7,
-          boardRank: 5,
+          file: 3,
+          boardRank: 7,
         },
       ]),
     )

@@ -28,22 +28,32 @@ export interface TowerTypeDef {
   readonly fireIntervalMs: number
   readonly maxHealth: number
   readonly targetsPerShot: number
+  /**
+   * Whether the Tower's shot passes through other Towers standing between it
+   * and its target. `isOccluded` is skipped for it in every caller — the
+   * targeting in `selectTargets`, the footprint in `reachableSquares`, and
+   * the fire pulse in `firePulse.ts` — so its footprint and its shots always
+   * agree. Only the Sniper carries it. The Staging-rank bounds check is a
+   * separate rule and is NOT exempted.
+   */
+  readonly ignoresOcclusion?: boolean
 }
 
 /**
  * Every tower type, in rarity order.
  *
- * `sniper` reuses the `vertical` geometry at a long range — one file, high
- * single-target damage, slow. `splash` reuses `adjacent` at range 1 — the
- * eight neighbours, hit in a small burst. Both are new TYPES; their shapes
- * are built from existing geometries so `coverage.ts` needs no new cases.
- * `ring` hits EVERYTHING its ring covers (the old Amplifier, now dealing
- * damage directly). `tollgate` is the full-width band.
+ * `sniper` is the two-pair Tower: a filled radius-6 disc (`adjacent`
+ * geometry) that sees through friendly Towers — one target per shot, slow, so
+ * its reach is bought at thin throughput. `splash` reuses `adjacent` at range
+ * 1 — the eight neighbours, hit in a small burst. Both are new TYPES; their
+ * shapes are built from existing geometries so `coverage.ts` needs no new
+ * cases. `ring` hits EVERYTHING its ring covers (the old Amplifier, now
+ * dealing damage directly). `tollgate` is the full-width band.
  */
 export const TOWER_TYPES: Record<TowerTypeId, TowerTypeDef> = {
   vertical: { geometry: 'vertical', range: 5, damage: 2, fireIntervalMs: 700, maxHealth: 14, targetsPerShot: 1 },
   wall: { geometry: 'none', range: 0, damage: 0, fireIntervalMs: 1000, maxHealth: 45, targetsPerShot: 0 },
-  sniper: { geometry: 'vertical', range: 7, damage: 4, fireIntervalMs: 800, maxHealth: 18, targetsPerShot: 1 },
+  sniper: { geometry: 'adjacent', range: 6, damage: 4, fireIntervalMs: 800, maxHealth: 18, targetsPerShot: 1, ignoresOcclusion: true },
   diagonal: { geometry: 'diagonal', range: 5, damage: 2, fireIntervalMs: 550, maxHealth: 22, targetsPerShot: 1 },
   cross: { geometry: 'cross', range: 4, damage: 2, fireIntervalMs: 550, maxHealth: 24, targetsPerShot: 1 },
   star: { geometry: 'star', range: 3, damage: 2, fireIntervalMs: 600, maxHealth: 26, targetsPerShot: 1 },
